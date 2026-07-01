@@ -17,7 +17,7 @@
 - 移除 Web 端诊断入口。
 - 改进模块同步、发布稳定性与 Web 管理体验。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v1.1.0/Surge%20Relay-1.1.0.dmg" length="7941226" type="application/octet-stream" sparkle:edSignature="zgBEBAWml1SG8vNM2UCnnMc3oK11pArGFJPY25reCF6NaiMDUbmOCWgtrN1qqFzgWAueHA0CZnM2NvRCh/S0Bg=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v1.1.0/Surge-Relay-1.1.0.dmg" length="7941226" type="application/octet-stream" sparkle:edSignature="zgBEBAWml1SG8vNM2UCnnMc3oK11pArGFJPY25reCF6NaiMDUbmOCWgtrN1qqFzgWAueHA0CZnM2NvRCh/S0Bg=="/>
         </item>
     </channel>
 </rss>
