@@ -21,6 +21,17 @@ actor ModuleFileStore {
         PersistenceStore.cacheDirectoryURL.appending(path: "CombinedOverride.cache")
     }
 
+    func prepareStorage() throws {
+        for directory in [componentDirectory, overrideDirectory, assetDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+    }
+
+    func hasCombined() -> Bool {
+        FileManager.default.fileExists(atPath: combinedOverrideURL.path)
+            || FileManager.default.fileExists(atPath: combinedCacheURL.path)
+    }
+
     func writeComponent(_ content: String, id: UUID) throws {
         try FileManager.default.createDirectory(at: componentDirectory, withIntermediateDirectories: true)
         try Data(SurgeModuleSanitizer.sanitize(content).utf8).write(to: componentURL(for: id), options: .atomic)

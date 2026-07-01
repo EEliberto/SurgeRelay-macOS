@@ -220,14 +220,25 @@ enum WebManagementAPI {
 
     nonisolated static func assetResponse(for path: String) -> WebHTTPResponse {
         let relativePath = path == "/" ? "index.html" : String(path.drop(while: { $0 == "/" }))
-        guard !relativePath.contains(".."),
-              let root = Bundle.main.resourceURL?.appending(path: "WebResources", directoryHint: .isDirectory) else {
+        guard !relativePath.contains(".."), let resourceRoot = Bundle.main.resourceURL else {
             return .error(status: 404, message: "页面不存在。")
         }
-        let requestedURL = root.appending(path: relativePath)
-        let fileURL = FileManager.default.fileExists(atPath: requestedURL.path)
-            ? requestedURL
-            : root.appending(path: "index.html")
+        let bundledRoot = resourceRoot.appending(path: "WebResources", directoryHint: .isDirectory)
+        let requestedURL = bundledRoot.appending(path: relativePath)
+        let legacyFlattenedURL = resourceRoot.appending(path: URL(filePath: relativePath).lastPathComponent)
+        let bundledIndexURL = bundledRoot.appending(path: "index.html")
+        let legacyIndexURL = resourceRoot.appending(path: "index.html")
+        let fileURL: URL
+        if FileManager.default.fileExists(atPath: requestedURL.path) {
+            fileURL = requestedURL
+        } else if FileManager.default.fileExists(atPath: legacyFlattenedURL.path) {
+            // Older project files copied WebResources into the bundle root.
+            fileURL = legacyFlattenedURL
+        } else if FileManager.default.fileExists(atPath: bundledIndexURL.path) {
+            fileURL = bundledIndexURL
+        } else {
+            fileURL = legacyIndexURL
+        }
         guard let data = try? Data(contentsOf: fileURL) else {
             return .error(status: 404, message: "Web 页面资源尚未安装。")
         }

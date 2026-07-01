@@ -5,6 +5,10 @@ enum PersistenceStore {
     private static let legacySettingsKey = "SurgeRelay.settings.v1"
     private static let legacyUpstreamKey = "SurgeRelay.upstream.v1"
 
+    static var hasSelectedConfigurationDirectory: Bool {
+        UserDefaults.standard.string(forKey: configurationDirectoryKey) != nil
+    }
+
     static var configurationDirectoryURL: URL {
         let path = UserDefaults.standard.string(forKey: configurationDirectoryKey)
             ?? AppSettings.defaultConfigurationDirectory
@@ -100,6 +104,16 @@ enum PersistenceStore {
         let directory = URL(filePath: trimmed, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try migrateOverrides(from: sourceDirectory, to: directory)
+        UserDefaults.standard.set(directory.path, forKey: configurationDirectoryKey)
+    }
+
+    /// Selects a configuration directory on a new Mac without migrating the
+    /// temporary/default configuration over an existing iCloud copy.
+    static func selectConfigurationDirectory(_ path: String) throws {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw CocoaError(.fileNoSuchFile) }
+        let directory = URL(filePath: trimmed, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         UserDefaults.standard.set(directory.path, forKey: configurationDirectoryKey)
     }
 

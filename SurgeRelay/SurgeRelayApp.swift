@@ -1,3 +1,4 @@
+import AppKit
 import Sparkle
 import SwiftUI
 
@@ -5,8 +6,29 @@ enum SurgeRelayWindow {
     static let main = "main"
 }
 
+final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
+        sender.setActivationPolicy(.regular)
+        sender.activate(ignoringOtherApps: true)
+        let window = sender.windows.first(where: { $0.canBecomeMain && $0.level == .normal })
+        window?.deminiaturize(nil)
+        window?.makeKeyAndOrderFront(nil)
+        return true
+    }
+}
+
 @main
 struct SurgeRelayApp: App {
+    @NSApplicationDelegateAdaptor(SurgeRelayAppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     private let updaterController: SPUStandardUpdaterController
 
@@ -22,7 +44,7 @@ struct SurgeRelayApp: App {
         Window("Surge Relay", id: SurgeRelayWindow.main) {
             RootView()
                 .environment(model)
-                .task { model.start() }
+                .task { await model.start() }
                 .frame(minWidth: 700)
         }
         .windowStyle(.automatic)
@@ -50,5 +72,6 @@ struct SurgeRelayApp: App {
             MenuBarContent(updater: updaterController.updater)
                 .environment(model)
         }
+        .menuBarExtraStyle(.menu)
     }
 }

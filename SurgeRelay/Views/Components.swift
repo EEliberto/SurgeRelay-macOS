@@ -206,7 +206,7 @@ struct ModulePreviewPane: View {
             }
             .padding(12)
         }
-        .task(id: module.id) { await load() }
+        .task(id: "\(module.id.uuidString)-\(currentModule.contentHash ?? "pending")") { await load() }
         .alert("无法完成操作", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -224,6 +224,12 @@ struct ModulePreviewPane: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
+        guard await model.hasPreviewContent(for: module) else {
+            text = ""
+            savedText = ""
+            errorMessage = nil
+            return
+        }
         do {
             let content = try await model.previewContent(for: module)
             text = content
@@ -356,6 +362,11 @@ struct CombinedPreviewPane: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
+        guard !enabledModules.isEmpty, await model.hasCombinedPreviewContent() else {
+            text = ""
+            errorMessage = nil
+            return
+        }
         do {
             text = try await model.combinedPreviewContent()
         } catch {

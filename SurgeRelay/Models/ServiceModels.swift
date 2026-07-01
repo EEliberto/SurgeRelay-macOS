@@ -102,6 +102,8 @@ enum RelayError: LocalizedError, Sendable {
     case httpFailure(status: Int, message: String)
     case githubNotConfigured
     case githubTokenMissing
+    case githubRepositoryMustBePrivate
+    case cloudflareNotConfigured
     case noFilesToPublish
 
     var errorDescription: String? {
@@ -113,6 +115,8 @@ enum RelayError: LocalizedError, Sendable {
         case .httpFailure(let status, let message): "网络请求失败（\(status)）：\(message)"
         case .githubNotConfigured: "请先填写 GitHub 仓库信息。"
         case .githubTokenMissing: "请先保存 GitHub Token。"
+        case .githubRepositoryMustBePrivate: "请使用私有 GitHub 仓库搭配 Cloudflare 使用，或使用本地存储。"
+        case .cloudflareNotConfigured: "请先配置 Cloudflare Worker 公共地址，或使用本地存储。"
         case .noFilesToPublish: "没有可发布的模块文件。"
         }
     }

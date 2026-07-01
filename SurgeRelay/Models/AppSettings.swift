@@ -32,6 +32,17 @@ struct GitHubSettings: Codable, Equatable, Sendable {
         !owner.isEmpty && !repository.isEmpty && !branch.isEmpty
     }
 
+    var hasValidCloudflarePublicBaseURL: Bool {
+        let value = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              components.host != nil else {
+            return false
+        }
+        return true
+    }
+
     func rawURL(for fileName: String) -> URL? {
         guard isConfigured else { return nil }
         let components = [owner, repository, branch, directory, fileName]
@@ -41,11 +52,9 @@ struct GitHubSettings: Codable, Equatable, Sendable {
     }
 
     func publicURL(for fileName: String) -> URL? {
-        guard let repositoryIsPrivate else { return nil }
-        guard repositoryIsPrivate else { return rawURL(for: fileName) }
+        guard repositoryIsPrivate == true, hasValidCloudflarePublicBaseURL else { return nil }
         let base = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !base.isEmpty else { return nil }
         let path = fileName.split(separator: "/").map { component in
             String(component).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String(component)
         }.joined(separator: "/")

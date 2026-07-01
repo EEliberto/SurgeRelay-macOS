@@ -64,6 +64,15 @@ actor GitHubClient {
         guard !token.isEmpty else { throw RelayError.githubTokenMissing }
         guard !files.isEmpty else { throw RelayError.noFilesToPublish }
 
+        // This check belongs at the upload boundary so automatic publishing and
+        // future callers cannot bypass the private-repository policy.
+        guard try await test(settings: settings, token: token) else {
+            throw RelayError.githubRepositoryMustBePrivate
+        }
+        guard settings.hasValidCloudflarePublicBaseURL else {
+            throw RelayError.cloudflareNotConfigured
+        }
+
         var changedFiles: [PublishFile] = []
         for file in files {
             try Task.checkCancellation()

@@ -3,21 +3,21 @@
     <channel>
         <title>Surge Relay</title>
         <item>
-            <title>1.1.0</title>
-            <pubDate>Wed, 01 Jul 2026 16:35:44 +0800</pubDate>
+            <title>1.1.1</title>
+            <pubDate>Wed, 01 Jul 2026 21:35:40 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS</link>
-            <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Surge Relay 1.1.0
+            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，此版本推出了以下更新：
 
-- 新增 Sparkle 自动更新与“检查更新…”入口。
-- 修复移动端 Web 首页横向滑动、编辑弹窗动画和拷贝反馈。
-- 移除 Web 端诊断入口。
-- 改进模块同步、发布稳定性与 Web 管理体验。
+1. 修复 Web 访问资源丢失的问题。
+2. 感谢由 @可莉 提出的建议，GitHub 仓库仅支持私有仓库上传并搭配 Cloudflare，不再支持公开仓库用作备份（如果你不知道如何操作，可借助 AI 或直接使用 iCloud）。
+3. 感谢由 @NullDate 反馈的 bug，修复了首次打开因没有 cache 文件会报错的 bug，并允许用户在初次打开自定义配置文件存储目录。
+4. 感谢由 @NullDate 提出的建议，Surge Relay 现已支持后台运行 + 顶部菜单栏模式。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v1.1.0/Surge-Relay-1.1.0.dmg" length="7941226" type="application/octet-stream" sparkle:edSignature="zgBEBAWml1SG8vNM2UCnnMc3oK11pArGFJPY25reCF6NaiMDUbmOCWgtrN1qqFzgWAueHA0CZnM2NvRCh/S0Bg=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v1.1.1/Surge-Relay-1.1.1.dmg" length="7600799" type="application/octet-stream" sparkle:edSignature="JxIP/AiP+RPf/jzScqySbEIgw5BkKHoQWe0MomPSkip7aczEHZ8UFJ76Yoe2zPfBBNQHgGAlORM7jiyO05JKCA=="/>
         </item>
     </channel>
 </rss>

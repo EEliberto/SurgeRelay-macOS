@@ -60,12 +60,18 @@ final class AppModel {
         try? PersistenceStore.saveModules(loadedModules)
     }
 
-    func start() {
+    func start() async {
         guard !hasStarted else { return }
+        await selectInitialConfigurationDirectoryIfNeeded()
         hasStarted = true
         applyWebServerSettings(persist: false)
         restartScheduler()
         Task {
+            do {
+                try await fileStore.prepareStorage()
+            } catch {
+                presentedError = "无法初始化缓存目录：\(error.localizedDescription)"
+            }
             await cleanupLegacyOutputFiles()
             await refreshModuleMetadataFromCache()
             let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
@@ -83,6 +89,81 @@ final class AppModel {
                 statusMessage = "模块仍在刷新周期内，无需重新加载"
             }
         }
+    }
+
+    private func selectInitialConfigurationDirectoryIfNeeded() async {
+        guard !PersistenceStore.hasSelectedConfigurationDirectory else { return }
+
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "选择 Surge Relay 配置存储目录"
+        alert.informativeText = "请选择 Surge Relay 配置存储目录，建议使用 iCloud 云盘中的 Surge 文件夹并新建 Surge Relay 文件夹作为目的地。"
+        alert.accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 1))
+        alert.addButton(withTitle: "选择目录…")
+        alert.addButton(withTitle: "稍后")
+        guard await modalResponse(for: alert) == .alertFirstButtonReturn else { return }
+
+        let panel = NSOpenPanel()
+        panel.title = "选择配置存储目录"
+        panel.message = "选择用于保存 Surge Relay 配置的文件夹"
+        panel.prompt = "选择"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(
+            filePath: AppSettings.defaultConfigurationDirectory,
+            directoryHint: .isDirectory
+        )
+        guard await modalResponse(for: panel) == .OK, let url = panel.url else { return }
+
+        do {
+            try PersistenceStore.selectConfigurationDirectory(url.path)
+            reloadConfigurationFromSelectedDirectory()
+            statusMessage = "已使用所选配置存储目录"
+        } catch {
+            presentedError = "无法使用所选配置目录：\(error.localizedDescription)"
+        }
+    }
+
+    private func modalResponse(for alert: NSAlert) async -> NSApplication.ModalResponse {
+        guard let window = mainApplicationWindow else { return alert.runModal() }
+        return await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { response in
+                continuation.resume(returning: response)
+            }
+        }
+    }
+
+    private func modalResponse(for panel: NSOpenPanel) async -> NSApplication.ModalResponse {
+        guard let window = mainApplicationWindow else { return panel.runModal() }
+        return await withCheckedContinuation { continuation in
+            panel.beginSheetModal(for: window) { response in
+                continuation.resume(returning: response)
+            }
+        }
+    }
+
+    private var mainApplicationWindow: NSWindow? {
+        NSApp.keyWindow ?? NSApp.windows.first(where: { $0.canBecomeMain && $0.level == .normal })
+    }
+
+    private func reloadConfigurationFromSelectedDirectory() {
+        var loadedSettings = PersistenceStore.loadSettings()
+        if loadedSettings.github.owner.isEmpty { loadedSettings.github.owner = "EEliberto" }
+        if loadedSettings.github.repository.isEmpty { loadedSettings.github.repository = "Surge-Relay" }
+        if loadedSettings.github.branch.isEmpty { loadedSettings.github.branch = "main" }
+        if loadedSettings.github.directory.isEmpty { loadedSettings.github.directory = "modules" }
+        settings = loadedSettings
+        modules = Self.normalizedModuleNaming(
+            PersistenceStore.loadModules(),
+            combinedFileName: loadedSettings.combinedModuleFileName
+        )
+        upstreamState = PersistenceStore.loadUpstreamState()
+        updateHistory = PersistenceStore.loadUpdateHistory()
+        githubToken = loadedSettings.githubToken
+        selectedModuleID = Self.combinedModuleSelectionID
     }
 
     private func shouldUpdateModulesOnLaunch() async -> Bool {
@@ -176,6 +257,9 @@ final class AppModel {
         guard settings.storageMode != mode else { return }
         settings.storageMode = mode
         saveSettings()
+        if mode == .gitHub, settings.github.repositoryIsPrivate == false {
+            presentedError = RelayError.githubRepositoryMustBePrivate.localizedDescription
+        }
         if mode == .local { Task { await rebuildCombinedFromCache() } }
     }
 
@@ -375,7 +459,7 @@ final class AppModel {
             return
         }
 
-        if settings.github.repositoryIsPrivate == nil,
+        if settings.storageMode == .gitHub,
            settings.github.isConfigured,
            !githubToken.isEmpty,
            let isPrivate = try? await githubClient.test(settings: settings.github, token: githubToken) {
@@ -688,7 +772,11 @@ final class AppModel {
             let isPrivate = try await githubClient.test(settings: settings.github, token: githubToken)
             settings.github.repositoryIsPrivate = isPrivate
             saveSettings()
-            statusMessage = isPrivate ? "GitHub 私有仓库连接成功，需要配置 Cloudflare Worker" : "GitHub 公开仓库连接成功，将直接使用 Raw 地址"
+            guard isPrivate else { throw RelayError.githubRepositoryMustBePrivate }
+            guard settings.github.hasValidCloudflarePublicBaseURL else {
+                throw RelayError.cloudflareNotConfigured
+            }
+            statusMessage = "GitHub 私有仓库与 Cloudflare 连接配置有效"
         } catch {
             presentedError = error.localizedDescription
         }
@@ -715,6 +803,10 @@ final class AppModel {
         if settings.github.repositoryIsPrivate != isPrivate {
             settings.github.repositoryIsPrivate = isPrivate
             saveSettings()
+        }
+        guard isPrivate else { throw RelayError.githubRepositoryMustBePrivate }
+        guard settings.github.hasValidCloudflarePublicBaseURL else {
+            throw RelayError.cloudflareNotConfigured
         }
         let fileName = FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
         let data = try await fileStore.readCombined()
@@ -838,6 +930,14 @@ final class AppModel {
     func previewContent(for module: RelayModule) async throws -> String {
         let content = try await fileStore.readComponent(id: module.id)
         return await processingWorker.materialize(content, overrides: module.argumentOverrides)
+    }
+
+    func hasPreviewContent(for module: RelayModule) async -> Bool {
+        await fileStore.hasComponent(id: module.id)
+    }
+
+    func hasCombinedPreviewContent() async -> Bool {
+        await fileStore.hasCombined()
     }
 
     func moduleArgumentInfo(for module: RelayModule) async -> ModuleArgumentInfo {

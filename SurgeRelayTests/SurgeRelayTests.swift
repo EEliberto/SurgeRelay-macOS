@@ -110,14 +110,11 @@ final class SurgeRelayTests: XCTestCase {
         )
     }
 
-    func testPublicRepositoryUsesGitHubRawWithoutCloudflare() throws {
+    func testPublicRepositoryDoesNotExposePublishedURL() {
         var settings = GitHubSettings()
         settings.repositoryIsPrivate = false
         settings.publicBaseURL = "https://unused.example.workers.dev"
-        XCTAssertEqual(
-            try XCTUnwrap(settings.publicURL(for: "Demo.sgmodule")).host,
-            "raw.githubusercontent.com"
-        )
+        XCTAssertNil(settings.publicURL(for: "Demo.sgmodule"))
     }
 
     func testPrivateRepositoryRequiresCloudflareAndUsesItWhenConfigured() throws {
@@ -142,7 +139,8 @@ final class SurgeRelayTests: XCTestCase {
         var settings = AppSettings()
         settings.combinedModuleFileName = "My Relay"
         settings.localModuleDirectory = "/tmp/Surge Relay"
-        settings.github.repositoryIsPrivate = false
+        settings.github.repositoryIsPrivate = true
+        settings.github.publicBaseURL = "https://surge-relay.example.workers.dev"
 
         settings.storageMode = .local
         XCTAssertNil(settings.publishedURL(for: "My-Relay.sgmodule"))
@@ -153,10 +151,7 @@ final class SurgeRelayTests: XCTestCase {
 
         settings.storageMode = .gitHub
         XCTAssertNil(settings.localCombinedModuleURL)
-        XCTAssertEqual(
-            try XCTUnwrap(settings.publishedURL(for: "My-Relay.sgmodule")).host,
-            "raw.githubusercontent.com"
-        )
+        XCTAssertEqual(try XCTUnwrap(settings.publishedURL(for: "My-Relay.sgmodule")).host, "surge-relay.example.workers.dev")
     }
 
     func testConfigurationMigrationCopiesOverridesWithoutRemovingDestinationFiles() throws {

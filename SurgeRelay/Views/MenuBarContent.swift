@@ -70,6 +70,7 @@ struct MenuBarContent: View {
     }
 
     private func activateMainWindow() {
+        NSApp.setActivationPolicy(.regular)
         openWindow(id: SurgeRelayWindow.main)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NSApp.activate(ignoringOtherApps: true)
