@@ -571,8 +571,14 @@ private final class GitHubPublishURLProtocol: URLProtocol, @unchecked Sendable {
         if path == "/repos/owner/relay" {
             body = Data(#"{"private":true}"#.utf8)
             status = 200
-        } else if path.contains("/repos/owner/relay/contents/modules/Surge-Relay.sgmodule") {
-            body = Data("{\"sha\":\"\(Self.expectedBlobSHA)\"}".utf8)
+        } else if path == "/repos/owner/relay/git/ref/heads/main" {
+            body = Data(#"{"object":{"sha":"head"}}"#.utf8)
+            status = 200
+        } else if path == "/repos/owner/relay/git/commits/head" {
+            body = Data(#"{"sha":"head","tree":{"sha":"tree"}}"#.utf8)
+            status = 200
+        } else if path == "/repos/owner/relay/git/trees/tree" {
+            body = Data("{\"tree\":[{\"path\":\"modules/Surge-Relay.sgmodule\",\"type\":\"blob\",\"sha\":\"\(Self.expectedBlobSHA)\"}]}".utf8)
             status = 200
         } else {
             body = Data(#"{"message":"unexpected request"}"#.utf8)

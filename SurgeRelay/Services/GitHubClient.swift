@@ -3,9 +3,9 @@ import Foundation
 actor GitHubClient {
     private enum PublishAttemptError: Error {
         case verificationFailed
+        case headMoved
     }
 
-    private struct ExistingContent: Decodable { let sha: String }
     private struct GitHubMessage: Decodable { let message: String }
     private struct RepositoryMetadata: Decodable {
         let isPrivate: Bool
@@ -34,6 +34,12 @@ actor GitHubClient {
         private enum CodingKeys: String, CodingKey { case baseTree = "base_tree", tree }
     }
     private struct TreeResponse: Decodable { let sha: String }
+    private struct TreeListingEntry: Decodable {
+        let path: String
+        let type: String
+        let sha: String
+    }
+    private struct TreeListingResponse: Decodable { let tree: [TreeListingEntry] }
     private struct CommitRequest: Encodable {
         let message: String
         let tree: String
@@ -55,7 +61,7 @@ actor GitHubClient {
         let url = try apiURL(settings: settings, fileName: nil)
         var request = URLRequest(url: url, timeoutInterval: 30)
         applyHeaders(to: &request, token: token)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             throw RelayError.httpFailure(status: status, message: "无法访问该仓库。")
@@ -85,17 +91,25 @@ actor GitHubClient {
             }
         }
 
-        for attempt in 0..<3 {
+        let maximumAttempts = 5
+        for attempt in 0..<maximumAttempts {
             do {
                 return try await publishAttempt(files: files, settings: settings, token: token)
             } catch {
-                guard attempt < 2, isRetryablePublishError(error) else {
-                    if error is PublishAttemptError {
-                        throw RelayError.invalidOutput("GitHub 提交后内容校验失败，未确认发布成功。")
+                guard attempt < maximumAttempts - 1, isRetryablePublishError(error) else {
+                    if let attemptError = error as? PublishAttemptError {
+                        switch attemptError {
+                        case .verificationFailed:
+                            throw RelayError.invalidOutput("GitHub 提交后内容校验失败，未确认发布成功。")
+                        case .headMoved:
+                            throw RelayError.invalidOutput("GitHub 仓库正在被其他设备更新，请稍后重试。")
+                        }
                     }
                     throw error
                 }
-                try await Task.sleep(for: .milliseconds(400 * (attempt + 1)))
+                let exponentialDelay = 350 * (1 << attempt)
+                let jitter = Int.random(in: 75...275)
+                try await Task.sleep(for: .milliseconds(exponentialDelay + jitter))
             }
         }
         throw RelayError.invalidOutput("GitHub 发布重试次数已用尽。")
@@ -106,14 +120,6 @@ actor GitHubClient {
         settings: GitHubSettings,
         token: String
     ) async throws -> PublishReport {
-        var changedFiles: [PublishFile] = []
-        for file in files {
-            try Task.checkCancellation()
-            let sha = try await existingSHA(fileName: file.name, settings: settings, token: token)
-            if sha != file.data.gitBlobSHA1 { changedFiles.append(file) }
-        }
-        guard !changedFiles.isEmpty else { return PublishReport(publishedFiles: []) }
-
         let branch = encodedPathComponent(settings.branch)
         let reference: ReferenceResponse = try await requestJSON(
             path: "git/ref/heads/\(branch)",
@@ -127,8 +133,23 @@ actor GitHubClient {
             settings: settings,
             token: token
         )
+        let existingTree: TreeListingResponse = try await requestJSON(
+            path: "git/trees/\(headCommit.tree.sha)?recursive=1",
+            method: "GET",
+            settings: settings,
+            token: token
+        )
+        let existingBlobSHAs = Dictionary(
+            uniqueKeysWithValues: existingTree.tree
+                .filter { $0.type == "blob" }
+                .map { ($0.path, $0.sha) }
+        )
+        let changedFiles = files.filter { file in
+            existingBlobSHAs[repositoryPath(for: file.name, settings: settings)] != file.data.gitBlobSHA1
+        }
+        guard !changedFiles.isEmpty else { return PublishReport(publishedFiles: []) }
+
         var entries: [TreeEntry] = []
-        var expectedBlobSHAs: [String: String] = [:]
         for file in changedFiles {
             try Task.checkCancellation()
             let blob: BlobResponse = try await requestJSON(
@@ -140,7 +161,6 @@ actor GitHubClient {
             )
             let path = repositoryPath(for: file.name, settings: settings)
             entries.append(TreeEntry(path: path, sha: blob.sha))
-            expectedBlobSHAs[file.name] = blob.sha
         }
         let tree: TreeResponse = try await requestJSON(
             path: "git/trees",
@@ -160,6 +180,18 @@ actor GitHubClient {
             settings: settings,
             token: token
         )
+        // Another Mac may have advanced the same private repository while this
+        // commit was being assembled. Re-read the branch before the compare-and-
+        // swap update so we can rebuild on the new head instead of surfacing 422.
+        let latestReference: ReferenceResponse = try await requestJSON(
+            path: "git/ref/heads/\(branch)",
+            method: "GET",
+            settings: settings,
+            token: token
+        )
+        guard latestReference.object.sha == headCommit.sha else {
+            throw PublishAttemptError.headMoved
+        }
         let updatedReference: ReferenceResponse = try await requestJSON(
             path: "git/refs/heads/\(branch)",
             method: "PATCH",
@@ -171,20 +203,28 @@ actor GitHubClient {
         guard updatedReference.object.sha == commit.sha else {
             throw PublishAttemptError.verificationFailed
         }
-
-        for file in changedFiles {
-            let remoteSHA = try await existingSHA(fileName: file.name, settings: settings, token: token)
-            guard remoteSHA == expectedBlobSHAs[file.name] else {
-                throw PublishAttemptError.verificationFailed
-            }
+        let verifiedCommit: CommitResponse = try await requestJSON(
+            path: "git/commits/\(updatedReference.object.sha)",
+            method: "GET",
+            settings: settings,
+            token: token
+        )
+        guard verifiedCommit.sha == commit.sha, verifiedCommit.tree.sha == tree.sha else {
+            throw PublishAttemptError.verificationFailed
         }
         return PublishReport(publishedFiles: changedFiles.map(\.name), commitSHA: commit.sha)
     }
 
     private func isRetryablePublishError(_ error: Error) -> Bool {
         if error is PublishAttemptError { return true }
-        if case let RelayError.httpFailure(status, _) = error {
-            return status == 409 || status == 422
+        if case let RelayError.httpFailure(status, message) = error {
+            if status == 409 { return true }
+            if status == 429 { return true }
+            if status == 403, message.localizedCaseInsensitiveContains("rate limit") { return true }
+            if status == 422 {
+                return message.localizedCaseInsensitiveContains("fast forward")
+                    || message.localizedCaseInsensitiveContains("reference update")
+            }
         }
         return false
     }
@@ -229,7 +269,7 @@ actor GitHubClient {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = bodyData
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try Task.checkCancellation()
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
@@ -238,22 +278,6 @@ actor GitHubClient {
             throw RelayError.httpFailure(status: status, message: message)
         }
         return try JSONDecoder().decode(Response.self, from: data)
-    }
-
-    private func existingSHA(fileName: String, settings: GitHubSettings, token: String) async throws -> String? {
-        var components = URLComponents(url: try apiURL(settings: settings, fileName: fileName), resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "ref", value: settings.branch)]
-        guard let url = components?.url else { throw RelayError.githubNotConfigured }
-        var request = URLRequest(url: url, timeoutInterval: 30)
-        applyHeaders(to: &request, token: token)
-        let (data, response) = try await session.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status == 404 { return nil }
-        guard (200..<300).contains(status) else {
-            let message = (try? JSONDecoder().decode(GitHubMessage.self, from: data).message) ?? "GitHub 查询失败。"
-            throw RelayError.httpFailure(status: status, message: message)
-        }
-        return try JSONDecoder().decode(ExistingContent.self, from: data).sha
     }
 
     private func apiURL(settings: GitHubSettings, fileName: String?) throws -> URL {
@@ -290,5 +314,41 @@ actor GitHubClient {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue("SurgeRelay/1.0", forHTTPHeaderField: "User-Agent")
+    }
+
+    private func performDataRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let maximumAttempts = 4
+        for attempt in 0..<maximumAttempts {
+            let (data, response) = try await session.data(for: request)
+            try Task.checkCancellation()
+            guard let httpResponse = response as? HTTPURLResponse,
+                  shouldRetryRateLimit(response: httpResponse, data: data),
+                  attempt < maximumAttempts - 1 else {
+                return (data, response)
+            }
+            try await Task.sleep(for: rateLimitDelay(response: httpResponse, attempt: attempt))
+        }
+        preconditionFailure("Rate-limit retry loop must return a response.")
+    }
+
+    private func shouldRetryRateLimit(response: HTTPURLResponse, data: Data) -> Bool {
+        if response.statusCode == 429 { return true }
+        guard response.statusCode == 403 else { return false }
+        let message = (try? JSONDecoder().decode(GitHubMessage.self, from: data).message) ?? ""
+        return message.localizedCaseInsensitiveContains("rate limit")
+    }
+
+    private func rateLimitDelay(response: HTTPURLResponse, attempt: Int) -> Duration {
+        if let retryAfter = response.value(forHTTPHeaderField: "Retry-After"),
+           let seconds = Double(retryAfter) {
+            return .milliseconds(Int(min(max(seconds, 1), 60) * 1_000))
+        }
+        if let reset = response.value(forHTTPHeaderField: "X-RateLimit-Reset"),
+           let timestamp = TimeInterval(reset) {
+            let seconds = min(max(timestamp - Date.now.timeIntervalSince1970, 1), 60)
+            return .milliseconds(Int(seconds * 1_000))
+        }
+        let exponentialDelay = min(1_000 * (1 << attempt), 8_000)
+        return .milliseconds(exponentialDelay + Int.random(in: 100...400))
     }
 }

@@ -454,12 +454,20 @@ private struct CombinedModuleDetailView: View {
             }
 
             if model.settings.storageMode == .local {
-                Section("总模块文件") {
-                    if let localURL = model.combinedLocalFileURL {
-                        Text(localURL.path)
-                            .font(.system(.callout, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                Section("iCloud 云盘") {
+                    HStack(spacing: 14) {
+                        Image("iCloudIcon")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 44, height: 44)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("通过 iCloud 保持 Surge Relay 同步")
+                                .font(.body.weight(.medium))
+                            Text("iCloud/Surge/Surge-Relay.sgmodule")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
                     }
                 }
             } else {
@@ -547,11 +555,19 @@ private struct ModuleDetailView: View {
                 Section("模块信息") {
                     detailRow("原始地址", value: module.sourceURL, icon: "link")
                     detailRow("来源格式", value: module.sourceFormatDisplayTitle, icon: "doc.text")
-                    detailRow(
-                        model.settings.storageMode == .local ? "汇总文件" : "汇总订阅",
-                        value: combinedOutputLocation,
-                        icon: "square.stack.3d.up"
-                    )
+                    if model.settings.storageMode == .local {
+                        detailRow(
+                            "同步方式",
+                            value: "通过 iCloud 同步至 Surge-Relay.sgmodule",
+                            icon: "icloud.fill"
+                        )
+                    } else {
+                        detailRow(
+                            "汇总订阅",
+                            value: combinedOutputLocation,
+                            icon: "square.stack.3d.up"
+                        )
+                    }
                     detailRow(
                         "上次更新",
                         value: module.lastUpdatedAt?.formatted(Date.FormatStyle(
@@ -675,7 +691,6 @@ private struct ModuleDetailView: View {
     }
 
     private var combinedOutputLocation: String {
-        if let localURL = model.combinedLocalFileURL { return localURL.path }
         return model.combinedRawURL?.absoluteString ?? "等待 GitHub 发布配置"
     }
 

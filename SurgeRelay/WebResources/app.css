@@ -299,6 +299,13 @@ button { color: inherit; }
 .arguments-footer { min-height: 52px; margin: 0 16px; padding: 10px 0; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--separator); }
 .arguments-footer small { color: var(--secondary-label); }
 .arguments-footer .button { margin-left: auto; }
+.individual-output-row { grid-template-columns: minmax(0, 1fr) 34px; }
+.individual-output-row .module-toggle { justify-self: end; }
+.icloud-sync-card { min-height: 82px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+.icloud-sync-card img { width: 48px; height: 48px; object-fit: contain; flex: 0 0 auto; }
+.icloud-sync-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.icloud-sync-copy strong { font-weight: 600; }
+.icloud-sync-copy span { color: var(--secondary-label); font-size: 13px; overflow-wrap: anywhere; }
 .parameter-help { border-top: 1px solid var(--separator); }
 .parameter-help summary { padding: 13px 16px; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-weight: 550; }
 .parameter-help summary::-webkit-details-marker { display: none; }

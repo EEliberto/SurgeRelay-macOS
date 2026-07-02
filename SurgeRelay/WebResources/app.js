@@ -162,6 +162,7 @@ ui.list.addEventListener('keydown', event => {
   if (row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectItem(row.dataset.id); }
 });
 ui.detailRoot.addEventListener('click', handleDetailClick);
+ui.detailRoot.addEventListener('input', handleDetailInput);
 ui.detailRoot.addEventListener('change', handleDetailChange);
 window.addEventListener('popstate', handleHistoryNavigation);
 
@@ -356,7 +357,9 @@ function renderCombinedDetail(animate = true) {
     loadPreview('/api/combined/preview', false);
     return;
   }
-  const subscription = combined.subscriptionURL ? `<div class="form-section-view"><h3 class="section-heading">总模块订阅地址</h3><div class="group-box"><div class="detail-row action-row"><div class="detail-value monospaced">${escapeHTML(combined.subscriptionURL)}</div><div><button class="button" data-action="copy" data-value="${escapeAttribute(combined.subscriptionURL)}"><span class="symbol" data-symbol="copy"></span>拷贝地址</button></div></div></div></div>` : '';
+  const subscription = state.storageMode === 'local'
+    ? `<section class="form-section-view"><h3 class="section-heading">iCloud 云盘</h3><div class="group-box"><div class="icloud-sync-card"><img src="/icloud-icon.png?v=1" alt=""><div class="icloud-sync-copy"><strong>通过 iCloud 保持 Surge Relay 同步</strong><span>iCloud/Surge/Surge-Relay.sgmodule</span></div></div></div></section>`
+    : (combined.subscriptionURL ? `<div class="form-section-view"><h3 class="section-heading">总模块订阅地址</h3><div class="group-box"><div class="detail-row action-row"><div class="detail-value monospaced">${escapeHTML(combined.subscriptionURL)}</div><div><button class="button" data-action="copy" data-value="${escapeAttribute(combined.subscriptionURL)}"><span class="symbol" data-symbol="copy"></span>拷贝地址</button></div></div></div></div>` : '');
   setDetailHTML(`${detailToolbar()}
     <section class="form-section-view"><h3 class="section-heading">汇总模块</h3><div class="group-box">
       ${detailRow('square.stack.3d.up.fill', '名称', combined.name)}
@@ -377,14 +380,17 @@ function renderModuleDetail(module, animate = true) {
   const error = module.lastError ? `<section class="form-section-view"><h3 class="section-heading">最近一次更新失败</h3><div class="group-box"><div class="detail-row action-row error-box"><strong>更新失败</strong><div>${escapeHTML(module.lastError)}</div><small>如果该来源有缓存，总模块会继续沿用它上一次成功版本。</small></div></div></section>` : '';
   const conflict = module.hasOverrideConflict ? `<section class="form-section-view"><h3 class="section-heading">本地编辑冲突</h3><div class="group-box"><div class="detail-row action-row error-box"><strong>上游内容已经变化</strong><div>当前仍在使用本地编辑。可在预览中比较内容后保留或恢复。</div><div><button class="button" data-action="accept-override">保留本地编辑</button><button class="button" data-action="tab-preview">前往预览</button></div></div></div></section>` : '';
   const individualOutput = state.storageMode === 'local' ? `<section class="form-section-view"><h3 class="section-heading">iCloud 云盘</h3><div class="group-box">
-    <label class="detail-row switch-row"><div class="detail-label"><span class="symbol" data-symbol="externaldrive"></span><span>输出独立模块至 iCloud 云盘</span></div><input type="checkbox" data-individual-icloud-export ${module.exportsIndividualModuleToICloud ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
-    <div class="arguments-footer"><small>关闭后自动删除独立文件，汇总模块不受影响。</small></div>
+    <div class="detail-row individual-output-row"><div class="detail-label"><span class="symbol" data-symbol="externaldrive"></span><span>输出独立模块至 iCloud 云盘</span></div><label class="module-toggle" aria-label="输出独立模块至 iCloud 云盘"><input type="checkbox" data-individual-icloud-export ${module.exportsIndividualModuleToICloud ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label></div>
+    <div class="arguments-footer"><small>开启后在 Surge 文件夹生成该模块的独立文件；关闭后自动删除。汇总模块不受影响。</small></div>
   </div></section>` : '';
+  const combinedDestination = state.storageMode === 'local'
+    ? detailRow('externaldrive', '同步方式', '通过 iCloud 同步至 Surge-Relay.sgmodule')
+    : detailRow('square.stack.3d.up.fill', '汇总订阅', state.combined.subscriptionURL || '等待发布配置');
   setDetailHTML(`${detailToolbar(module)}
     <section class="form-section-view"><h3 class="section-heading">模块信息</h3><div class="group-box">
       ${detailRow('link', '原始地址', `<a href="${escapeAttribute(module.sourceURL)}" target="_blank" rel="noreferrer">${escapeHTML(module.sourceURL)}</a>`, true)}
       ${detailRow('doc.text', '来源格式', module.sourceFormatTitle)}
-      ${detailRow('square.stack.3d.up.fill', '汇总订阅', state.combined.subscriptionURL || '等待发布配置')}
+      ${combinedDestination}
       ${detailRow('clock', '上次更新', formatDate(module.lastUpdatedAt, '从未更新'))}
     </div></section>
     ${individualOutput}${advanced}<div id="arguments-section"></div>${conflict}${published}${error}`, animate);
@@ -614,8 +620,19 @@ async function handleDetailChange(event) {
   const input = event.target.closest('[data-argument-key]');
   if (!input || selectedID === 'combined') return;
   const value = input.type === 'checkbox' ? String(input.checked) : input.value;
-  try { await api(`/api/modules/${selectedID}/arguments`, { method: 'PUT', json: { key: input.dataset.argumentKey, value } }); showToast('模块参数已更新'); }
+  try {
+    await api(`/api/modules/${selectedID}/arguments`, { method: 'PUT', json: { key: input.dataset.argumentKey, value } });
+    const resetButton = document.querySelector('[data-action="reset-arguments"]');
+    if (resetButton) resetButton.disabled = false;
+    showToast('模块参数已更新');
+  }
   catch (error) { showToast(error.message, true); }
+}
+
+function handleDetailInput(event) {
+  if (!event.target.closest('[data-argument-key]')) return;
+  const resetButton = document.querySelector('[data-action="reset-arguments"]');
+  if (resetButton) resetButton.disabled = false;
 }
 
 function selectItem(id, pushHistory = true) {
@@ -739,7 +756,11 @@ async function restorePreview(module) {
 }
 
 async function resetArguments(module) {
-  try { const result = await api(`/api/modules/${module.id}/arguments`, { method: 'DELETE' }); showToast(result.message); renderModuleDetail(module, true); }
+  try {
+    const result = await api(`/api/modules/${module.id}/arguments`, { method: 'DELETE' });
+    showToast(result.message);
+    await loadArguments(module);
+  }
   catch (error) { showToast(error.message, true); }
 }
 

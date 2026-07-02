@@ -157,7 +157,9 @@ enum WebManagementAPI {
                 sourceCount: model.modules.count,
                 enabledCount: model.modules.filter(\.isEnabled).count,
                 lastUpdatedAt: newestUpdate,
-                subscriptionURL: model.combinedRawURL?.absoluteString ?? model.combinedLocalFileURL?.absoluteString
+                subscriptionURL: model.settings.storageMode == .gitHub
+                    ? model.combinedRawURL?.absoluteString
+                    : nil
             ),
             modules: model.modules.map { module in
                 WebModulePayload(
