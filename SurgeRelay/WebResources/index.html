@@ -12,8 +12,8 @@
   <link rel="manifest" href="/manifest.webmanifest?v=1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Surge Relay">
-  <link rel="stylesheet" href="/app.css?v=17">
-  <script src="/app.js?v=14" defer></script>
+  <link rel="stylesheet" href="/app.css?v=24">
+  <script src="/app.js?v=17" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -50,11 +50,12 @@
       </div>
     </div>
 
+    <header class="mobile-header">
+      <button class="icon-button" id="mobile-back" type="button" aria-label="返回模块列表"><span class="symbol" data-symbol="chevron.left"></span></button>
+      <strong id="mobile-title">模块</strong><span class="mobile-header-spacer"></span>
+    </header>
+
     <main class="detail" id="detail">
-      <header class="mobile-header">
-        <button class="icon-button" id="mobile-back" type="button" aria-label="返回模块列表"><span class="symbol" data-symbol="chevron.left"></span></button>
-        <strong id="mobile-title">模块</strong><span class="mobile-header-spacer"></span>
-      </header>
       <div id="detail-content" class="detail-content"></div>
     </main>
   </div>

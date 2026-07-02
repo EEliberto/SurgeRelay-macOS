@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var isTesting = false
     @State private var connectionResult: ConnectionResult?
     @State private var showsWebQRCode = false
+    @State private var pendingStorageMode: StorageMode?
 
     private enum ConnectionResult {
         case success(String)
@@ -28,19 +29,17 @@ struct SettingsView: View {
         @Bindable var model = model
         Form {
             Section("通用") {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("配置储存目录")
-                        Text(model.configurationDirectoryPath)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("选择…") { chooseDirectory() }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("iCloud 云盘 · Surge")
+                    Text(model.surgeDirectoryPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+                    Text("配置由 App 自动保存在 Surge Relay 子文件夹中")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
-                TextField("总模块文件名", text: combinedFileNameBinding)
             }
 
             Section("自动化") {
@@ -104,7 +103,11 @@ struct SettingsView: View {
                         .monospaced()
                 }
                 LabeledContent("上次检查") {
-                    Text(model.upstreamState.lastCheckedAt?.formatted(date: .abbreviated, time: .shortened) ?? "尚未检查")
+                    Text(model.upstreamState.lastCheckedAt?.formatted(Date.FormatStyle(
+                        date: .abbreviated,
+                        time: .shortened,
+                        locale: Locale(identifier: "zh_CN")
+                    )) ?? "尚未检查")
                         .foregroundStyle(.secondary)
                 }
                 TextField("上游模块", text: stringBinding(\.scriptHubModuleURL))
@@ -136,32 +139,44 @@ struct SettingsView: View {
             }
 
             Section("存储位置") {
-                Picker("总模块保存到", selection: storageModeBinding) {
-                    Text("本地").tag(StorageMode.local)
-                    Text("GitHub").tag(StorageMode.gitHub)
+                Picker("同步方式", selection: storageModeBinding) {
+                    Text("iCloud 云盘").tag(StorageMode.local)
+                    Text("GitHub 私有仓库").tag(StorageMode.gitHub)
                 }
                 .pickerStyle(.segmented)
 
-                if model.settings.storageMode == .local {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("总模块保存目录")
-                            Text(model.settings.localModuleDirectory)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                                .lineLimit(2)
-                            Text("将保存为 \(FilenameSanitizer.sgmoduleName(from: model.settings.combinedModuleFileName))")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                if effectiveStorageMode == .local {
+                    LabeledContent("汇总模块") {
+                        Text(model.combinedLocalFileURL?.path ?? "等待生成")
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                    }
+
+                    if pendingStorageMode == .local, model.settings.storageMode == .gitHub {
+                        Text("当前仍使用 GitHub 存储。点击确认后才会切换到 iCloud，并在 Surge 文件夹生成汇总模块。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Button("确认切换到 iCloud") {
+                                confirmStorageSwitch(to: .local)
+                            }
+                            .disabled(isTesting)
+                            if isTesting {
+                                ProgressView().controlSize(.small)
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        Button("选择…") { chooseLocalModuleDirectory() }
+                        if let result = connectionResult {
+                            Label(result.message, systemImage: result.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(result.isError ? .red : .green)
+                                .textSelection(.enabled)
+                        }
                     }
                 }
             }
 
-            if model.settings.storageMode == .gitHub {
+            if effectiveStorageMode == .gitHub {
             Section("GitHub") {
                 TextField("所有者", text: githubBinding(\.owner))
                 TextField("仓库", text: githubBinding(\.repository))
@@ -196,6 +211,12 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(model.githubToken.isEmpty || !model.settings.github.isConfigured || isTesting)
+                    if model.settings.storageMode != .gitHub {
+                        Button("验证并切换") {
+                            confirmStorageSwitch(to: .gitHub)
+                        }
+                        .disabled(model.githubToken.isEmpty || !model.settings.github.isConfigured || isTesting)
+                    }
                     if isTesting {
                         ProgressView().controlSize(.small)
                     }
@@ -208,9 +229,12 @@ struct SettingsView: View {
                 }
             }
 
-            if model.settings.github.repositoryIsPrivate == true {
+            if effectiveStorageMode == .gitHub {
                 Section("Cloudflare Worker") {
                     TextField("公共地址", text: githubBinding(\.publicBaseURL))
+                    Text("GitHub 私有仓库必须通过 Cloudflare Worker 提供设备可访问的稳定订阅地址。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             }
@@ -233,7 +257,11 @@ struct SettingsView: View {
                                 VStack(alignment: .trailing, spacing: 2) {
                                     Text(entry.outcome.title)
                                         .font(.caption)
-                                    Text(entry.date.formatted(date: .omitted, time: .shortened))
+                                    Text(entry.date.formatted(Date.FormatStyle(
+                                        date: .omitted,
+                                        time: .shortened,
+                                        locale: Locale(identifier: "zh_CN")
+                                    )))
                                         .font(.caption2)
                                         .foregroundStyle(.tertiary)
                                 }
@@ -275,20 +303,41 @@ struct SettingsView: View {
 
     private var storageModeBinding: Binding<StorageMode> {
         Binding(
-            get: { model.settings.storageMode },
-            set: { model.setStorageMode($0) }
+            get: { effectiveStorageMode },
+            set: { mode in
+                connectionResult = nil
+                if mode == model.settings.storageMode {
+                    pendingStorageMode = nil
+                } else {
+                    pendingStorageMode = mode
+                }
+            }
         )
     }
 
-    private func chooseLocalModuleDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(filePath: model.settings.localModuleDirectory, directoryHint: .isDirectory)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.setLocalModuleDirectory(url.path)
+    private var effectiveStorageMode: StorageMode {
+        pendingStorageMode ?? model.settings.storageMode
+    }
+
+    private func confirmStorageSwitch(to mode: StorageMode) {
+        Task {
+            isTesting = true
+            connectionResult = nil
+            model.presentedError = nil
+            let switched = await model.setStorageMode(mode)
+            isTesting = false
+            if switched {
+                pendingStorageMode = nil
+                connectionResult = .success(
+                    mode == .gitHub
+                        ? "GitHub 与 Cloudflare 已验证，本地汇总文件已安全移除"
+                        : "已切换到 iCloud，汇总模块已在 Surge 文件夹中生成"
+                )
+            } else {
+                connectionResult = .failure(model.presentedError ?? "切换失败")
+                model.presentedError = nil
+            }
+        }
     }
 
     private func githubBinding(_ keyPath: WritableKeyPath<GitHubSettings, String>) -> Binding<String> {
@@ -296,24 +345,6 @@ struct SettingsView: View {
             get: { model.settings.github[keyPath: keyPath] },
             set: {
                 model.settings.github[keyPath: keyPath] = $0
-                model.saveSettings()
-            }
-        )
-    }
-
-    /// Edits the combined module file name without the `.sgmodule` extension so it
-    /// can't be deleted by accident. The on-disk file always keeps the extension,
-    /// since every consumer normalizes through `FilenameSanitizer.sgmoduleName`.
-    private var combinedFileNameBinding: Binding<String> {
-        Binding(
-            get: {
-                let value = model.settings.combinedModuleFileName
-                return value.lowercased().hasSuffix(".sgmodule")
-                    ? String(value.dropLast(".sgmodule".count))
-                    : value
-            },
-            set: {
-                model.settings.combinedModuleFileName = $0
                 model.saveSettings()
             }
         )
@@ -327,17 +358,6 @@ struct SettingsView: View {
                 model.saveSettings()
             }
         )
-    }
-
-    private func chooseDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(filePath: model.configurationDirectoryPath, directoryHint: .isDirectory)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.useConfigurationDirectory(url.path)
     }
 
     private func exportDiagnostics() {

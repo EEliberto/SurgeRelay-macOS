@@ -1,6 +1,10 @@
 import Foundation
 
 actor GitHubClient {
+    private enum PublishAttemptError: Error {
+        case verificationFailed
+    }
+
     private struct ExistingContent: Decodable { let sha: String }
     private struct GitHubMessage: Decodable { let message: String }
     private struct RepositoryMetadata: Decodable {
@@ -73,6 +77,35 @@ actor GitHubClient {
             throw RelayError.cloudflareNotConfigured
         }
 
+        var repositoryPaths = Set<String>()
+        for file in files {
+            let path = repositoryPath(for: file.name, settings: settings)
+            guard repositoryPaths.insert(path).inserted else {
+                throw RelayError.invalidOutput("GitHub 发布列表包含重复路径：\(path)")
+            }
+        }
+
+        for attempt in 0..<3 {
+            do {
+                return try await publishAttempt(files: files, settings: settings, token: token)
+            } catch {
+                guard attempt < 2, isRetryablePublishError(error) else {
+                    if error is PublishAttemptError {
+                        throw RelayError.invalidOutput("GitHub 提交后内容校验失败，未确认发布成功。")
+                    }
+                    throw error
+                }
+                try await Task.sleep(for: .milliseconds(400 * (attempt + 1)))
+            }
+        }
+        throw RelayError.invalidOutput("GitHub 发布重试次数已用尽。")
+    }
+
+    private func publishAttempt(
+        files: [PublishFile],
+        settings: GitHubSettings,
+        token: String
+    ) async throws -> PublishReport {
         var changedFiles: [PublishFile] = []
         for file in files {
             try Task.checkCancellation()
@@ -95,6 +128,7 @@ actor GitHubClient {
             token: token
         )
         var entries: [TreeEntry] = []
+        var expectedBlobSHAs: [String: String] = [:]
         for file in changedFiles {
             try Task.checkCancellation()
             let blob: BlobResponse = try await requestJSON(
@@ -104,7 +138,9 @@ actor GitHubClient {
                 settings: settings,
                 token: token
             )
-            entries.append(TreeEntry(path: repositoryPath(for: file.name, settings: settings), sha: blob.sha))
+            let path = repositoryPath(for: file.name, settings: settings)
+            entries.append(TreeEntry(path: path, sha: blob.sha))
+            expectedBlobSHAs[file.name] = blob.sha
         }
         let tree: TreeResponse = try await requestJSON(
             path: "git/trees",
@@ -124,7 +160,7 @@ actor GitHubClient {
             settings: settings,
             token: token
         )
-        let _: ReferenceResponse = try await requestJSON(
+        let updatedReference: ReferenceResponse = try await requestJSON(
             path: "git/refs/heads/\(branch)",
             method: "PATCH",
             body: UpdateReferenceRequest(sha: commit.sha),
@@ -132,7 +168,25 @@ actor GitHubClient {
             token: token
         )
         try Task.checkCancellation()
+        guard updatedReference.object.sha == commit.sha else {
+            throw PublishAttemptError.verificationFailed
+        }
+
+        for file in changedFiles {
+            let remoteSHA = try await existingSHA(fileName: file.name, settings: settings, token: token)
+            guard remoteSHA == expectedBlobSHAs[file.name] else {
+                throw PublishAttemptError.verificationFailed
+            }
+        }
         return PublishReport(publishedFiles: changedFiles.map(\.name), commitSHA: commit.sha)
+    }
+
+    private func isRetryablePublishError(_ error: Error) -> Bool {
+        if error is PublishAttemptError { return true }
+        if case let RelayError.httpFailure(status, _) = error {
+            return status == 409 || status == 422
+        }
+        return false
     }
 
     private func requestJSON<Response: Decodable>(

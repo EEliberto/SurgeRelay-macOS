@@ -44,6 +44,7 @@ struct SurgeRelayApp: App {
         Window("Surge Relay", id: SurgeRelayWindow.main) {
             RootView()
                 .environment(model)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
                 .task { await model.start() }
                 .frame(minWidth: 700)
         }
@@ -71,6 +72,7 @@ struct SurgeRelayApp: App {
         MenuBarExtra("Surge Relay", systemImage: "repeat") {
             MenuBarContent(updater: updaterController.updater)
                 .environment(model)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
         }
         .menuBarExtraStyle(.menu)
     }

@@ -118,6 +118,7 @@ let nameLookupTimer = null;
 let nameLookupSequence = 0;
 let autoFilledName = '';
 let manualNameEdited = false;
+let listScrollY = 0;
 const mobileLayout = window.matchMedia('(max-width: 700px)');
 
 initializeHistoryState();
@@ -209,6 +210,7 @@ function applyState(next, initial = false, renderCurrentDetail = false) {
       renderSidebar();
       renderActivity();
       renderDetail(false);
+      if (initial && mobileLayout.matches && selectedID) window.scrollTo(0, 0);
     } else {
       patchLiveState(previous, next);
       renderActivity();
@@ -442,7 +444,7 @@ function setAdvancedExpanded(expanded) {
 
 async function animateAdvancedResize(expanded) {
   const dialog = ui.moduleDialog;
-  if (!dialog.open || !mobileLayout.matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!dialog.open || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     setAdvancedExpanded(expanded);
     return;
   }
@@ -592,14 +594,15 @@ function selectItem(id, pushHistory = true) {
   if (!state) return;
   if (id !== 'combined' && !state.modules.some(module => module.id === id)) id = 'combined';
   const cameFromList = mobileLayout.matches && !ui.body.classList.contains('has-selection');
+  if (cameFromList) listScrollY = window.scrollY;
   selectedID = id; detailTab = 'info'; ui.body.classList.add('has-selection');
-  resetHorizontalScroll();
   if (pushHistory) {
     const url = new URL(location.href);
     url.searchParams.set('module', id);
     history.pushState({ surgeRelay: true, view: 'detail', module: id, cameFromList }, '', url);
   }
   renderSidebar(); renderDetail(false);
+  if (mobileLayout.matches) window.scrollTo(0, 0);
 }
 
 function initializeHistoryState() {
@@ -620,11 +623,11 @@ function showModuleList(replaceHistory = false) {
   selectedID = null;
   detailTab = 'info';
   ui.body.classList.remove('has-selection');
-  resetHorizontalScroll();
   const url = new URL(location.href);
   url.searchParams.delete('module');
   if (replaceHistory) history.replaceState({ surgeRelay: true, view: 'list', module: null }, '', url);
   renderSidebar();
+  if (mobileLayout.matches) window.scrollTo(0, listScrollY);
 }
 
 function navigateBackToList() {
@@ -717,33 +720,63 @@ function closeDialog(dialog) { return new Promise(resolve => { if (!dialog.open)
 function askConfirmation(title, message, acceptLabel = '确认') { ui.confirmTitle.textContent = title; ui.confirmMessage.textContent = message; ui.confirmAccept.textContent = acceptLabel; openDialog(ui.confirmDialog); return new Promise(resolve => { confirmResolver = resolve; }); }
 async function resolveConfirmation(value) { const resolver = confirmResolver; confirmResolver = null; await closeDialog(ui.confirmDialog); resolver?.(value); }
 
-function resetHorizontalScroll() {
-  document.documentElement.scrollLeft = 0;
-  document.body.scrollLeft = 0;
-  window.scrollTo(0, window.scrollY);
-}
-
 async function copyText(text, button = null) {
   try {
-    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text || '');
-    else {
-      const textarea = document.createElement('textarea');
-      textarea.value = text || '';
-      document.body.append(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
+    const value = text || '';
+    let copied = false;
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      } catch (_) {
+        copied = copyTextWithoutFocus(value);
+      }
+    } else {
+      copied = copyTextWithoutFocus(value);
     }
+    if (!copied) throw new Error('copy failed');
     showCopySuccess(button);
   } catch (_) {
     showToast('拷贝失败', true);
   }
 }
 
+function copyTextWithoutFocus(text) {
+  const selection = window.getSelection();
+  if (!selection) return false;
+  const previousRanges = [];
+  for (let index = 0; index < selection.rangeCount; index += 1) previousRanges.push(selection.getRangeAt(index).cloneRange());
+
+  const target = document.createElement('span');
+  target.textContent = text;
+  target.setAttribute('aria-hidden', 'true');
+  Object.assign(target.style, {
+    position: 'fixed', top: '0', left: '0', opacity: '0', pointerEvents: 'none',
+    whiteSpace: 'pre', userSelect: 'text', webkitUserSelect: 'text'
+  });
+  document.body.append(target);
+
+  let copied = false;
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    copied = document.execCommand('copy');
+  } finally {
+    selection.removeAllRanges();
+    previousRanges.forEach(range => selection.addRange(range));
+    target.remove();
+  }
+  return copied;
+}
+
 function showCopySuccess(button) {
   if (!button) return;
-  if (!button.dataset.copyLabel) button.dataset.copyLabel = button.innerHTML;
+  if (!button.hasAttribute('data-copy-label')) button.dataset.copyLabel = button.innerHTML;
   clearTimeout(Number(button.dataset.copyTimer || 0));
+  button.classList.remove('copy-success');
+  void button.offsetWidth;
   button.innerHTML = '<span class="symbol" data-symbol="checkmark"></span>拷贝成功';
   button.classList.add('copy-success');
   const timer = setTimeout(() => {

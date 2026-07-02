@@ -59,7 +59,11 @@ struct MenuBarContent: View {
 
     private var latestUpdateText: String {
         guard let date = model.modules.compactMap(\.lastUpdatedAt).max() else { return "尚未更新" }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        return date.formatted(Date.FormatStyle(
+            date: .abbreviated,
+            time: .shortened,
+            locale: Locale(identifier: "zh_CN")
+        ))
     }
 
     private var workingText: String {

@@ -63,10 +63,13 @@ struct GitHubSettings: Codable, Equatable, Sendable {
 }
 
 struct AppSettings: Codable, Equatable, Sendable {
-    // Kept only to find and remove files created by early development builds.
+    static let fixedCombinedModuleFileName = "Surge-Relay.sgmodule"
+
+    // Retained only so settings written by early builds continue to decode.
+    // Surge Relay no longer scans or cleans this directory.
     var outputDirectory: String = AppSettings.defaultOutputDirectory
     var scriptHubModuleURL = "https://raw.githubusercontent.com/Script-Hub-Org/Script-Hub/main/modules/script-hub.surge.sgmodule"
-    var combinedModuleFileName = "Surge-Relay.sgmodule"
+    private(set) var combinedModuleFileName = Self.fixedCombinedModuleFileName
     // Retained so existing settings decode cleanly during migration.
     var scriptHubBaseURL = "http://script.hub"
     var managedEngineFileName = "Script-Hub-Relay.sgmodule"
@@ -77,7 +80,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var github = GitHubSettings()
     var githubToken = ""
     var storageMode: StorageMode = .gitHub
-    var localModuleDirectory: String = AppSettings.defaultConfigurationDirectory
+    var localModuleDirectory: String = AppSettings.defaultSurgeDirectory
     var webServerEnabled = false
     var webServerPort = 8787
 
@@ -88,7 +91,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         outputDirectory = try container.decodeIfPresent(String.self, forKey: .outputDirectory) ?? Self.defaultOutputDirectory
         scriptHubModuleURL = try container.decodeIfPresent(String.self, forKey: .scriptHubModuleURL)
             ?? "https://raw.githubusercontent.com/Script-Hub-Org/Script-Hub/main/modules/script-hub.surge.sgmodule"
-        combinedModuleFileName = try container.decodeIfPresent(String.self, forKey: .combinedModuleFileName) ?? "Surge-Relay.sgmodule"
+        combinedModuleFileName = Self.fixedCombinedModuleFileName
         scriptHubBaseURL = try container.decodeIfPresent(String.self, forKey: .scriptHubBaseURL) ?? "http://script.hub"
         managedEngineFileName = try container.decodeIfPresent(String.self, forKey: .managedEngineFileName) ?? "Script-Hub-Relay.sgmodule"
         automaticallyUpdateScriptHub = try container.decodeIfPresent(Bool.self, forKey: .automaticallyUpdateScriptHub) ?? true
@@ -98,7 +101,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         github = try container.decodeIfPresent(GitHubSettings.self, forKey: .github) ?? GitHubSettings()
         githubToken = try container.decodeIfPresent(String.self, forKey: .githubToken) ?? ""
         storageMode = try container.decodeIfPresent(StorageMode.self, forKey: .storageMode) ?? .gitHub
-        localModuleDirectory = try container.decodeIfPresent(String.self, forKey: .localModuleDirectory) ?? Self.defaultConfigurationDirectory
+        localModuleDirectory = try container.decodeIfPresent(String.self, forKey: .localModuleDirectory) ?? Self.defaultSurgeDirectory
         webServerEnabled = try container.decodeIfPresent(Bool.self, forKey: .webServerEnabled) ?? false
         webServerPort = try container.decodeIfPresent(Int.self, forKey: .webServerPort) ?? 8787
     }
@@ -107,10 +110,29 @@ struct AppSettings: Codable, Equatable, Sendable {
         defaultConfigurationDirectory
     }
 
-    static var defaultConfigurationDirectory: String {
+    static var defaultSurgeDirectory: String {
         FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Mobile Documents/iCloud~com~nssurge~inc/Documents/Surge Relay", directoryHint: .isDirectory)
+            .appending(path: "Library/Mobile Documents/iCloud~com~nssurge~inc/Documents", directoryHint: .isDirectory)
             .path
+    }
+
+    static var defaultConfigurationDirectory: String {
+        URL(filePath: defaultSurgeDirectory, directoryHint: .isDirectory)
+            .appending(path: "Surge Relay", directoryHint: .isDirectory)
+            .path
+    }
+
+    static func surgeDirectory(forSelectedDirectory selectedDirectory: URL) -> URL {
+        let selectedDirectory = selectedDirectory.standardizedFileURL
+        if selectedDirectory.lastPathComponent.caseInsensitiveCompare("Surge Relay") == .orderedSame {
+            return selectedDirectory.deletingLastPathComponent()
+        }
+        return selectedDirectory
+    }
+
+    static func configurationDirectory(forSurgeDirectory surgeDirectory: URL) -> URL {
+        surgeDirectory.standardizedFileURL
+            .appending(path: "Surge Relay", directoryHint: .isDirectory)
     }
 
     func publishedURL(for fileName: String) -> URL? {

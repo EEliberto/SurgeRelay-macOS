@@ -2,11 +2,37 @@ import Foundation
 
 enum PersistenceStore {
     private static let configurationDirectoryKey = "SurgeRelay.configurationDirectory.v1"
+    private static let initialSetupCompletedKey = "SurgeRelay.initialSetupCompleted.v1"
+    private static let initialSetupLoadedExistingKey = "SurgeRelay.initialSetupLoadedExisting.v1"
     private static let legacySettingsKey = "SurgeRelay.settings.v1"
     private static let legacyUpstreamKey = "SurgeRelay.upstream.v1"
 
     static var hasSelectedConfigurationDirectory: Bool {
         UserDefaults.standard.string(forKey: configurationDirectoryKey) != nil
+    }
+
+    static var hasCompletedInitialSetup: Bool {
+        if UserDefaults.standard.object(forKey: initialSetupCompletedKey) != nil {
+            return UserDefaults.standard.bool(forKey: initialSetupCompletedKey)
+        }
+        // Existing installations already completed the older directory prompt.
+        return hasSelectedConfigurationDirectory
+    }
+
+    static func markInitialSetupPending() {
+        UserDefaults.standard.set(false, forKey: initialSetupCompletedKey)
+    }
+
+    static func markInitialSetupCompleted() {
+        UserDefaults.standard.set(true, forKey: initialSetupCompletedKey)
+    }
+
+    static var initialSetupLoadedExistingConfiguration: Bool {
+        UserDefaults.standard.bool(forKey: initialSetupLoadedExistingKey)
+    }
+
+    static func setInitialSetupLoadedExistingConfiguration(_ loadedExisting: Bool) {
+        UserDefaults.standard.set(loadedExisting, forKey: initialSetupLoadedExistingKey)
     }
 
     static var configurationDirectoryURL: URL {

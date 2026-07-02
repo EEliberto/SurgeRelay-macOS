@@ -254,7 +254,7 @@ final class WebManagementServer: @unchecked Sendable {
                 // Closing a browser tab or changing networks naturally ends the stream.
             }
             connection.cancel()
-            _ = lock.withLock { eventTasks.removeValue(forKey: identifier) }
+            _ = lock.withLock { self.eventTasks.removeValue(forKey: identifier) }
         }
         lock.withLock { eventTasks[identifier] = task }
     }

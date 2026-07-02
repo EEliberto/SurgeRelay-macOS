@@ -135,23 +135,45 @@ final class SurgeRelayTests: XCTestCase {
         XCTAssertNil(settings.github.repositoryIsPrivate)
     }
 
-    func testStorageModeSelectsOnlyItsOwnCombinedOutput() throws {
+    func testLegacyCustomCombinedNameMigratesToFixedName() throws {
+        let data = Data(#"{"combinedModuleFileName":"Custom.sgmodule"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: data)
+        XCTAssertEqual(settings.combinedModuleFileName, AppSettings.fixedCombinedModuleFileName)
+    }
+
+    func testStorageModeUsesFixedCombinedOutputName() throws {
         var settings = AppSettings()
-        settings.combinedModuleFileName = "My Relay"
         settings.localModuleDirectory = "/tmp/Surge Relay"
         settings.github.repositoryIsPrivate = true
         settings.github.publicBaseURL = "https://surge-relay.example.workers.dev"
 
         settings.storageMode = .local
-        XCTAssertNil(settings.publishedURL(for: "My-Relay.sgmodule"))
+        XCTAssertEqual(settings.combinedModuleFileName, "Surge-Relay.sgmodule")
+        XCTAssertNil(settings.publishedURL(for: "Surge-Relay.sgmodule"))
         XCTAssertEqual(
             try XCTUnwrap(settings.localCombinedModuleURL).path,
-            "/tmp/Surge Relay/My-Relay.sgmodule"
+            "/tmp/Surge Relay/Surge-Relay.sgmodule"
         )
 
         settings.storageMode = .gitHub
         XCTAssertNil(settings.localCombinedModuleURL)
-        XCTAssertEqual(try XCTUnwrap(settings.publishedURL(for: "My-Relay.sgmodule")).host, "surge-relay.example.workers.dev")
+        XCTAssertEqual(try XCTUnwrap(settings.publishedURL(for: "Surge-Relay.sgmodule")).host, "surge-relay.example.workers.dev")
+    }
+
+    func testSelectingSurgeFolderCreatesNestedConfigurationLayout() {
+        let selected = URL(filePath: "/tmp/Surge", directoryHint: .isDirectory)
+        let surgeDirectory = AppSettings.surgeDirectory(forSelectedDirectory: selected)
+        XCTAssertEqual(surgeDirectory.path, "/tmp/Surge")
+        XCTAssertEqual(
+            AppSettings.configurationDirectory(forSurgeDirectory: surgeDirectory).path,
+            "/tmp/Surge/Surge Relay"
+        )
+
+        let existingConfiguration = URL(filePath: "/tmp/Surge/Surge Relay", directoryHint: .isDirectory)
+        XCTAssertEqual(
+            AppSettings.surgeDirectory(forSelectedDirectory: existingConfiguration).path,
+            "/tmp/Surge"
+        )
     }
 
     func testConfigurationMigrationCopiesOverridesWithoutRemovingDestinationFiles() throws {
@@ -256,6 +278,29 @@ final class SurgeRelayTests: XCTestCase {
 
     func testGitBlobHashMatchesGitHubContentSHA() {
         XCTAssertEqual(Data("hello\n".utf8).gitBlobSHA1, "ce013625030ba8dba906f756967f9e9ca394464a")
+    }
+
+    func testGitHubPublishSkipsCommitWhenRemoteHashesMatch() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [GitHubPublishURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let file = PublishFile(name: "Surge-Relay.sgmodule", data: Data("same".utf8))
+        GitHubPublishURLProtocol.expectedBlobSHA = file.data.gitBlobSHA1
+
+        var settings = GitHubSettings()
+        settings.owner = "owner"
+        settings.repository = "relay"
+        settings.branch = "main"
+        settings.directory = "modules"
+        settings.publicBaseURL = "https://relay.example.workers.dev"
+
+        let report = try await GitHubClient(session: session).publish(
+            files: [file],
+            settings: settings,
+            token: "token"
+        )
+        XCTAssertTrue(report.publishedFiles.isEmpty)
+        XCTAssertNil(report.commitSHA)
     }
 
     func testModuleArgumentsAreMaterializedAndMetadataIsRemoved() {
@@ -426,6 +471,65 @@ final class SurgeRelayTests: XCTestCase {
             try XCTUnwrap(merged.range(of: "second = type=cron")?.lowerBound)
         )
     }
+
+    func testCombinedExportPreservesEveryOtherModuleFile() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let personalModule = directory.appending(path: "Personal.sgmodule")
+        let personalContent = "#!name=Personal\n[Rule]\nFINAL,DIRECT\n"
+        try Data(personalContent.utf8).write(to: personalModule)
+
+        let store = ModuleFileStore()
+        let combined = "#!name=Surge Relay\n#!author=Surge Relay\n#!category=Surge Relay\n[Rule]\nFINAL,DIRECT\n"
+        let firstWrite = try await store.exportCombined(
+            combined,
+            toDirectory: directory.path,
+            fileName: "Surge-Relay.sgmodule"
+        )
+        let repeatedWrite = try await store.exportCombined(
+            combined,
+            toDirectory: directory.path,
+            fileName: "Surge-Relay.sgmodule"
+        )
+
+        XCTAssertTrue(firstWrite)
+        XCTAssertFalse(repeatedWrite)
+        XCTAssertEqual(try String(contentsOf: personalModule, encoding: .utf8), personalContent)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appending(path: "Surge-Relay.sgmodule").path))
+    }
+
+    func testCombinedExportAndRemovalRefuseUnmanagedSameNameFile() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let destination = directory.appending(path: "Surge-Relay.sgmodule")
+        let personalContent = "#!name=Personal Relay\n[Rule]\nFINAL,DIRECT\n"
+        try Data(personalContent.utf8).write(to: destination)
+
+        let store = ModuleFileStore()
+        let combined = "#!name=Surge Relay\n#!author=Surge Relay\n#!category=Surge Relay\n[Rule]\nFINAL,REJECT\n"
+        do {
+            try await store.exportCombined(
+                combined,
+                toDirectory: directory.path,
+                fileName: destination.lastPathComponent
+            )
+            XCTFail("不应覆盖不属于 Surge Relay 的同名文件")
+        } catch {
+            XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), personalContent)
+        }
+
+        try await store.removeExportedCombined(
+            fromDirectory: directory.path,
+            fileName: destination.lastPathComponent
+        )
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), personalContent)
+    }
 }
 
 private final class SourceRevisionURLProtocol: URLProtocol, @unchecked Sendable {
@@ -444,6 +548,40 @@ private final class SourceRevisionURLProtocol: URLProtocol, @unchecked Sendable 
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: responseValue.data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class GitHubPublishURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var expectedBlobSHA = ""
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let path = request.url?.path ?? ""
+        let body: Data
+        let status: Int
+        if path == "/repos/owner/relay" {
+            body = Data(#"{"private":true}"#.utf8)
+            status = 200
+        } else if path.contains("/repos/owner/relay/contents/modules/Surge-Relay.sgmodule") {
+            body = Data("{\"sha\":\"\(Self.expectedBlobSHA)\"}".utf8)
+            status = 200
+        } else {
+            body = Data(#"{"message":"unexpected request"}"#.utf8)
+            status = 500
+        }
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: status,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
         client?.urlProtocolDidFinishLoading(self)
     }
 

@@ -138,7 +138,11 @@ struct ModulesView: View {
 
     private var latestUpdateText: String {
         guard let date = model.modules.compactMap(\.lastUpdatedAt).max() else { return "尚未更新" }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        return date.formatted(Date.FormatStyle(
+            date: .abbreviated,
+            time: .shortened,
+            locale: Locale(identifier: "zh_CN")
+        ))
     }
 
     private var synchronizingModuleName: String? {
@@ -370,7 +374,11 @@ private struct CombinedModuleDetailView: View {
                 )
                 detailRow(
                     "最新更新",
-                    value: latestUpdateAt?.formatted(date: .long, time: .standard) ?? "尚未更新",
+                    value: latestUpdateAt?.formatted(Date.FormatStyle(
+                        date: .long,
+                        time: .standard,
+                        locale: Locale(identifier: "zh_CN")
+                    )) ?? "尚未更新",
                     icon: "clock"
                 )
             }
@@ -474,7 +482,15 @@ private struct ModuleDetailView: View {
                         value: combinedOutputLocation,
                         icon: "square.stack.3d.up"
                     )
-                    detailRow("上次更新", value: module.lastUpdatedAt?.formatted(date: .long, time: .standard) ?? "从未更新", icon: "clock")
+                    detailRow(
+                        "上次更新",
+                        value: module.lastUpdatedAt?.formatted(Date.FormatStyle(
+                            date: .long,
+                            time: .standard,
+                            locale: Locale(identifier: "zh_CN")
+                        )) ?? "从未更新",
+                        icon: "clock"
+                    )
                     Button("编辑模块…", systemImage: "pencil", action: onEdit)
                 }
 

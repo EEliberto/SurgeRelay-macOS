@@ -1,6 +1,10 @@
 import Foundation
 
 actor ModuleFileStore {
+    private final class CoordinationOutcome<Value>: @unchecked Sendable {
+        var result: Result<Value, Error>?
+    }
+
     private var componentDirectory: URL {
         PersistenceStore.cacheDirectoryURL.appending(path: "Components", directoryHint: .isDirectory)
     }
@@ -98,9 +102,16 @@ actor ModuleFileStore {
         if FileManager.default.fileExists(atPath: overrideURL.path) { try FileManager.default.removeItem(at: overrideURL) }
     }
 
-    func writeCombined(_ content: String) throws {
+    @discardableResult
+    func writeCombined(_ content: String) throws -> Bool {
         try FileManager.default.createDirectory(at: combinedCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(content.utf8).write(to: combinedCacheURL, options: .atomic)
+        let data = Data(content.utf8)
+        if let existing = try? Data(contentsOf: combinedCacheURL),
+           existing.sha256String == data.sha256String {
+            return false
+        }
+        try data.write(to: combinedCacheURL, options: .atomic)
+        return true
     }
 
     func readCombined() throws -> Data {
@@ -110,10 +121,76 @@ actor ModuleFileStore {
 
     /// Exports the merged module to a user-visible `.sgmodule` file in the given
     /// directory (used by local storage mode so Surge can load it directly).
-    func exportCombined(_ content: String, toDirectory directoryPath: String, fileName: String) throws {
+    @discardableResult
+    func exportCombined(_ content: String, toDirectory directoryPath: String, fileName: String) throws -> Bool {
+        guard fileName == AppSettings.fixedCombinedModuleFileName else {
+            throw RelayError.invalidOutput("汇总模块必须使用固定文件名 \(AppSettings.fixedCombinedModuleFileName)。")
+        }
         let directory = URL(filePath: directoryPath, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data(content.utf8).write(to: directory.appending(path: fileName), options: .atomic)
+        let destination = directory.appending(path: fileName)
+        let data = Data(content.utf8)
+        let outcome = CoordinationOutcome<Bool>()
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        coordinator.coordinate(
+            writingItemAt: destination,
+            options: .forReplacing,
+            error: &coordinationError
+        ) { coordinatedURL in
+            outcome.result = Result {
+                let conflictVersions = try Self.validatedManagedConflictVersions(at: coordinatedURL)
+                if FileManager.default.fileExists(atPath: coordinatedURL.path) {
+                    let existing = try Data(contentsOf: coordinatedURL)
+                    guard Self.isManagedCombinedModule(existing) else {
+                        throw RelayError.invalidOutput(
+                            "目标文件 \(fileName) 已存在且不属于 Surge Relay，已停止写入。"
+                        )
+                    }
+                    if conflictVersions.isEmpty,
+                       existing.sha256String == data.sha256String {
+                        return false
+                    }
+                }
+
+                // The configuration and component cache are the source of truth.
+                // Conflicting iCloud versions are never merged into this derived file.
+                try data.write(to: coordinatedURL, options: .atomic)
+                try Self.resolve(conflictVersions, at: coordinatedURL)
+                return true
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result = outcome.result else {
+            throw RelayError.invalidOutput("iCloud 未能完成汇总模块写入协调。")
+        }
+        return try result.get()
+    }
+
+    func removeExportedCombined(fromDirectory directoryPath: String, fileName: String) throws {
+        guard fileName == AppSettings.fixedCombinedModuleFileName else { return }
+        let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
+            .appending(path: fileName)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+
+        let outcome = CoordinationOutcome<Void>()
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        coordinator.coordinate(
+            writingItemAt: url,
+            options: .forDeleting,
+            error: &coordinationError
+        ) { coordinatedURL in
+            outcome.result = Result {
+                let existing = try Data(contentsOf: coordinatedURL)
+                guard Self.isManagedCombinedModule(existing) else { return }
+                let conflictVersions = try Self.validatedManagedConflictVersions(at: coordinatedURL)
+                try Self.resolve(conflictVersions, at: coordinatedURL)
+                try FileManager.default.removeItem(at: coordinatedURL)
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        try outcome.result?.get()
     }
 
     func writeCombinedOverride(_ content: String) throws {
@@ -181,21 +258,6 @@ actor ModuleFileStore {
         return files.sorted { $0.name < $1.name }
     }
 
-    func removeLegacyPublishedFiles(in directoryPath: String) throws {
-        let directory = URL(filePath: directoryPath, directoryHint: .isDirectory)
-        guard FileManager.default.fileExists(atPath: directory.path) else { return }
-        let contents = try FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        )
-        for url in contents {
-            if url.pathExtension.lowercased() == "sgmodule" || url.lastPathComponent == "assets" {
-                try FileManager.default.removeItem(at: url)
-            }
-        }
-    }
-
     private func componentURL(for id: UUID) -> URL {
         componentDirectory.appending(path: "\(id.uuidString).cache")
     }
@@ -210,5 +272,36 @@ actor ModuleFileStore {
             throw RelayError.invalidOutput("模块缓存不是有效的 UTF-8 文本。")
         }
         return content
+    }
+
+    private nonisolated static func isManagedCombinedModule(_ data: Data) -> Bool {
+        guard let content = String(data: data, encoding: .utf8) else { return false }
+        let lines = content
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let hasName = lines.contains("#!name=Surge Relay")
+        let hasCategory = lines.contains("#!category=Surge Relay")
+        let hasAuthor = lines.contains {
+            $0 == "#!author=Surge Relay" || $0.hasPrefix("#!author=Surge Relay · ")
+        }
+        return hasName && hasCategory && hasAuthor
+    }
+
+    private nonisolated static func validatedManagedConflictVersions(at url: URL) throws -> [NSFileVersion] {
+        let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url) ?? []
+        for version in versions {
+            let data = try Data(contentsOf: version.url)
+            guard isManagedCombinedModule(data) else {
+                throw RelayError.invalidOutput("检测到不属于 Surge Relay 的 iCloud 冲突版本，已停止操作。")
+            }
+        }
+        return versions
+    }
+
+    private nonisolated static func resolve(_ versions: [NSFileVersion], at url: URL) throws {
+        guard !versions.isEmpty else { return }
+        for version in versions { version.isResolved = true }
+        try NSFileVersion.removeOtherVersionsOfItem(at: url)
     }
 }

@@ -239,12 +239,18 @@ button { color: inherit; }
   min-height: 34px; padding: 6px 14px;
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   border: 0; border-radius: 999px; background: var(--fill); color: var(--label); font-weight: 600; cursor: pointer;
+  white-space: nowrap;
   transition: transform 140ms ease, background 140ms ease, opacity 140ms ease;
 }
 .button:hover { background: var(--fill-hover); }
 .button:active { transform: scale(.97); }
 .button.primary { background: var(--accent); color: #fff; }
-.button.copy-success { color: var(--green); }
+.button.copy-success { color: var(--green); animation: copy-success-pop 420ms cubic-bezier(.2,.8,.2,1); }
+@keyframes copy-success-pop {
+  0% { transform: scale(.97); }
+  48% { transform: scale(1.045); }
+  100% { transform: none; }
+}
 .button.destructive { color: var(--red); }
 .button:disabled { opacity: .38; cursor: default; transform: none; }
 .button .symbol { width: 15px; height: 15px; }
@@ -403,21 +409,24 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   .sidebar {
     position: relative; inset: auto; width: 100%; height: auto; min-height: 100svh;
     overflow-x: clip; overflow-y: visible; border: 0;
-    transition: transform 260ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease;
+    transition: none;
   }
   body:not(.has-selection) .sidebar { touch-action: pan-y; }
   body.has-selection .sidebar {
     position: fixed; inset: 0;
-    transform: translateX(-18%); opacity: 0; pointer-events: none;
+    pointer-events: none;
   }
   .sidebar-top {
-    position: sticky; inset: auto; top: 0;
-    padding: max(16px, env(safe-area-inset-top)) 16px 10px;
+    position: fixed; inset: -1px 0 auto;
+    padding: calc(max(16px, env(safe-area-inset-top)) + 1px) 16px 10px;
+    background: var(--bar-glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   }
   .module-navigation {
     height: auto; min-height: calc(100svh - 138px); overflow: visible;
-    padding: 10px 12px calc(132px + env(safe-area-inset-bottom));
+    padding: calc(max(16px, env(safe-area-inset-top)) + 120px) 12px calc(132px + env(safe-area-inset-bottom));
+    transition: transform 280ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease;
   }
+  body.has-selection .module-navigation { transform: translateX(-18%); opacity: 0; }
   .activity-shell {
     left: 14px; right: 14px; width: auto;
     bottom: max(14px, env(safe-area-inset-bottom));
@@ -435,7 +444,14 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
     position: relative;
     visibility: visible; transform: none; opacity: 1; pointer-events: auto;
   }
-  .mobile-header { position: sticky; top: 0; z-index: 6; height: calc(58px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 14px 0; display: flex; align-items: center; justify-content: space-between; background: var(--bar-glass); border-bottom: 1px solid var(--separator); box-shadow: none; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+  .mobile-header {
+    position: fixed; inset: -1px 0 auto; z-index: 6;
+    height: calc(59px + env(safe-area-inset-top)); padding: calc(env(safe-area-inset-top) + 1px) 14px 0;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bar-glass); border-bottom: 1px solid var(--separator); box-shadow: none;
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  }
+  body:not(.has-selection) .mobile-header { visibility: hidden; pointer-events: none; }
   .mobile-header strong { max-width: calc(100% - 112px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-header #mobile-back { margin-left: 0; }
   .mobile-header #mobile-back .symbol {
@@ -444,7 +460,7 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
     transform-origin: center;
   }
   .mobile-header-spacer { width: 40px; flex: 0 0 40px; }
-  .detail-content { width: auto; margin: 0; padding: 12px 16px calc(96px + env(safe-area-inset-bottom)); }
+  .detail-content { width: auto; margin: 0; padding: calc(70px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom)); }
   .detail-toolbar { margin-bottom: 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
   .detail-toolbar .segmented-control { width: 100%; min-height: 40px; border-radius: 999px; }
   .detail-toolbar .segmented-control button { min-width: 0; min-height: 34px; flex: 1; padding: 5px 10px; border-radius: 999px; }

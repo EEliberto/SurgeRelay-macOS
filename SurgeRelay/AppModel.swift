@@ -19,6 +19,10 @@ final class AppModel {
     /// Set to true to ask the main window to present the in-app settings sheet
     /// (used by the menu bar, the ⌘, command, and the toolbar gear button).
     var presentsSettings = false
+    /// First-run setup presentation state.
+    var presentsConfigurationWelcome = false
+    var configurationWelcomeError: String?
+    var configurationWelcomeLoadedExistingConfiguration = false
     var synchronizationCompletedCount = 0
     var synchronizationTotalCount = 0
     var synchronizingModuleID: UUID?
@@ -35,17 +39,33 @@ final class AppModel {
     @ObservationIgnored private let processingWorker = ModuleProcessingWorker()
     @ObservationIgnored private let webServer = WebManagementServer()
     @ObservationIgnored private var schedulerTask: Task<Void, Never>?
+    @ObservationIgnored private var synchronizationTask: Task<Void, Never>?
+    @ObservationIgnored private var combinedRebuildTask: Task<Void, Never>?
     @ObservationIgnored private var automaticUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var automaticPublishTask: Task<Void, Never>?
     @ObservationIgnored private var localChangeGeneration = 0
     @ObservationIgnored private var hasStarted = false
+    @ObservationIgnored private var configurationExistedBeforeLaunch = false
 
     init() {
+        let defaultConfiguration = URL(
+            filePath: AppSettings.defaultConfigurationDirectory,
+            directoryHint: .isDirectory
+        )
+        configurationExistedBeforeLaunch = ["settings.json", "modules.json", "script-hub-state.json"].contains { name in
+            FileManager.default.fileExists(atPath: defaultConfiguration.appending(path: name).path)
+        }
         var loadedSettings = PersistenceStore.loadSettings()
         if loadedSettings.github.owner.isEmpty { loadedSettings.github.owner = "EEliberto" }
         if loadedSettings.github.repository.isEmpty { loadedSettings.github.repository = "Surge-Relay" }
         if loadedSettings.github.branch.isEmpty { loadedSettings.github.branch = "main" }
         if loadedSettings.github.directory.isEmpty { loadedSettings.github.directory = "modules" }
+        loadedSettings.localModuleDirectory = AppSettings.surgeDirectory(
+            forSelectedDirectory: URL(
+                filePath: loadedSettings.localModuleDirectory,
+                directoryHint: .isDirectory
+            )
+        ).path
         let loadedModules = Self.normalizedModuleNaming(
             PersistenceStore.loadModules(),
             combinedFileName: loadedSettings.combinedModuleFileName
@@ -62,17 +82,41 @@ final class AppModel {
 
     func start() async {
         guard !hasStarted else { return }
-        await selectInitialConfigurationDirectoryIfNeeded()
+        if !PersistenceStore.hasCompletedInitialSetup {
+            NSApp.activate(ignoringOtherApps: true)
+            PersistenceStore.markInitialSetupPending()
+            if !PersistenceStore.hasSelectedConfigurationDirectory {
+                do {
+                    try prepareDefaultConfigurationDestination()
+                } catch {
+                    configurationWelcomeError = "无法准备 iCloud 云盘中的 Surge Relay 文件夹：\(error.localizedDescription)"
+                }
+            } else {
+                configurationWelcomeLoadedExistingConfiguration = PersistenceStore.initialSetupLoadedExistingConfiguration
+            }
+            presentsConfigurationWelcome = true
+            return
+        }
+        await startRuntime()
+    }
+
+    private func startRuntime() async {
+        guard !hasStarted else { return }
         hasStarted = true
         applyWebServerSettings(persist: false)
         restartScheduler()
+        if settings.storageMode == .gitHub {
+            try? await fileStore.removeExportedCombined(
+                fromDirectory: settings.localModuleDirectory,
+                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
+            )
+        }
         Task {
             do {
                 try await fileStore.prepareStorage()
             } catch {
                 presentedError = "无法初始化缓存目录：\(error.localizedDescription)"
             }
-            await cleanupLegacyOutputFiles()
             await refreshModuleMetadataFromCache()
             let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
             if await shouldUpdateModulesOnLaunch() {
@@ -86,67 +130,56 @@ final class AppModel {
             ) {
                 await refreshScriptHub(showProgress: false)
             } else if modules.contains(where: \.isEnabled) {
-                statusMessage = "模块仍在刷新周期内，无需重新加载"
+                if settings.storageMode == .local {
+                    statusMessage = "正在同步到 iCloud…"
+                    let rebuilt = await rebuildCombinedFromCache()
+                    if rebuilt { statusMessage = "已是最新。" }
+                } else {
+                    statusMessage = "已是最新。"
+                }
             }
         }
     }
 
-    private func selectInitialConfigurationDirectoryIfNeeded() async {
-        guard !PersistenceStore.hasSelectedConfigurationDirectory else { return }
-
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = "选择 Surge Relay 配置存储目录"
-        alert.informativeText = "请选择 Surge Relay 配置存储目录，建议使用 iCloud 云盘中的 Surge 文件夹并新建 Surge Relay 文件夹作为目的地。"
-        alert.accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 500, height: 1))
-        alert.addButton(withTitle: "选择目录…")
-        alert.addButton(withTitle: "稍后")
-        guard await modalResponse(for: alert) == .alertFirstButtonReturn else { return }
-
-        let panel = NSOpenPanel()
-        panel.title = "选择配置存储目录"
-        panel.message = "选择用于保存 Surge Relay 配置的文件夹"
-        panel.prompt = "选择"
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(
-            filePath: AppSettings.defaultConfigurationDirectory,
+    private func prepareDefaultConfigurationDestination() throws {
+        let surgeDirectory = URL(
+            filePath: AppSettings.defaultSurgeDirectory,
             directoryHint: .isDirectory
-        )
-        guard await modalResponse(for: panel) == .OK, let url = panel.url else { return }
-
-        do {
-            try PersistenceStore.selectConfigurationDirectory(url.path)
-            reloadConfigurationFromSelectedDirectory()
-            statusMessage = "已使用所选配置存储目录"
-        } catch {
-            presentedError = "无法使用所选配置目录：\(error.localizedDescription)"
-        }
+        ).standardizedFileURL
+        let configurationDirectory = AppSettings.configurationDirectory(forSurgeDirectory: surgeDirectory)
+        try PersistenceStore.selectConfigurationDirectory(configurationDirectory.path)
+        reloadConfigurationFromSelectedDirectory()
+        settings.localModuleDirectory = surgeDirectory.path
+        saveSettings()
+        configurationWelcomeLoadedExistingConfiguration = configurationExistedBeforeLaunch
+        PersistenceStore.setInitialSetupLoadedExistingConfiguration(configurationExistedBeforeLaunch)
+        statusMessage = configurationExistedBeforeLaunch ? "已读取 Surge Relay 中的现有配置" : "已准备 iCloud 云盘存储"
     }
 
-    private func modalResponse(for alert: NSAlert) async -> NSApplication.ModalResponse {
-        guard let window = mainApplicationWindow else { return alert.runModal() }
-        return await withCheckedContinuation { continuation in
-            alert.beginSheetModal(for: window) { response in
-                continuation.resume(returning: response)
+    func completeConfigurationWelcome(storageMode: StorageMode) async -> Bool {
+        configurationWelcomeError = nil
+        if storageMode == .gitHub {
+            do {
+                try await validateGitHubDestination()
+            } catch {
+                configurationWelcomeError = error.localizedDescription
+                return false
             }
         }
-    }
-
-    private func modalResponse(for panel: NSOpenPanel) async -> NSApplication.ModalResponse {
-        guard let window = mainApplicationWindow else { return panel.runModal() }
-        return await withCheckedContinuation { continuation in
-            panel.beginSheetModal(for: window) { response in
-                continuation.resume(returning: response)
-            }
+        settings.storageMode = storageMode
+        saveSettings()
+        PersistenceStore.markInitialSetupCompleted()
+        presentsConfigurationWelcome = false
+        await startRuntime()
+        if storageMode == .local {
+            await rebuildCombinedFromCache()
+        } else {
+            try? await fileStore.removeExportedCombined(
+                fromDirectory: settings.localModuleDirectory,
+                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
+            )
         }
-    }
-
-    private var mainApplicationWindow: NSWindow? {
-        NSApp.keyWindow ?? NSApp.windows.first(where: { $0.canBecomeMain && $0.level == .normal })
+        return true
     }
 
     private func reloadConfigurationFromSelectedDirectory() {
@@ -241,32 +274,36 @@ final class AppModel {
         PersistenceStore.configurationDirectoryURL.path
     }
 
-    func useConfigurationDirectory(_ path: String) {
-        do {
-            try PersistenceStore.useConfigurationDirectory(path)
-            try PersistenceStore.saveModules(modules)
-            PersistenceStore.saveSettings(settings)
-            PersistenceStore.saveUpstreamState(upstreamState)
-            statusMessage = "配置和手动编辑内容已迁移到新的同步目录"
-        } catch {
-            presentedError = "无法更改配置目录：\(error.localizedDescription)"
-        }
+    var surgeDirectoryPath: String {
+        AppSettings.surgeDirectory(
+            forSelectedDirectory: URL(
+                filePath: settings.localModuleDirectory,
+                directoryHint: .isDirectory
+            )
+        ).path
     }
 
-    func setStorageMode(_ mode: StorageMode) {
-        guard settings.storageMode != mode else { return }
+    func setStorageMode(_ mode: StorageMode) async -> Bool {
+        guard settings.storageMode != mode else { return true }
+        if mode == .gitHub {
+            do {
+                try await validateGitHubDestination()
+            } catch {
+                presentedError = error.localizedDescription
+                return false
+            }
+        }
         settings.storageMode = mode
         saveSettings()
-        if mode == .gitHub, settings.github.repositoryIsPrivate == false {
-            presentedError = RelayError.githubRepositoryMustBePrivate.localizedDescription
+        if mode == .local {
+            await rebuildCombinedFromCache()
+        } else {
+            try? await fileStore.removeExportedCombined(
+                fromDirectory: settings.localModuleDirectory,
+                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
+            )
         }
-        if mode == .local { Task { await rebuildCombinedFromCache() } }
-    }
-
-    func setLocalModuleDirectory(_ path: String) {
-        settings.localModuleDirectory = path
-        saveSettings()
-        if settings.storageMode == .local { Task { await rebuildCombinedFromCache() } }
+        return true
     }
 
     func openConfigurationDirectory() {
@@ -374,7 +411,7 @@ final class AppModel {
         if modules[index].isEnabled {
             scheduleAutomaticUpdate()
         } else {
-            Task { await rebuildCombinedFromCache() }
+            scheduleCombinedRebuild()
         }
     }
 
@@ -388,7 +425,7 @@ final class AppModel {
         if enabled {
             scheduleAutomaticUpdate()
         } else {
-            Task { await rebuildCombinedFromCache() }
+            scheduleCombinedRebuild()
         }
     }
 
@@ -400,7 +437,7 @@ final class AppModel {
         do {
             try persistModules()
             statusMessage = "已调整模块优先级，正在重新合并"
-            Task { await rebuildCombinedFromCache() }
+            scheduleCombinedRebuild()
         } catch {
             presentedError = "保存模块顺序失败：\(error.localizedDescription)"
         }
@@ -417,7 +454,7 @@ final class AppModel {
         do {
             try persistModules()
             statusMessage = "已调整模块优先级，正在重新合并"
-            Task { await rebuildCombinedFromCache() }
+            scheduleCombinedRebuild()
         } catch {
             presentedError = "保存模块顺序失败：\(error.localizedDescription)"
         }
@@ -437,8 +474,30 @@ final class AppModel {
     }
 
     func updateAll() async {
+        synchronizationTask?.cancel()
+        combinedRebuildTask?.cancel()
+        automaticPublishTask?.cancel()
+        statusMessage = synchronizationInProgressMessage
+        let task = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled, let self else { return }
+            while self.isWorking, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !Task.isCancelled else { return }
+            await self.performSynchronization()
+        }
+        synchronizationTask = task
+        await task.value
+    }
+
+    private func performSynchronization() async {
         let enabledModules = modules.filter(\.isEnabled)
-        guard !isWorking, !enabledModules.isEmpty else { return }
+        guard !isWorking else { return }
+        guard !enabledModules.isEmpty else {
+            statusMessage = "已是最新。"
+            return
+        }
         automaticPublishTask?.cancel()
         let updateGeneration = localChangeGeneration
         isWorking = true
@@ -452,29 +511,16 @@ final class AppModel {
 
         let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
         if settings.automaticallyUpdateScriptHub || missingEngine {
-            await refreshScriptHubInternal()
+            await refreshScriptHubInternal(updatesStatus: false)
         }
         guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-            statusMessage = "检测到新的修改，已放弃旧更新"
-            return
-        }
-
-        if settings.storageMode == .gitHub,
-           settings.github.isConfigured,
-           !githubToken.isEmpty,
-           let isPrivate = try? await githubClient.test(settings: settings.github, token: githubToken) {
-            settings.github.repositoryIsPrivate = isPrivate
-            saveSettings()
-        }
-        guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-            statusMessage = "检测到新的修改，已放弃旧更新"
             return
         }
 
         var components: [(RelayModule, String)] = []
         var failures = 0
         var missingCache: [String] = []
-        var contentChanged = false
+        var synchronizationErrors: [String] = []
         var newHistory: [UpdateHistoryEntry] = []
 
         for moduleValue in enabledModules {
@@ -483,7 +529,6 @@ final class AppModel {
             var revisionSnapshot: SourceRevisionSnapshot?
             synchronizingModuleID = module.id
             setState(id: module.id, state: .updating, error: nil)
-            statusMessage = "正在检查 \(module.name)…"
             do {
                 let hasCache = await fileStore.hasComponent(id: module.id)
                 let sourceURL = URL(string: module.sourceURL)
@@ -524,7 +569,6 @@ final class AppModel {
                         // A failed lightweight check must not prevent the normal conversion path.
                     }
                 }
-                statusMessage = "正在内置转换 \(module.name)…"
                 let result = try await scriptHubClient.convert(
                     module: module,
                     github: settings.github.isConfigured ? settings.github : nil
@@ -532,7 +576,6 @@ final class AppModel {
                 guard updateGeneration == localChangeGeneration, !Task.isCancelled,
                       let currentIndex = modules.firstIndex(where: { $0.id == module.id }),
                       modules[currentIndex].isEnabled else {
-                    statusMessage = "检测到新的修改，已放弃旧更新"
                     return
                 }
                 try await fileStore.replaceAssets(result.assets, id: module.id)
@@ -541,7 +584,6 @@ final class AppModel {
                 guard updateGeneration == localChangeGeneration, !Task.isCancelled,
                       let latestIndex = modules.firstIndex(where: { $0.id == module.id }),
                       modules[latestIndex].isEnabled else {
-                    statusMessage = "检测到新的修改，已放弃旧更新"
                     return
                 }
                 module = modules[latestIndex]
@@ -577,7 +619,6 @@ final class AppModel {
                     assets: result.assets
                 )
                 let moduleContentChanged = module.contentHash != nextContentHash
-                if moduleContentChanged { contentChanged = true }
                 module.contentHash = nextContentHash
                 module.lastUpdatedAt = .now
                 module.state = .current
@@ -598,10 +639,10 @@ final class AppModel {
                 components.append((module, materialized))
             } catch {
                 guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-                    statusMessage = "检测到新的修改，已放弃旧更新"
                     return
                 }
                 failures += 1
+                synchronizationErrors.append("\(module.name)：\(error.localizedDescription)")
                 setState(id: module.id, state: .failed, error: error.localizedDescription)
                 if let cached = try? await fileStore.readComponent(id: module.id) {
                     let current = modules.first(where: { $0.id == module.id }) ?? module
@@ -636,12 +677,11 @@ final class AppModel {
         try? persistModules()
 
         guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-            statusMessage = "检测到新的修改，已放弃旧更新"
             return
         }
 
         guard missingCache.isEmpty else {
-            statusMessage = "无法重建总模块：\(missingCache.joined(separator: "、")) 尚无可用缓存"
+            setSynchronizationFailure("\(missingCache.joined(separator: "、")) 尚无可用缓存")
             presentedError = "以下来源首次转换失败，因此没有覆盖当前总模块：\n\(missingCache.joined(separator: "\n"))"
             return
         }
@@ -649,31 +689,31 @@ final class AppModel {
         do {
             try await writeCombinedModule(components)
             guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-                statusMessage = "检测到新的修改，已放弃旧更新"
                 return
             }
-            await cleanupLegacyOutputFiles()
-            guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-                statusMessage = "检测到新的修改，已放弃旧更新"
-                return
+            if settings.storageMode == .gitHub {
+                _ = try await publishAllInternal()
             }
-            if settings.storageMode == .gitHub, settings.automaticallyPublish, settings.github.isConfigured, !githubToken.isEmpty {
-                if contentChanged {
-                    scheduleAutomaticPublish()
-                    statusMessage = failures == 0
-                        ? "总模块已更新，等待合并发布"
-                        : "总模块已更新；\(failures) 个来源沿用上次版本，等待合并发布"
-                } else {
-                    statusMessage = failures == 0
-                        ? "所有模块内容均未变化，无需发布"
-                        : "模块内容未变化；\(failures) 个来源沿用上次版本，无需发布"
-                }
+            if failures == 0 {
+                statusMessage = "已是最新。"
             } else {
-                statusMessage = failures == 0 ? "总模块已由 \(components.count) 个来源合并完成" : "总模块已更新；\(failures) 个来源沿用上次成功版本"
+                setSynchronizationFailure(synchronizationErrors.first ?? "\(failures) 个来源更新错误")
             }
         } catch {
-            presentedError = "合并失败，当前总模块未被覆盖：\(error.localizedDescription)"
+            guard !Task.isCancelled else { return }
+            setSynchronizationFailure(error.localizedDescription)
+            presentedError = "同步失败：\(error.localizedDescription)"
         }
+    }
+
+    private var synchronizationInProgressMessage: String {
+        settings.storageMode == .gitHub ? "正在同步到 Github…" : "正在同步到 iCloud…"
+    }
+
+    private func setSynchronizationFailure(_ message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let punctuated = trimmed.hasSuffix("。") || trimmed.hasSuffix(".") ? trimmed : trimmed + "。"
+        statusMessage = "同步失败，\(punctuated)"
     }
 
     func update(moduleID _: UUID) async {
@@ -698,7 +738,7 @@ final class AppModel {
         guard settings.storageMode == .gitHub, settings.automaticallyPublish, settings.github.isConfigured, !githubToken.isEmpty else { return }
         automaticPublishTask?.cancel()
         automaticPublishTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(30))
+            try? await Task.sleep(for: .milliseconds(1_200))
             guard !Task.isCancelled, let self else { return }
             while self.isWorking, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(250))
@@ -709,13 +749,12 @@ final class AppModel {
                   self.settings.github.isConfigured,
                   !self.githubToken.isEmpty else { return }
             self.isWorking = true
+            self.statusMessage = "正在同步到 Github…"
             defer { self.isWorking = false }
             do {
                 let report = try await self.publishAllInternal()
                 guard !Task.isCancelled else { return }
-                self.statusMessage = report.publishedFiles.isEmpty
-                    ? "GitHub 内容没有变化，无需上传"
-                    : "已合并发布到 GitHub（\(report.publishedFiles.count) 个文件）"
+                self.statusMessage = "已是最新。"
                 if let commit = report.commitSHA {
                     self.recordHistory([UpdateHistoryEntry(
                         moduleName: "GitHub",
@@ -726,6 +765,7 @@ final class AppModel {
                 }
             } catch {
                 guard !Task.isCancelled else { return }
+                self.setSynchronizationFailure(error.localizedDescription)
                 self.presentedError = "GitHub 自动发布失败：\(error.localizedDescription)"
             }
         }
@@ -734,12 +774,12 @@ final class AppModel {
     func refreshScriptHub(showProgress: Bool = true) async {
         guard !isWorking || !showProgress else { return }
         if showProgress { isWorking = true }
-        await refreshScriptHubInternal()
+        await refreshScriptHubInternal(updatesStatus: true)
         if showProgress { isWorking = false }
     }
 
-    private func refreshScriptHubInternal() async {
-        statusMessage = "正在更新 App 内置 Script-Hub 引擎…"
+    private func refreshScriptHubInternal(updatesStatus: Bool) async {
+        if updatesStatus { statusMessage = "正在更新 App 内置 Script-Hub 引擎…" }
         do {
             let result = try await upstreamService.fetchManagedModule(
                 from: settings.scriptHubModuleURL,
@@ -754,13 +794,17 @@ final class AppModel {
             upstreamState.lastCheckedAt = .now
             upstreamState.lastError = nil
             PersistenceStore.saveUpstreamState(upstreamState)
-            statusMessage = result.changed ? "内置 Script-Hub 引擎已更新至 \(result.revision)" : "内置 Script-Hub 引擎已是最新"
+            if updatesStatus {
+                statusMessage = result.changed ? "内置 Script-Hub 引擎已更新至 \(result.revision)" : "内置 Script-Hub 引擎已是最新"
+            }
         } catch {
             upstreamState.lastCheckedAt = .now
             upstreamState.lastError = error.localizedDescription
             PersistenceStore.saveUpstreamState(upstreamState)
             let hasCache = await engineStore.hasScript(named: "Rewrite-Parser.js")
-            statusMessage = hasCache ? "上游检查失败，继续使用 App 内缓存引擎" : "内置转换引擎尚不可用"
+            if updatesStatus {
+                statusMessage = hasCache ? "上游检查失败，继续使用 App 内缓存引擎" : "内置转换引擎尚不可用"
+            }
         }
     }
 
@@ -769,42 +813,79 @@ final class AppModel {
         if showProgress { isWorking = true }
         defer { if showProgress { isWorking = false } }
         do {
-            let isPrivate = try await githubClient.test(settings: settings.github, token: githubToken)
-            settings.github.repositoryIsPrivate = isPrivate
+            try await validateGitHubDestination(publishCurrentModule: false)
             saveSettings()
-            guard isPrivate else { throw RelayError.githubRepositoryMustBePrivate }
-            guard settings.github.hasValidCloudflarePublicBaseURL else {
-                throw RelayError.cloudflareNotConfigured
-            }
-            statusMessage = "GitHub 私有仓库与 Cloudflare 连接配置有效"
+            statusMessage = "GitHub 私有仓库与 Cloudflare 发布链路验证成功"
         } catch {
             presentedError = error.localizedDescription
         }
+    }
+
+    private func validateGitHubDestination(publishCurrentModule: Bool = true) async throws {
+        githubToken = githubToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard settings.github.isConfigured else { throw RelayError.githubNotConfigured }
+        guard !githubToken.isEmpty else { throw RelayError.githubTokenMissing }
+        guard settings.github.hasValidCloudflarePublicBaseURL else {
+            throw RelayError.cloudflareNotConfigured
+        }
+
+        let isPrivate = try await githubClient.test(settings: settings.github, token: githubToken)
+        guard isPrivate else { throw RelayError.githubRepositoryMustBePrivate }
+        settings.github.repositoryIsPrivate = true
+
+        if publishCurrentModule, await fileStore.hasCombined() {
+            _ = try await publishAllInternal()
+        } else {
+            try await verifyCloudflareEndpoint()
+        }
+    }
+
+    private func verifyCloudflareEndpoint() async throws {
+        let value = settings.github.publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: value) else { throw RelayError.cloudflareNotConfigured }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 20)
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<500).contains(status) else {
+            throw RelayError.httpFailure(status: status, message: "Cloudflare Worker 地址不可用。")
+        }
+    }
+
+    private func verifyCloudflarePublishedModule(expected: Data) async throws {
+        let fileName = FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
+        guard let url = settings.github.publicURL(for: fileName) else {
+            throw RelayError.cloudflareNotConfigured
+        }
+
+        for attempt in 0..<4 {
+            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 20)
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if (200..<300).contains(status), data == expected { return }
+            if attempt < 3 { try await Task.sleep(for: .seconds(1)) }
+        }
+        throw RelayError.invalidOutput("Cloudflare 尚未返回刚发布的汇总模块，本地文件已保留。")
     }
 
     func publishAll() async {
         guard !isWorking else { return }
         automaticPublishTask?.cancel()
         isWorking = true
+        statusMessage = "正在同步到 Github…"
         defer { isWorking = false }
         do {
-            let report = try await publishAllInternal()
-            statusMessage = "总模块与独立模块已发布到 GitHub"
-            if report.publishedFiles.isEmpty { statusMessage = "没有文件需要发布" }
+            _ = try await publishAllInternal()
+            statusMessage = "已是最新。"
         } catch {
+            setSynchronizationFailure(error.localizedDescription)
             presentedError = error.localizedDescription
         }
     }
 
     private func publishAllInternal() async throws -> PublishReport {
         try Task.checkCancellation()
-        let isPrivate = try await githubClient.test(settings: settings.github, token: githubToken)
-        try Task.checkCancellation()
-        if settings.github.repositoryIsPrivate != isPrivate {
-            settings.github.repositoryIsPrivate = isPrivate
-            saveSettings()
-        }
-        guard isPrivate else { throw RelayError.githubRepositoryMustBePrivate }
         guard settings.github.hasValidCloudflarePublicBaseURL else {
             throw RelayError.cloudflareNotConfigured
         }
@@ -819,23 +900,57 @@ final class AppModel {
             files.append(PublishFile(name: module.outputFileName, data: Data(namedContent.utf8)))
         }
         let assets = try await fileStore.generatedAssetFiles()
-        return try await githubClient.publish(
+        let report = try await githubClient.publish(
             files: files + assets,
             settings: settings.github,
             token: githubToken
         )
+        if settings.github.repositoryIsPrivate != true {
+            settings.github.repositoryIsPrivate = true
+            saveSettings()
+        }
+        try await verifyCloudflarePublishedModule(expected: data)
+        return report
     }
 
-    private func rebuildCombinedFromCache() async {
+    private func scheduleCombinedRebuild() {
+        synchronizationTask?.cancel()
+        combinedRebuildTask?.cancel()
+        automaticPublishTask?.cancel()
+        let willSynchronize = settings.storageMode == .local || settings.automaticallyPublish
+        if willSynchronize { statusMessage = synchronizationInProgressMessage }
+        combinedRebuildTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled, let self else { return }
+            while self.isWorking, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !Task.isCancelled else { return }
+            let rebuilt = await self.rebuildCombinedFromCache()
+            guard !Task.isCancelled else { return }
+            if rebuilt, self.settings.storageMode == .local {
+                self.statusMessage = "已是最新。"
+            }
+        }
+    }
+
+    @discardableResult
+    private func rebuildCombinedFromCache() async -> Bool {
         let rebuildGeneration = localChangeGeneration
         let enabled = modules.filter(\.isEnabled)
         guard !enabled.isEmpty else {
             try? await fileStore.removeCombined()
-            return
+            if settings.storageMode == .local {
+                try? await fileStore.removeExportedCombined(
+                    fromDirectory: settings.localModuleDirectory,
+                    fileName: AppSettings.fixedCombinedModuleFileName
+                )
+            }
+            return true
         }
         var components: [(RelayModule, String)] = []
         for module in enabled {
-            guard let content = try? await fileStore.readComponent(id: module.id) else { return }
+            guard let content = try? await fileStore.readComponent(id: module.id) else { return false }
             let materialized = await processingWorker.materialize(
                 content,
                 overrides: module.argumentOverrides
@@ -845,12 +960,14 @@ final class AppModel {
         do {
             try await writeCombinedModule(components)
             guard rebuildGeneration == localChangeGeneration else {
-                await rebuildCombinedFromCache()
-                return
+                return await rebuildCombinedFromCache()
             }
             scheduleAutomaticPublish()
+            return true
         } catch {
             presentedError = "自动合并失败：\(error.localizedDescription)"
+            setSynchronizationFailure(error.localizedDescription)
+            return false
         }
     }
 
@@ -898,13 +1015,6 @@ final class AppModel {
                 toDirectory: settings.localModuleDirectory,
                 fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
             )
-        }
-    }
-
-    private func cleanupLegacyOutputFiles() async {
-        try? await fileStore.removeLegacyPublishedFiles(in: settings.outputDirectory)
-        if settings.outputDirectory != configurationDirectoryPath {
-            try? await fileStore.removeLegacyPublishedFiles(in: configurationDirectoryPath)
         }
     }
 
@@ -961,7 +1071,7 @@ final class AppModel {
         }
         try? persistModules()
         statusMessage = "已更新 \(modules[index].name) 的模块参数"
-        Task { await rebuildCombinedFromCache() }
+        scheduleCombinedRebuild()
     }
 
     func resetModuleArguments(moduleID: UUID) {
@@ -971,7 +1081,7 @@ final class AppModel {
         modules[index].argumentOverrides.removeAll()
         try? persistModules()
         statusMessage = "已恢复 \(modules[index].name) 的默认参数"
-        Task { await rebuildCombinedFromCache() }
+        scheduleCombinedRebuild()
     }
 
     func combinedPreviewContent() async throws -> String {
