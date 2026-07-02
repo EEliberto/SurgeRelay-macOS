@@ -4,25 +4,27 @@
         <title>Surge Relay</title>
         <item>
             <title>260702</title>
-            <pubDate>Thu, 02 Jul 2026 17:41:49 +0800</pubDate>
+            <pubDate>Thu, 02 Jul 2026 23:45:28 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260702</link>
-            <sparkle:version>260702</sparkle:version>
+            <sparkle:version>26070202</sparkle:version>
             <sparkle:shortVersionString>260702</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，260702 推出了以下更新：
 
-## 全新首次设置体验
+## 全新设置体验
 
 * 重新设计欢迎页面，初始设置更简单高效。
 * 默认使用 iCloud 云盘中的 Surge 文件夹。
 * 支持选择 iCloud 云盘或 GitHub 私有仓库存储。
 * 中文覆盖更全面。
+* 全新设置页面，更简约高效。
 
 ## 存储与数据安全
 
 * 配置、覆盖与同步状态统一保存在 Surge Relay 子文件夹。
 * iCloud 模式仅在 Surge 文件夹生成一份汇总模块。
+* iCloud 模式支持单独输出某一模块，在模块内开启选项即可，此选项不影响汇总模块生成（由 @ChuJianyuan 反馈）。
 * 切换到 GitHub 前会验证私有仓库、Cloudflare 及实际发布结果。
 * 修复批量清理逻辑可能移除 iCloud 内其他 `.sgmodule` 文件的问题，并重构 iCloud 同步逻辑（由 @jason-kwok、@XIYINGDU 反馈），不再误删用户自定义模块。
 
@@ -30,7 +32,7 @@
 
 * 修复 Web 端出现的部分错误。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260702/Surge-Relay-260702.dmg" length="9077469" type="application/octet-stream" sparkle:edSignature="mDKN6FaP8aKtsqQm2j6d60rwJTtE/AqKS9LiNohB2pdOY5qC5FCyXhbB+vjiOYUgMHCmW4EHuJr2WK0X5dyKBQ=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260702/Surge-Relay-260702.dmg" length="9218171" type="application/octet-stream" sparkle:edSignature="WFDp2cH9+g0v1bpUp7FjnX2RIqB4qdT1ie5oFUGUEduPkxOowwLHi27Yyec6cANVOY/cai/aPf72qzqNYzV8Dw=="/>
         </item>
         <item>
             <title>1.1.1</title>
