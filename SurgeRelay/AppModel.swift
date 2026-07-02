@@ -652,11 +652,6 @@ final class AppModel {
                 statusMessage = "检测到新的修改，已放弃旧更新"
                 return
             }
-            await cleanupLegacyOutputFiles()
-            guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-                statusMessage = "检测到新的修改，已放弃旧更新"
-                return
-            }
             if settings.storageMode == .gitHub, settings.automaticallyPublish, settings.github.isConfigured, !githubToken.isEmpty {
                 if contentChanged {
                     scheduleAutomaticPublish()
