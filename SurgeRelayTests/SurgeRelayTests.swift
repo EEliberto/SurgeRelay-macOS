@@ -5,6 +5,8 @@ final class SurgeRelayTests: XCTestCase {
     func testFilenameSanitizerCreatesSurgeModuleExtension() {
         XCTAssertEqual(FilenameSanitizer.sgmoduleName(from: "YouTube Ads.sgmodule"), "YouTube-Ads.sgmodule")
         XCTAssertEqual(FilenameSanitizer.sgmoduleName(from: "folder/bad:name"), "folder-bad-name.sgmodule")
+        XCTAssertEqual(FilenameSanitizer.individualRelayName(from: "123.sgmodule"), "123-SurgeRelay.sgmodule")
+        XCTAssertEqual(FilenameSanitizer.individualRelayName(from: "123-SurgeRelay.sgmodule"), "123-SurgeRelay.sgmodule")
     }
 
     func testAutomaticSourceFormat() throws {
@@ -216,6 +218,7 @@ final class SurgeRelayTests: XCTestCase {
         object.removeValue(forKey: "scriptHubOptions")
         object.removeValue(forKey: "argumentOverrides")
         object.removeValue(forKey: "iconURL")
+        object.removeValue(forKey: "exportsIndividualModuleToICloud")
         let legacyData = try JSONSerialization.data(withJSONObject: object)
         let decoded = try JSONDecoder().decode(RelayModule.self, from: legacyData)
 
@@ -223,6 +226,7 @@ final class SurgeRelayTests: XCTestCase {
         XCTAssertEqual(decoded.scriptHubOptions, ScriptHubOptions())
         XCTAssertTrue(decoded.argumentOverrides.isEmpty)
         XCTAssertNil(decoded.iconURL)
+        XCTAssertFalse(decoded.exportsIndividualModuleToICloud)
         XCTAssertNil(decoded.sourceETag)
         XCTAssertNil(decoded.sourceContentHash)
         XCTAssertFalse(decoded.hasOverrideConflict)

@@ -103,6 +103,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
     var sourceFormat: ModuleSourceFormat
     var outputFileName: String
     var isEnabled: Bool
+    var exportsIndividualModuleToICloud: Bool
     var scriptHubOptions: ScriptHubOptions
     var argumentOverrides: [String: String]
     var iconURL: String?
@@ -127,6 +128,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         sourceFormat: ModuleSourceFormat = .automatic,
         outputFileName: String,
         isEnabled: Bool = true,
+        exportsIndividualModuleToICloud: Bool = false,
         scriptHubOptions: ScriptHubOptions = ScriptHubOptions(),
         argumentOverrides: [String: String] = [:],
         iconURL: String? = nil,
@@ -150,6 +152,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         self.sourceFormat = sourceFormat
         self.outputFileName = FilenameSanitizer.sgmoduleName(from: outputFileName)
         self.isEnabled = isEnabled
+        self.exportsIndividualModuleToICloud = exportsIndividualModuleToICloud
         self.scriptHubOptions = scriptHubOptions
         self.argumentOverrides = argumentOverrides
         self.iconURL = iconURL
@@ -169,7 +172,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, sourceURL, sourceFormat, outputFileName, isEnabled, scriptHubOptions, argumentOverrides, iconURL, detectedSourceFormat
+        case id, name, sourceURL, sourceFormat, outputFileName, isEnabled, exportsIndividualModuleToICloud, scriptHubOptions, argumentOverrides, iconURL, detectedSourceFormat
         case createdAt, lastUpdatedAt, contentHash, sourceETag, sourceLastModified, sourceContentHash, sourceCheckedAt
         case conversionEngineRevision, overrideBaseHash, hasOverrideConflict, state, lastError
     }
@@ -183,6 +186,10 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         outputFileName = try container.decodeIfPresent(String.self, forKey: .outputFileName)
             ?? FilenameSanitizer.suggestedName(from: sourceURL)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        exportsIndividualModuleToICloud = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .exportsIndividualModuleToICloud
+        ) ?? false
         scriptHubOptions = try container.decodeIfPresent(ScriptHubOptions.self, forKey: .scriptHubOptions) ?? ScriptHubOptions()
         argumentOverrides = try container.decodeIfPresent([String: String].self, forKey: .argumentOverrides) ?? [:]
         iconURL = try container.decodeIfPresent(String.self, forKey: .iconURL)

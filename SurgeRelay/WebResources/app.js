@@ -3,12 +3,15 @@ const ui = {
   list: document.querySelector('#module-list'),
   summaryRow: document.querySelector('#summary-row'),
   summarySubtitle: document.querySelector('#summary-subtitle'),
+  detailRoot: document.querySelector('#detail'),
   detail: document.querySelector('#detail-content'),
   search: document.querySelector('#search-input'),
   add: document.querySelector('#add-button'),
   refresh: document.querySelector('#refresh-button'),
   back: document.querySelector('#mobile-back'),
   mobileTitle: document.querySelector('#mobile-title'),
+  desktopTitle: document.querySelector('#desktop-title'),
+  desktopActions: document.querySelector('#desktop-detail-actions'),
   status: document.querySelector('#activity-status'),
   percent: document.querySelector('#activity-percent'),
   progressTrack: document.querySelector('#progress-track'),
@@ -158,8 +161,8 @@ ui.list.addEventListener('keydown', event => {
   const row = event.target.closest('.module-row');
   if (row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); selectItem(row.dataset.id); }
 });
-ui.detail.addEventListener('click', handleDetailClick);
-ui.detail.addEventListener('change', handleDetailChange);
+ui.detailRoot.addEventListener('click', handleDetailClick);
+ui.detailRoot.addEventListener('change', handleDetailChange);
 window.addEventListener('popstate', handleHistoryNavigation);
 
 loadState(true, true).finally(startStateEvents);
@@ -311,15 +314,21 @@ function renderActivity() {
 }
 
 function renderDetail(animate = true) {
-  if (!state || !selectedID) { setDetailHTML(`<div class="empty-state"><div><span class="symbol" data-symbol="sidebar.left"></span><div>选择一个模块</div></div></div>`, animate); return; }
+  if (!state || !selectedID) {
+    ui.desktopActions.innerHTML = '';
+    setDetailHTML(`<div class="empty-state"><div><span class="symbol" data-symbol="sidebar.left"></span><div>选择一个模块</div></div></div>`, animate);
+    return;
+  }
   if (selectedID === 'combined') {
     ui.mobileTitle.textContent = state.combined.name;
+    ui.desktopTitle.textContent = state.combined.name;
     renderCombinedDetail(animate);
   }
   else {
     const module = state.modules.find(item => item.id === selectedID);
     if (module) {
       ui.mobileTitle.textContent = module.name;
+      ui.desktopTitle.textContent = module.name;
       renderModuleDetail(module, animate);
     }
   }
@@ -330,13 +339,14 @@ function setDetailHTML(content, animate = true) {
 }
 
 function detailToolbar(module = null) {
-  return `<div class="detail-toolbar">
+  const controls = `
     <div class="segmented-control" aria-label="显示方式">
       <button data-action="tab-info" class="${detailTab === 'info' ? 'selected' : ''}"><span class="symbol" data-symbol="info.circle"></span><span>详情</span></button>
       <button data-action="tab-preview" class="${detailTab === 'preview' ? 'selected' : ''}"><span class="symbol" data-symbol="curlybraces"></span><span>预览</span></button>
     </div>
-    ${module ? `<button class="button" data-action="edit"><span class="symbol" data-symbol="pencil"></span>编辑</button><button class="button destructive" data-action="delete"><span class="symbol" data-symbol="trash"></span>删除</button>` : ''}
-  </div>`;
+    ${module ? `<button class="button" data-action="edit"><span class="symbol" data-symbol="pencil"></span>编辑</button><button class="button destructive" data-action="delete"><span class="symbol" data-symbol="trash"></span>删除</button>` : ''}`;
+  ui.desktopActions.innerHTML = controls;
+  return `<div class="detail-toolbar mobile-detail-toolbar">${controls}</div>`;
 }
 
 function renderCombinedDetail(animate = true) {
@@ -366,6 +376,10 @@ function renderModuleDetail(module, animate = true) {
   const published = module.publishedURL ? `<section class="form-section-view"><h3 class="section-heading">${publishedTitle}</h3><div class="group-box"><div class="detail-row action-row"><div class="detail-value monospaced">${escapeHTML(module.publishedURL)}</div><div><button class="button" data-action="copy" data-value="${escapeAttribute(module.publishedURL)}"><span class="symbol" data-symbol="copy"></span>拷贝地址</button></div></div></div></section>` : '';
   const error = module.lastError ? `<section class="form-section-view"><h3 class="section-heading">最近一次更新失败</h3><div class="group-box"><div class="detail-row action-row error-box"><strong>更新失败</strong><div>${escapeHTML(module.lastError)}</div><small>如果该来源有缓存，总模块会继续沿用它上一次成功版本。</small></div></div></section>` : '';
   const conflict = module.hasOverrideConflict ? `<section class="form-section-view"><h3 class="section-heading">本地编辑冲突</h3><div class="group-box"><div class="detail-row action-row error-box"><strong>上游内容已经变化</strong><div>当前仍在使用本地编辑。可在预览中比较内容后保留或恢复。</div><div><button class="button" data-action="accept-override">保留本地编辑</button><button class="button" data-action="tab-preview">前往预览</button></div></div></div></section>` : '';
+  const individualOutput = state.storageMode === 'local' ? `<section class="form-section-view"><h3 class="section-heading">iCloud 云盘</h3><div class="group-box">
+    <label class="detail-row switch-row"><div class="detail-label"><span class="symbol" data-symbol="externaldrive"></span><span>输出独立模块至 iCloud 云盘</span></div><input type="checkbox" data-individual-icloud-export ${module.exportsIndividualModuleToICloud ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
+    <div class="arguments-footer"><small>关闭后自动删除独立文件，汇总模块不受影响。</small></div>
+  </div></section>` : '';
   setDetailHTML(`${detailToolbar(module)}
     <section class="form-section-view"><h3 class="section-heading">模块信息</h3><div class="group-box">
       ${detailRow('link', '原始地址', `<a href="${escapeAttribute(module.sourceURL)}" target="_blank" rel="noreferrer">${escapeHTML(module.sourceURL)}</a>`, true)}
@@ -373,7 +387,7 @@ function renderModuleDetail(module, animate = true) {
       ${detailRow('square.stack.3d.up.fill', '汇总订阅', state.combined.subscriptionURL || '等待发布配置')}
       ${detailRow('clock', '上次更新', formatDate(module.lastUpdatedAt, '从未更新'))}
     </div></section>
-    ${advanced}<div id="arguments-section"></div>${conflict}${published}${error}`, animate);
+    ${individualOutput}${advanced}<div id="arguments-section"></div>${conflict}${published}${error}`, animate);
   loadArguments(module);
 }
 
@@ -583,6 +597,20 @@ async function acceptOverride(module) {
 }
 
 async function handleDetailChange(event) {
+  const individualExport = event.target.closest('[data-individual-icloud-export]');
+  if (individualExport && selectedID !== 'combined') {
+    try {
+      const result = await api(`/api/modules/${selectedID}/individual-icloud-export`, {
+        method: 'POST', json: { enabled: individualExport.checked }
+      });
+      showToast(result.message);
+      await loadState(false, true);
+    } catch (error) {
+      individualExport.checked = !individualExport.checked;
+      showToast(error.message, true);
+    }
+    return;
+  }
   const input = event.target.closest('[data-argument-key]');
   if (!input || selectedID === 'combined') return;
   const value = input.type === 'checkbox' ? String(input.checked) : input.value;

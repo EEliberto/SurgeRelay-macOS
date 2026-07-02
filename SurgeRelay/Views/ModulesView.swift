@@ -1,6 +1,43 @@
 import AppKit
 import SwiftUI
 
+private struct ModuleNavigationButtons: View {
+    let canGoBack: Bool
+    let canGoForward: Bool
+    let goBack: () -> Void
+    let goForward: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            navigationButton(systemImage: "chevron.left", isEnabled: canGoBack, action: goBack)
+
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor).opacity(0.22))
+                .frame(width: 1, height: 17)
+
+            navigationButton(systemImage: "chevron.right", isEnabled: canGoForward, action: goForward)
+        }
+        .frame(width: 72, height: 32)
+        .glassEffect(.regular, in: Capsule())
+    }
+
+    private func navigationButton(
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 35, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isEnabled ? Color.primary.opacity(0.72) : Color.secondary.opacity(0.28))
+        .disabled(!isEnabled)
+    }
+}
+
 struct ModulesView: View {
     @Environment(AppModel.self) private var model
     @State private var searchText = ""
@@ -9,6 +46,9 @@ struct ModulesView: View {
     @State private var detailTab: DetailTab = .info
     @State private var contentIndex: [UUID: String] = [:]
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var backStack: [UUID?] = []
+    @State private var forwardStack: [UUID?] = []
+    @State private var isHistoryNavigation = false
 
     private enum DetailTab: Hashable { case info, preview }
 
@@ -24,6 +64,14 @@ struct ModulesView: View {
             return .module(module)
         }
         return nil
+    }
+
+    private var selectedDetailTitle: String? {
+        guard let selectionKind else { return nil }
+        switch selectionKind {
+        case .combined: return "Surge Relay 汇总"
+        case let .module(module): return module.name
+        }
     }
 
     private var filteredModules: [RelayModule] {
@@ -246,6 +294,25 @@ struct ModulesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .searchable(text: $searchText, prompt: "搜索")
             .toolbar {
+                if let selectedDetailTitle {
+                    ToolbarItem(placement: .navigation) {
+                        HStack(spacing: 12) {
+                            ModuleNavigationButtons(
+                                canGoBack: !backStack.isEmpty,
+                                canGoForward: !forwardStack.isEmpty,
+                                goBack: goBack,
+                                goForward: goForward
+                            )
+
+                            Text(selectedDetailTitle)
+                                .font(.system(size: 15, weight: .semibold))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: 280, alignment: .leading)
+                        }
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarSpacer(.flexible)
                 if selectionKind != nil {
                     ToolbarItem {
@@ -261,33 +328,22 @@ struct ModulesView: View {
                         .labelsHidden()
                     }
                 }
-                ToolbarItem {
-                    Button {
-                        model.presentsSettings = true
-                    } label: {
-                        Label("设置", systemImage: "gearshape")
-                    }
-                    .help("设置")
-                }
             }
         }
-        .onChange(of: model.selectedModuleID) { _, _ in detailTab = .info }
+        .onChange(of: model.selectedModuleID) { oldValue, newValue in
+            detailTab = .info
+            guard oldValue != newValue else { return }
+            if isHistoryNavigation {
+                isHistoryNavigation = false
+                return
+            }
+            backStack.append(oldValue)
+            forwardStack.removeAll()
+        }
         .task(id: contentIndexToken) { await rebuildContentIndex() }
         .sheet(item: $editorRoute) { route in
             ModuleEditorView(module: route.module)
                 .environment(model)
-        }
-        .sheet(isPresented: $model.presentsSettings) {
-            NavigationStack {
-                SettingsView()
-                    .environment(model)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("完成") { model.presentsSettings = false }
-                        }
-                    }
-            }
-            .frame(width: 620, height: 560)
         }
         .confirmationDialog(
             "删除“\(deleteCandidate?.name ?? "")”？",
@@ -309,6 +365,20 @@ struct ModulesView: View {
 
     private func presentEditor(_ module: RelayModule) {
         editorRoute = ModuleEditorRoute(module: module)
+    }
+
+    private func goBack() {
+        guard let previous = backStack.popLast() else { return }
+        forwardStack.append(model.selectedModuleID)
+        isHistoryNavigation = true
+        model.selectedModuleID = previous
+    }
+
+    private func goForward() {
+        guard let next = forwardStack.popLast() else { return }
+        backStack.append(model.selectedModuleID)
+        isHistoryNavigation = true
+        model.selectedModuleID = next
     }
 
     @ViewBuilder
@@ -492,6 +562,32 @@ private struct ModuleDetailView: View {
                         icon: "clock"
                     )
                     Button("编辑模块…", systemImage: "pencil", action: onEdit)
+                }
+
+                if model.settings.storageMode == .local {
+                    Section("iCloud 云盘") {
+                        Toggle(
+                            "输出独立模块至 iCloud 云盘",
+                            isOn: Binding(
+                                get: {
+                                    model.modules.first(where: { $0.id == module.id })?
+                                        .exportsIndividualModuleToICloud
+                                        ?? module.exportsIndividualModuleToICloud
+                                },
+                                set: { enabled in
+                                    Task {
+                                        await model.setModuleIndividualICloudExport(
+                                            id: module.id,
+                                            enabled: enabled
+                                        )
+                                    }
+                                }
+                            )
+                        )
+                        Text("开启后在 Surge 文件夹生成该模块的独立文件；关闭后自动删除。汇总模块不受影响。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let summary = module.scriptHubOptions.configuredSummary {

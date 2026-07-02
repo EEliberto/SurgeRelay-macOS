@@ -109,7 +109,7 @@ enum RelayError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .invalidSourceURL: "来源地址无效。"
-        case .invalidServiceURL: "Script-Hub 服务地址无效。"
+        case .invalidServiceURL: "Script Hub 服务地址无效。"
         case .duplicateSourceURL: "该模块已经添加，不能重复添加。"
         case .invalidOutput(let message): "转换结果无效：\(message)"
         case .httpFailure(let status, let message): "网络请求失败（\(status)）：\(message)"

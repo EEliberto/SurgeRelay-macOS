@@ -129,10 +129,10 @@ actor EmbeddedScriptHubEngine {
         }
 
         if let exceptionMessage {
-            throw RelayError.invalidOutput("Script-Hub 执行异常：\(exceptionMessage)")
+            throw RelayError.invalidOutput("Script Hub 执行异常：\(exceptionMessage)")
         }
         guard let output else {
-            throw RelayError.invalidOutput("Script-Hub 内置引擎未在限定时间内返回结果。")
+            throw RelayError.invalidOutput("Script Hub 内置引擎未在限定时间内返回结果。")
         }
         return output
     }

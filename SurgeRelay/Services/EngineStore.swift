@@ -16,7 +16,7 @@ actor EngineStore {
     func script(named name: String) throws -> String {
         let data = try Data(contentsOf: directory.appending(path: name))
         guard let script = String(data: data, encoding: .utf8), !script.isEmpty else {
-            throw RelayError.invalidOutput("内置 Script-Hub 引擎文件损坏。")
+            throw RelayError.invalidOutput("内置 Script Hub 引擎文件损坏。")
         }
         return script
     }

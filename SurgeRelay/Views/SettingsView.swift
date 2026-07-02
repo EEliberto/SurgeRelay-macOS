@@ -3,6 +3,71 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 
+private struct SettingsWindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { configure(view.window) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { configure(nsView.window) }
+    }
+
+    private func configure(_ window: NSWindow?) {
+        guard let window else { return }
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = false
+        window.titleVisibility = .hidden
+        window.toolbarStyle = .unified
+    }
+}
+
+private struct SettingsNavigationButtons: View {
+    let canGoBack: Bool
+    let canGoForward: Bool
+    let goBack: () -> Void
+    let goForward: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            navigationButton(
+                systemImage: "chevron.left",
+                isEnabled: canGoBack,
+                action: goBack
+            )
+
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor).opacity(0.22))
+                .frame(width: 1, height: 17)
+
+            navigationButton(
+                systemImage: "chevron.right",
+                isEnabled: canGoForward,
+                action: goForward
+            )
+        }
+        .frame(width: 72, height: 32)
+        .glassEffect(.regular, in: Capsule())
+    }
+
+    private func navigationButton(
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 35, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isEnabled ? Color.primary.opacity(0.72) : Color.secondary.opacity(0.28))
+        .disabled(!isEnabled)
+    }
+}
+
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isCheckingUpdate = false
@@ -10,6 +75,16 @@ struct SettingsView: View {
     @State private var connectionResult: ConnectionResult?
     @State private var showsWebQRCode = false
     @State private var pendingStorageMode: StorageMode?
+    @State private var selectedPane: SettingsPane = .general
+    @State private var githubRepositoryInput = ""
+    @State private var githubCloudflareInput = ""
+    @State private var originalGitHubRepositoryInput = ""
+    @State private var originalGitHubCloudflareInput = ""
+    @State private var originalGitHubToken = ""
+    @State private var didLoadGitHubDraft = false
+    @State private var backStack: [SettingsPane] = []
+    @State private var forwardStack: [SettingsPane] = []
+    @State private var isHistoryNavigation = false
 
     private enum ConnectionResult {
         case success(String)
@@ -25,18 +100,167 @@ struct SettingsView: View {
         }
     }
 
+    private enum SettingsPane: String, CaseIterable, Identifiable {
+        case general
+        case web
+        case scriptHub
+        case synchronization
+        case diagnostics
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .general: "通用"
+            case .web: "Web 管理"
+            case .scriptHub: "Script Hub"
+            case .synchronization: "同步"
+            case .diagnostics: "诊断"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .general: "gearshape"
+            case .web: "network"
+            case .scriptHub: "arrow.triangle.branch"
+            case .synchronization: "arrow.trianglehead.2.clockwise.rotate.90"
+            case .diagnostics: "stethoscope"
+            }
+        }
+    }
+
     var body: some View {
-        @Bindable var model = model
-        Form {
-            Section("通用") {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("iCloud 云盘 · Surge")
-                    Text(model.surgeDirectoryPath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        NavigationSplitView {
+            List(SettingsPane.allCases, selection: $selectedPane) { pane in
+                Label(pane.title, systemImage: pane.symbol)
+                    .tag(pane)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 250)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            detailView(for: selectedPane)
+                .toolbar(removing: .title)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        HStack(spacing: 12) {
+                            SettingsNavigationButtons(
+                                canGoBack: !backStack.isEmpty,
+                                canGoForward: !forwardStack.isEmpty,
+                                goBack: goBack,
+                                goForward: goForward
+                            )
+
+                            Text(selectedPane.title)
+                                .font(.system(size: 15, weight: .semibold))
+                                .lineLimit(1)
+                                .fixedSize()
+                        }
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .toolbar(removing: .title)
+        .background(SettingsWindowConfigurator())
+        .frame(minWidth: 860, minHeight: 560)
+        .onAppear {
+            resetNavigation()
+            loadGitHubDraftIfNeeded()
+        }
+        .onDisappear(perform: resetNavigation)
+        .onChange(of: selectedPane) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            if isHistoryNavigation {
+                isHistoryNavigation = false
+                return
+            }
+            backStack.append(oldValue)
+            forwardStack.removeAll()
+        }
+        .sheet(isPresented: $showsWebQRCode) {
+            if let url = model.webManagementURL {
+                VStack(spacing: 18) {
+                    Text("Web 管理").font(.title2.bold())
+                    if let image = qrCodeImage(for: url.absoluteString) {
+                        Image(nsImage: image)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 240, height: 240)
+                    }
+                    Text(url.absoluteString)
+                        .font(.system(.callout, design: .monospaced))
                         .textSelection(.enabled)
-                        .lineLimit(2)
-                    Text("配置由 App 自动保存在 Surge Relay 子文件夹中")
+                    Button("完成") { showsWebQRCode = false }
+                        .keyboardShortcut(.defaultAction)
+                }
+                .padding(28)
+                .frame(minWidth: 330)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func detailView(for pane: SettingsPane) -> some View {
+        switch pane {
+        case .general: generalSettings
+        case .web: webSettings
+        case .scriptHub: scriptHubSettings
+        case .synchronization: synchronizationSettings
+        case .diagnostics: diagnosticsSettings
+        }
+    }
+
+    private func resetNavigation() {
+        if selectedPane != .general {
+            isHistoryNavigation = true
+            selectedPane = .general
+        }
+        backStack.removeAll()
+        forwardStack.removeAll()
+    }
+
+    private func goBack() {
+        guard let previous = backStack.popLast() else { return }
+        forwardStack.append(selectedPane)
+        isHistoryNavigation = true
+        selectedPane = previous
+    }
+
+    private func goForward() {
+        guard let next = forwardStack.popLast() else { return }
+        backStack.append(selectedPane)
+        isHistoryNavigation = true
+        selectedPane = next
+    }
+
+    private var generalSettings: some View {
+        Form {
+            Section("配置目录") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("配置与同步目录")
+                    HStack(spacing: 10) {
+                        Text("iCloud/Surge/Surge Relay")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                        Spacer()
+                        Button {
+                            model.openConfigurationDirectory()
+                        } label: {
+                            Image(systemName: "folder")
+                                .font(.system(size: 14, weight: .medium))
+                                .frame(width: 30, height: 30)
+                                .contentShape(Circle())
+                                .glassEffect(.regular.interactive(), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("在 Finder 中显示")
+                    }
+                    Text("Surge Relay 的配置与同步状态保存在 iCloud 云盘中。")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -61,13 +285,18 @@ struct SettingsView: View {
                     get: { model.settings.launchAtLogin },
                     set: { model.setLaunchAtLogin($0) }
                 ))
-                Toggle("自动发布", isOn: Binding(
+                Toggle("自动同步", isOn: Binding(
                     get: { model.settings.automaticallyPublish },
                     set: { model.settings.automaticallyPublish = $0; model.saveSettings() }
                 ))
             }
+        }
+        .formStyle(.grouped)
+    }
 
-            Section("Web 管理") {
+    private var webSettings: some View {
+        Form {
+            Section("本地管理") {
                 Toggle("启用 Web 管理", isOn: Binding(
                     get: { model.settings.webServerEnabled },
                     set: {
@@ -96,8 +325,13 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+        .formStyle(.grouped)
+    }
 
-            Section("Script-Hub") {
+    private var scriptHubSettings: some View {
+        Form {
+            Section("上游引擎") {
                 LabeledContent("版本") {
                     Text(model.upstreamState.revision.map { String($0.prefix(7)) } ?? "—")
                         .monospaced()
@@ -137,166 +371,311 @@ struct SettingsView: View {
                         .textSelection(.enabled)
                 }
             }
+        }
+        .formStyle(.grouped)
+    }
 
-            Section("存储位置") {
-                Picker("同步方式", selection: storageModeBinding) {
-                    Text("iCloud 云盘").tag(StorageMode.local)
-                    Text("GitHub 私有仓库").tag(StorageMode.gitHub)
+    private var synchronizationSettings: some View {
+        VStack(spacing: 0) {
+            Form {
+                Section("同步方式") {
+                    Picker("同步方式", selection: storageModeBinding) {
+                        Text("iCloud 云盘").tag(StorageMode.local)
+                        Text("GitHub 私有仓库").tag(StorageMode.gitHub)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
 
                 if effectiveStorageMode == .local {
-                    LabeledContent("汇总模块") {
-                        Text(model.combinedLocalFileURL?.path ?? "等待生成")
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .lineLimit(2)
+                    Section("iCloud 云盘") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("通过 iCloud 保持 Surge Relay 同步", systemImage: "icloud.fill")
+                                .font(.body.weight(.medium))
+                            Text("汇总模块保存在 iCloud 云盘的 Surge 文件夹中，配置与同步状态由 Surge Relay 管理。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if showsStableICloudStatus {
+                            Label(
+                                "当前通过 iCloud 云盘同步，汇总模块已在 Surge 文件夹中生成，请在 Surge 中勾选 Surge Relay 模块。",
+                                systemImage: "checkmark.circle.fill"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                        }
+                    }
+                } else {
+                    Section("GitHub 私有仓库") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("通过私有仓库同步", systemImage: "lock.fill")
+                                .font(.body.weight(.medium))
+                            Text("Surge Relay 会验证仓库权限，并通过 Cloudflare 提供设备可访问的稳定订阅。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        TextField("仓库地址", text: $githubRepositoryInput)
+                            .onChange(of: githubRepositoryInput) { _, _ in connectionResult = nil }
+                        SecureField("GitHub Token", text: Binding(
+                            get: { model.githubToken },
+                            set: { model.githubToken = $0 }
+                        ))
+                        .onChange(of: model.githubToken) { _, _ in connectionResult = nil }
                     }
 
-                    if pendingStorageMode == .local, model.settings.storageMode == .gitHub {
-                        Text("当前仍使用 GitHub 存储。点击确认后才会切换到 iCloud，并在 Surge 文件夹生成汇总模块。")
+                    Section("Cloudflare") {
+                        TextField("公共地址", text: $githubCloudflareInput)
+                            .onChange(of: githubCloudflareInput) { _, _ in connectionResult = nil }
+                        Text("用于生成可在 Surge 中长期使用的稳定订阅地址。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        HStack(spacing: 8) {
-                            Button("确认切换到 iCloud") {
-                                confirmStorageSwitch(to: .local)
-                            }
-                            .disabled(isTesting)
-                            if isTesting {
-                                ProgressView().controlSize(.small)
-                            }
-                        }
-                        if let result = connectionResult {
-                            Label(result.message, systemImage: result.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(result.isError ? .red : .green)
-                                .textSelection(.enabled)
+                        if showsVerifiedGitHubStatus {
+                            Label(
+                                "GitHub 与 Cloudflare 已验证，汇总模块将通过 GitHub 私有仓库同步并通过 Cloudflare Worker 分发。",
+                                systemImage: "checkmark.circle.fill"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.green)
                         }
                     }
                 }
             }
+            .formStyle(.grouped)
 
-            if effectiveStorageMode == .gitHub {
-            Section("GitHub") {
-                TextField("所有者", text: githubBinding(\.owner))
-                TextField("仓库", text: githubBinding(\.repository))
-                TextField("分支", text: githubBinding(\.branch))
-                TextField("目录", text: githubBinding(\.directory))
-                LabeledContent("仓库类型") {
-                    switch model.settings.github.repositoryIsPrivate {
-                    case .some(true): Label("私有", systemImage: "lock.fill")
-                    case .some(false): Label("公开", systemImage: "globe")
-                    case nil: Text("未检测").foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            Section("访问凭据") {
-                SecureField("GitHub Token", text: $model.githubToken)
-                HStack(spacing: 8) {
-                    Button("保存") { model.saveGitHubToken() }
-                    Button("测试连接") {
-                        Task {
-                            isTesting = true
-                            connectionResult = nil
-                            model.presentedError = nil
-                            await model.testGitHub(showProgress: false)
-                            isTesting = false
-                            if let error = model.presentedError {
-                                connectionResult = .failure(error)
-                                model.presentedError = nil
-                            } else {
-                                connectionResult = .success(model.statusMessage)
-                            }
-                        }
-                    }
-                    .disabled(model.githubToken.isEmpty || !model.settings.github.isConfigured || isTesting)
-                    if model.settings.storageMode != .gitHub {
-                        Button("验证并切换") {
-                            confirmStorageSwitch(to: .gitHub)
-                        }
-                        .disabled(model.githubToken.isEmpty || !model.settings.github.isConfigured || isTesting)
-                    }
-                    if isTesting {
-                        ProgressView().controlSize(.small)
-                    }
-                }
-                if let result = connectionResult {
-                    Label(result.message, systemImage: result.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+            if storageActionTitle != nil || connectionResult != nil {
+                VStack(alignment: .trailing, spacing: 8) {
+                    if let result = connectionResult {
+                        Label(
+                            result.message,
+                            systemImage: result.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+                        )
                         .font(.caption)
                         .foregroundStyle(result.isError ? .red : .green)
                         .textSelection(.enabled)
-                }
-            }
+                    }
 
-            if effectiveStorageMode == .gitHub {
-                Section("Cloudflare Worker") {
-                    TextField("公共地址", text: githubBinding(\.publicBaseURL))
-                    Text("GitHub 私有仓库必须通过 Cloudflare Worker 提供设备可访问的稳定订阅地址。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            }
-
-            Section("诊断") {
-                DisclosureGroup("最近更新") {
-                    if model.updateHistory.isEmpty {
-                        Text("暂无记录").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(model.updateHistory.prefix(20)) { entry in
-                            HStack(alignment: .firstTextBaseline) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.moduleName)
-                                    Text(entry.message)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text(entry.outcome.title)
-                                        .font(.caption)
-                                    Text(entry.date.formatted(Date.FormatStyle(
-                                        date: .omitted,
-                                        time: .shortened,
-                                        locale: Locale(identifier: "zh_CN")
-                                    )))
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
+                    if let storageActionTitle {
+                        HStack(spacing: 8) {
+                            Spacer()
+                            if isTesting {
+                                ProgressView().controlSize(.small)
                             }
+                            Button(storageActionTitle) { performStorageAction() }
+                                .buttonStyle(.glassProminent)
+                                .buttonBorderShape(.capsule)
+                                .controlSize(.large)
+                                .disabled(storageActionDisabled)
                         }
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+            }
+        }
+    }
+
+    private var diagnosticsSettings: some View {
+        Form {
+            Section {
+                if model.updateHistory.isEmpty {
+                    ContentUnavailableView(
+                        "暂无更新记录",
+                        systemImage: "clock.arrow.circlepath",
+                        description: Text("完成一次同步后，结果会显示在这里。")
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 180)
+                } else {
+                    ForEach(model.updateHistory.prefix(20)) { entry in
+                        diagnosticRow(entry)
+                    }
+                }
+            } header: {
+                Text(model.updateHistory.isEmpty ? "更新记录" : "最近 \(min(model.updateHistory.count, 20)) 条更新")
+            }
+
+            Section {
                 HStack {
                     Button("导出诊断…", systemImage: "square.and.arrow.up") { exportDiagnostics() }
                     Button("清除历史", role: .destructive) { model.clearUpdateHistory() }
                         .disabled(model.updateHistory.isEmpty)
                 }
             }
-
         }
         .formStyle(.grouped)
-        .navigationTitle("设置")
-        .sheet(isPresented: $showsWebQRCode) {
-            if let url = model.webManagementURL {
-                VStack(spacing: 18) {
-                    Text("Web 管理").font(.title2.bold())
-                    if let image = qrCodeImage(for: url.absoluteString) {
-                        Image(nsImage: image)
-                            .interpolation(.none)
-                            .resizable()
-                            .frame(width: 240, height: 240)
-                    }
-                    Text(url.absoluteString)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                    Button("完成") { showsWebQRCode = false }
-                        .keyboardShortcut(.defaultAction)
-                }
-                .padding(28)
-                .frame(minWidth: 330)
+    }
+
+    private func diagnosticRow(_ entry: UpdateHistoryEntry) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(entry.moduleName)
+                    .font(.body.weight(.medium))
+                    .lineLimit(1)
+                Text(entry.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(entry.outcome.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(diagnosticColor(for: entry.outcome))
+                Text(entry.date.formatted(Date.FormatStyle(
+                    date: .omitted,
+                    time: .shortened,
+                    locale: Locale(identifier: "zh_CN")
+                )))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+            .frame(minWidth: 76, alignment: .trailing)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var formattedGitHubRepository: String {
+        let owner = model.settings.github.owner.trimmingCharacters(in: .whitespacesAndNewlines)
+        let repository = model.settings.github.repository.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !owner.isEmpty, !repository.isEmpty else { return "" }
+        return "https://github.com/\(owner)/\(repository)"
+    }
+
+    private var hasGitHubConfigurationChanges: Bool {
+        githubRepositoryInput.trimmingCharacters(in: .whitespacesAndNewlines) != originalGitHubRepositoryInput ||
+            githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines) != originalGitHubCloudflareInput ||
+            model.githubToken.trimmingCharacters(in: .whitespacesAndNewlines) != originalGitHubToken
+    }
+
+    private var showsVerifiedGitHubStatus: Bool {
+        model.settings.storageMode == .gitHub &&
+            pendingStorageMode == nil &&
+            !hasGitHubConfigurationChanges &&
+            model.settings.github.repositoryIsPrivate == true &&
+            model.settings.github.hasValidCloudflarePublicBaseURL
+    }
+
+    private var showsStableICloudStatus: Bool {
+        model.settings.storageMode == .local && pendingStorageMode == nil
+    }
+
+    private var storageActionTitle: String? {
+        if let pendingStorageMode {
+            return pendingStorageMode == .gitHub
+                ? "验证并切换到 GitHub"
+                : "切换到 iCloud 云盘"
+        }
+        guard model.settings.storageMode == .gitHub else { return nil }
+        return hasGitHubConfigurationChanges || model.settings.github.repositoryIsPrivate != true
+            ? "验证并保存配置"
+            : nil
+    }
+
+    private func loadGitHubDraftIfNeeded() {
+        guard !didLoadGitHubDraft else { return }
+        githubRepositoryInput = formattedGitHubRepository
+        githubCloudflareInput = model.settings.github.publicBaseURL
+        originalGitHubRepositoryInput = githubRepositoryInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        originalGitHubCloudflareInput = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        originalGitHubToken = model.githubToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        didLoadGitHubDraft = true
+    }
+
+    private func markGitHubDraftAsSaved() {
+        originalGitHubRepositoryInput = githubRepositoryInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        originalGitHubCloudflareInput = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        originalGitHubToken = model.githubToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var storageActionDisabled: Bool {
+        if isTesting { return true }
+        let targetMode = pendingStorageMode ?? model.settings.storageMode
+        guard targetMode == .gitHub else { return false }
+        return parsedGitHubRepository == nil ||
+            model.githubToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !hasValidCloudflareInput
+    }
+
+    private var hasValidCloudflareInput: Bool {
+        let value = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              components.host != nil else {
+            return false
+        }
+        return true
+    }
+
+    private var parsedGitHubRepository: (owner: String, repository: String)? {
+        let value = githubRepositoryInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+
+        let path: String
+        if let components = URLComponents(string: value),
+           let host = components.host?.lowercased(),
+           host == "github.com" || host == "www.github.com" {
+            path = components.path
+        } else {
+            path = value
+        }
+
+        let parts = path
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+        guard parts.count == 2 else { return nil }
+        let owner = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let repository = parts[1]
+            .replacingOccurrences(of: ".git", with: "", options: [.anchored, .backwards])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !owner.isEmpty, !repository.isEmpty else { return nil }
+        return (owner, repository)
+    }
+
+    private func applyGitHubInputs() -> Bool {
+        guard let repository = parsedGitHubRepository else {
+            connectionResult = .failure("请输入有效的 GitHub 仓库地址，例如 https://github.com/owner/repository。")
+            return false
+        }
+        guard hasValidCloudflareInput else {
+            connectionResult = .failure("请输入有效的 Cloudflare 公共地址。")
+            return false
+        }
+        model.settings.github.owner = repository.owner
+        model.settings.github.repository = repository.repository
+        if model.settings.github.branch.isEmpty { model.settings.github.branch = "main" }
+        if model.settings.github.directory.isEmpty { model.settings.github.directory = "modules" }
+        model.settings.github.publicBaseURL = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.saveSettings()
+        return true
+    }
+
+    private func performStorageAction() {
+        let targetMode = pendingStorageMode ?? model.settings.storageMode
+        if targetMode == .gitHub, !applyGitHubInputs() { return }
+
+        if let pendingStorageMode {
+            confirmStorageSwitch(to: pendingStorageMode)
+        } else {
+            testGitHubConnection()
+        }
+    }
+
+    private func testGitHubConnection() {
+        Task {
+            isTesting = true
+            connectionResult = nil
+            model.presentedError = nil
+            await model.testGitHub(showProgress: false)
+            isTesting = false
+            if let error = model.presentedError {
+                connectionResult = .failure(error)
+                model.presentedError = nil
+            } else {
+                model.saveGitHubToken()
+                markGitHubDraftAsSaved()
+                connectionResult = nil
             }
         }
     }
@@ -328,11 +707,12 @@ struct SettingsView: View {
             isTesting = false
             if switched {
                 pendingStorageMode = nil
-                connectionResult = .success(
-                    mode == .gitHub
-                        ? "GitHub 与 Cloudflare 已验证，本地汇总文件已安全移除"
-                        : "已切换到 iCloud，汇总模块已在 Surge 文件夹中生成"
-                )
+                if mode == .gitHub {
+                    markGitHubDraftAsSaved()
+                    connectionResult = nil
+                } else {
+                    connectionResult = nil
+                }
             } else {
                 connectionResult = .failure(model.presentedError ?? "切换失败")
                 model.presentedError = nil
@@ -340,14 +720,13 @@ struct SettingsView: View {
         }
     }
 
-    private func githubBinding(_ keyPath: WritableKeyPath<GitHubSettings, String>) -> Binding<String> {
-        Binding(
-            get: { model.settings.github[keyPath: keyPath] },
-            set: {
-                model.settings.github[keyPath: keyPath] = $0
-                model.saveSettings()
-            }
-        )
+    private func diagnosticColor(for outcome: UpdateHistoryOutcome) -> Color {
+        switch outcome {
+        case .updated, .published: .green
+        case .unchanged: .secondary
+        case .cachedAfterFailure: .orange
+        case .failed: .red
+        }
     }
 
     private func stringBinding(_ keyPath: WritableKeyPath<AppSettings, String>) -> Binding<String> {

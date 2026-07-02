@@ -193,6 +193,101 @@ actor ModuleFileStore {
         try outcome.result?.get()
     }
 
+    /// Writes one user-selected component beside the combined module. The
+    /// embedded module ID lets later updates and deletion prove ownership.
+    @discardableResult
+    func exportIndividual(
+        _ content: String,
+        moduleID: UUID,
+        toDirectory directoryPath: String,
+        fileName: String
+    ) throws -> Bool {
+        guard fileName != AppSettings.fixedCombinedModuleFileName else {
+            throw RelayError.invalidOutput("独立模块不能使用汇总模块文件名。")
+        }
+        let directory = URL(filePath: directoryPath, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = directory.appending(path: FilenameSanitizer.sgmoduleName(from: fileName))
+        let data = Self.managedIndividualData(content, moduleID: moduleID)
+        let outcome = CoordinationOutcome<Bool>()
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        coordinator.coordinate(
+            writingItemAt: destination,
+            options: .forReplacing,
+            error: &coordinationError
+        ) { coordinatedURL in
+            outcome.result = Result {
+                let conflictVersions = try Self.validatedManagedIndividualConflictVersions(
+                    at: coordinatedURL,
+                    moduleID: moduleID
+                )
+                if FileManager.default.fileExists(atPath: coordinatedURL.path) {
+                    let existing = try Data(contentsOf: coordinatedURL)
+                    guard Self.isManagedIndividualModule(existing, moduleID: moduleID) else {
+                        throw RelayError.invalidOutput(
+                            "目标文件 \(coordinatedURL.lastPathComponent) 已存在且不属于该 Surge Relay 模块，已停止写入。"
+                        )
+                    }
+                    if conflictVersions.isEmpty, existing.sha256String == data.sha256String {
+                        return false
+                    }
+                }
+                try data.write(to: coordinatedURL, options: .atomic)
+                try Self.resolve(conflictVersions, at: coordinatedURL)
+                return true
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result = outcome.result else {
+            throw RelayError.invalidOutput("iCloud 未能完成独立模块写入协调。")
+        }
+        return try result.get()
+    }
+
+    func removeExportedIndividual(
+        fromDirectory directoryPath: String,
+        fileName: String,
+        moduleID: UUID
+    ) throws {
+        let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
+            .appending(path: FilenameSanitizer.sgmoduleName(from: fileName))
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+
+        let outcome = CoordinationOutcome<Void>()
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        coordinator.coordinate(
+            writingItemAt: url,
+            options: .forDeleting,
+            error: &coordinationError
+        ) { coordinatedURL in
+            outcome.result = Result {
+                let existing = try Data(contentsOf: coordinatedURL)
+                guard Self.isManagedIndividualModule(existing, moduleID: moduleID) else { return }
+                let conflictVersions = try Self.validatedManagedIndividualConflictVersions(
+                    at: coordinatedURL,
+                    moduleID: moduleID
+                )
+                try Self.resolve(conflictVersions, at: coordinatedURL)
+                try FileManager.default.removeItem(at: coordinatedURL)
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        try outcome.result?.get()
+    }
+
+    func hasExportedIndividual(
+        inDirectory directoryPath: String,
+        fileName: String,
+        moduleID: UUID
+    ) -> Bool {
+        let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
+            .appending(path: FilenameSanitizer.sgmoduleName(from: fileName))
+        guard let data = try? Data(contentsOf: url) else { return false }
+        return Self.isManagedIndividualModule(data, moduleID: moduleID)
+    }
+
     func writeCombinedOverride(_ content: String) throws {
         try FileManager.default.createDirectory(at: combinedOverrideURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(content.utf8).write(to: combinedOverrideURL, options: .atomic)
@@ -288,12 +383,46 @@ actor ModuleFileStore {
         return hasName && hasCategory && hasAuthor
     }
 
+    private nonisolated static func individualMarker(moduleID: UUID) -> String {
+        "#!surge-relay-module-id=\(moduleID.uuidString.lowercased())"
+    }
+
+    private nonisolated static func managedIndividualData(_ content: String, moduleID: UUID) -> Data {
+        let normalized = content.replacingOccurrences(of: "\r\n", with: "\n")
+        let marker = individualMarker(moduleID: moduleID)
+        let body = normalized.hasSuffix("\n") ? normalized : normalized + "\n"
+        return Data((marker + "\n" + body).utf8)
+    }
+
+    private nonisolated static func isManagedIndividualModule(_ data: Data, moduleID: UUID) -> Bool {
+        guard let content = String(data: data, encoding: .utf8) else { return false }
+        let marker = individualMarker(moduleID: moduleID)
+        return content
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .contains { $0.trimmingCharacters(in: .whitespaces) == marker }
+    }
+
     private nonisolated static func validatedManagedConflictVersions(at url: URL) throws -> [NSFileVersion] {
         let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url) ?? []
         for version in versions {
             let data = try Data(contentsOf: version.url)
             guard isManagedCombinedModule(data) else {
                 throw RelayError.invalidOutput("检测到不属于 Surge Relay 的 iCloud 冲突版本，已停止操作。")
+            }
+        }
+        return versions
+    }
+
+    private nonisolated static func validatedManagedIndividualConflictVersions(
+        at url: URL,
+        moduleID: UUID
+    ) throws -> [NSFileVersion] {
+        let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: url) ?? []
+        for version in versions {
+            let data = try Data(contentsOf: version.url)
+            guard isManagedIndividualModule(data, moduleID: moduleID) else {
+                throw RelayError.invalidOutput("检测到不属于该 Surge Relay 模块的 iCloud 冲突版本，已停止操作。")
             }
         }
         return versions

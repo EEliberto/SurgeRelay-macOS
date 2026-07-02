@@ -34,7 +34,7 @@ struct MenuBarContent: View {
 
         Divider()
 
-        Toggle("自动发布", isOn: Binding(
+        Toggle("自动同步", isOn: Binding(
             get: { model.settings.automaticallyPublish },
             set: { model.settings.automaticallyPublish = $0; model.saveSettings() }
         ))
@@ -48,10 +48,10 @@ struct MenuBarContent: View {
         Button("打开 Surge Relay") { activateMainWindow() }
         CheckForUpdatesView(updater: updater)
         Button("设置…") {
-            activateMainWindow()
-            model.presentsSettings = true
+            NSApp.setActivationPolicy(.regular)
+            openWindow(id: SurgeRelayWindow.settings)
+            NSApp.activate(ignoringOtherApps: true)
         }
-
         Divider()
 
         Button("退出 Surge Relay") { NSApplication.shared.terminate(nil) }

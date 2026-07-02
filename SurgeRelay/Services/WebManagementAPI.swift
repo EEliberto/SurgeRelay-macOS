@@ -85,6 +85,10 @@ enum WebManagementAPI {
             let payload = try request.decodeBody(WebEnabledRequest.self)
             model.setModuleEnabled(id: id, enabled: payload.enabled)
             return .json(ActionPayload(ok: true, message: model.statusMessage))
+        case ("POST", "individual-icloud-export"):
+            let payload = try request.decodeBody(WebEnabledRequest.self)
+            await model.setModuleIndividualICloudExport(id: id, enabled: payload.enabled)
+            return .json(ActionPayload(ok: true, message: model.statusMessage))
         case ("POST", "update"):
             Task { await model.update(moduleID: id) }
             return .json(ActionPayload(ok: true, message: "已开始更新 \(module.name)。"), status: 202, reason: "Accepted")
@@ -146,6 +150,7 @@ enum WebManagementAPI {
             nil
         }
         return WebStatePayload(
+            storageMode: model.settings.storageMode.rawValue,
             combined: WebCombinedPayload(
                 name: "Surge Relay 汇总",
                 fileName: FilenameSanitizer.sgmoduleName(from: model.settings.combinedModuleFileName),
@@ -163,6 +168,7 @@ enum WebManagementAPI {
                     sourceFormatTitle: module.sourceFormatDisplayTitle,
                     outputFileName: module.outputFileName,
                     isEnabled: module.isEnabled,
+                    exportsIndividualModuleToICloud: module.exportsIndividualModuleToICloud,
                     state: module.state.rawValue,
                     stateTitle: module.state.title,
                     lastUpdatedAt: module.lastUpdatedAt,
@@ -263,6 +269,7 @@ enum WebManagementAPI {
 }
 
 private struct WebStatePayload: Encodable {
+    let storageMode: String
     let combined: WebCombinedPayload
     let modules: [WebModulePayload]
     let activity: WebActivityPayload
@@ -285,6 +292,7 @@ private struct WebModulePayload: Encodable {
     let sourceFormatTitle: String
     let outputFileName: String
     let isEnabled: Bool
+    let exportsIndividualModuleToICloud: Bool
     let state: String
     let stateTitle: String
     let lastUpdatedAt: Date?

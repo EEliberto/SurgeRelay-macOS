@@ -18,7 +18,7 @@ actor ScriptHubUpstreamService {
             throw RelayError.httpFailure(status: status, message: String(body.prefix(240)))
         }
         guard body.contains("script.hub"), body.contains("script-path=") else {
-            throw RelayError.invalidOutput("上游文件不是可识别的 Script-Hub Surge 模块。")
+            throw RelayError.invalidOutput("上游文件不是可识别的 Script Hub Surge 模块。")
         }
 
         var revisionMaterial = data

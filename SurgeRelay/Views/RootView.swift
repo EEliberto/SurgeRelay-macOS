@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The module list now lives directly in the sidebar of a two-column
-/// NavigationSplitView (see `ModulesView`); settings moved to a toolbar button.
+/// The module list lives directly in the sidebar of a two-column
+/// NavigationSplitView (see `ModulesView`); settings are opened from the app menu.
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
@@ -24,6 +24,8 @@ private struct ConfigurationWelcomeView: View {
     @State private var presentedHeight: CGFloat = 470
     @State private var hasAppeared = false
     @State private var isWorking = false
+    @State private var githubRepositoryInput = ""
+    @State private var githubCloudflareInput = ""
 
     var body: some View {
         ZStack {
@@ -53,6 +55,8 @@ private struct ConfigurationWelcomeView: View {
                 : nil
             selectedStorageMode = initialMode
             presentedHeight = height(for: initialMode)
+            githubRepositoryInput = formattedGitHubRepository
+            githubCloudflareInput = model.settings.github.publicBaseURL
             withAnimation(.spring(duration: 0.58, bounce: 0.16)) {
                 hasAppeared = true
             }
@@ -61,7 +65,7 @@ private struct ConfigurationWelcomeView: View {
 
     private var hero: some View {
         VStack(spacing: 11) {
-            Image("SurgeIcon")
+            Image(nsImage: NSApplication.shared.applicationIconImage)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 76, height: 76)
@@ -69,7 +73,7 @@ private struct ConfigurationWelcomeView: View {
 
             VStack(spacing: 6) {
                 Text("欢迎使用 Surge Relay")
-                    .font(.system(size: 29, weight: .bold, design: .rounded))
+                    .font(.system(size: 29, weight: .bold))
                     .tracking(-0.5)
 
                 Text("选择汇总模块在设备间保持可用的方式。")
@@ -188,21 +192,8 @@ private struct ConfigurationWelcomeView: View {
     private var githubConfiguration: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 11) {
-                HStack(alignment: .top, spacing: 12) {
-                    githubField("所有者") {
-                        TextField("", text: githubBinding(\.owner))
-                    }
-                    githubField("私有仓库") {
-                        TextField("", text: githubBinding(\.repository))
-                    }
-                }
-                HStack(alignment: .top, spacing: 12) {
-                    githubField("分支") {
-                        TextField("", text: githubBinding(\.branch))
-                    }
-                    githubField("目录") {
-                        TextField("", text: githubBinding(\.directory))
-                    }
+                githubField("仓库地址（必填）") {
+                    TextField("https://github.com/owner/repository", text: $githubRepositoryInput)
                 }
                 githubField("GitHub Token（必填）") {
                     SecureField("", text: Binding(
@@ -211,7 +202,7 @@ private struct ConfigurationWelcomeView: View {
                     ))
                 }
                 githubField("Cloudflare Worker 公共地址（必填）") {
-                    TextField("", text: githubBinding(\.publicBaseURL))
+                    TextField("https://example.workers.dev", text: $githubCloudflareInput)
                 }
             }
             .textFieldStyle(.roundedBorder)
@@ -252,6 +243,7 @@ private struct ConfigurationWelcomeView: View {
                 Button {
                     Task {
                         guard let selectedStorageMode else { return }
+                        if selectedStorageMode == .gitHub, !applyGitHubInputs() { return }
                         isWorking = true
                         _ = await model.completeConfigurationWelcome(storageMode: selectedStorageMode)
                         isWorking = false
@@ -280,7 +272,7 @@ private struct ConfigurationWelcomeView: View {
 
     private func height(for mode: StorageMode?) -> CGFloat {
         switch mode {
-        case .gitHub: 660
+        case .gitHub: 590
         case .local: 545
         case nil: 470
         }
@@ -303,15 +295,70 @@ private struct ConfigurationWelcomeView: View {
     private var canCompleteStorageStep: Bool {
         guard let selectedStorageMode else { return false }
         guard selectedStorageMode == .gitHub else { return true }
-        return model.settings.github.isConfigured
+        return parsedGitHubRepository != nil
             && !model.githubToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && model.settings.github.hasValidCloudflarePublicBaseURL
+            && hasValidCloudflareInput
     }
 
-    private func githubBinding(_ keyPath: WritableKeyPath<GitHubSettings, String>) -> Binding<String> {
-        Binding(
-            get: { model.settings.github[keyPath: keyPath] },
-            set: { model.settings.github[keyPath: keyPath] = $0 }
-        )
+    private var formattedGitHubRepository: String {
+        let owner = model.settings.github.owner.trimmingCharacters(in: .whitespacesAndNewlines)
+        let repository = model.settings.github.repository.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !owner.isEmpty, !repository.isEmpty else { return "" }
+        return "https://github.com/\(owner)/\(repository)"
+    }
+
+    private var parsedGitHubRepository: (owner: String, repository: String)? {
+        let value = githubRepositoryInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+
+        let path: String
+        if let components = URLComponents(string: value),
+           let host = components.host?.lowercased(),
+           host == "github.com" || host == "www.github.com" {
+            path = components.path
+        } else {
+            path = value
+        }
+
+        let parts = path
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+        guard parts.count == 2 else { return nil }
+        let owner = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let repository = parts[1]
+            .replacingOccurrences(of: ".git", with: "", options: [.anchored, .backwards])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !owner.isEmpty, !repository.isEmpty else { return nil }
+        return (owner, repository)
+    }
+
+    private var hasValidCloudflareInput: Bool {
+        let value = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              components.host != nil else {
+            return false
+        }
+        return true
+    }
+
+    private func applyGitHubInputs() -> Bool {
+        guard let repository = parsedGitHubRepository else {
+            model.configurationWelcomeError = "请输入有效的 GitHub 仓库地址，例如 https://github.com/owner/repository。"
+            return false
+        }
+        guard hasValidCloudflareInput else {
+            model.configurationWelcomeError = "请输入有效的 Cloudflare 公共地址。"
+            return false
+        }
+
+        model.settings.github.owner = repository.owner
+        model.settings.github.repository = repository.repository
+        model.settings.github.branch = "main"
+        model.settings.github.directory = "modules"
+        model.settings.github.publicBaseURL = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.saveSettings()
+        return true
     }
 }

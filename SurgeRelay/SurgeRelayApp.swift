@@ -4,6 +4,20 @@ import SwiftUI
 
 enum SurgeRelayWindow {
     static let main = "main"
+    static let settings = "settings"
+}
+
+private struct SurgeRelaySettingsCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("设置…") {
+                openWindow(id: SurgeRelayWindow.settings)
+            }
+            .keyboardShortcut(",", modifiers: .command)
+        }
+    }
 }
 
 final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
@@ -46,7 +60,7 @@ struct SurgeRelayApp: App {
                 .environment(model)
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .task { await model.start() }
-                .frame(minWidth: 700)
+                .frame(minWidth: 920, minHeight: 640)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -56,10 +70,7 @@ struct SurgeRelayApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
-            CommandGroup(replacing: .appSettings) {
-                Button("设置…") { model.presentsSettings = true }
-                    .keyboardShortcut(",", modifiers: .command)
-            }
+            SurgeRelaySettingsCommands()
             CommandGroup(after: .newItem) {
                 Button("更新全部模块") {
                     Task { await model.updateAll() }
@@ -68,6 +79,17 @@ struct SurgeRelayApp: App {
                 .disabled(model.isWorking)
             }
         }
+
+        Window("设置", id: SurgeRelayWindow.settings) {
+            SettingsView()
+                .environment(model)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+                .frame(minWidth: 860, minHeight: 560)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 920, height: 620)
+        .windowResizability(.contentMinSize)
+        .restorationBehavior(.disabled)
 
         MenuBarExtra("Surge Relay", systemImage: "repeat") {
             MenuBarContent(updater: updaterController.updater)

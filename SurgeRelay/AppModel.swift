@@ -16,9 +16,6 @@ final class AppModel {
     var presentedError: String?
     var githubToken: String
     var navigationRequest: SidebarDestination?
-    /// Set to true to ask the main window to present the in-app settings sheet
-    /// (used by the menu bar, the ⌘, command, and the toolbar gear button).
-    var presentsSettings = false
     /// First-run setup presentation state.
     var presentsConfigurationWelcome = false
     var configurationWelcomeError: String?
@@ -43,6 +40,8 @@ final class AppModel {
     @ObservationIgnored private var combinedRebuildTask: Task<Void, Never>?
     @ObservationIgnored private var automaticUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var automaticPublishTask: Task<Void, Never>?
+    @ObservationIgnored private var individualOutputMonitorTask: Task<Void, Never>?
+    @ObservationIgnored private var individualOutputMutationsInProgress = Set<UUID>()
     @ObservationIgnored private var localChangeGeneration = 0
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var configurationExistedBeforeLaunch = false
@@ -117,6 +116,8 @@ final class AppModel {
             } catch {
                 presentedError = "无法初始化缓存目录：\(error.localizedDescription)"
             }
+            await reconcileIndividualICloudOutputs()
+            restartIndividualOutputMonitor()
             await refreshModuleMetadataFromCache()
             let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
             if await shouldUpdateModulesOnLaunch() {
@@ -178,8 +179,15 @@ final class AppModel {
                 fromDirectory: settings.localModuleDirectory,
                 fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
             )
+            await removeAllExportedIndividualModules()
         }
         return true
+    }
+
+    func presentConfigurationWelcomeForDebugging() {
+        configurationWelcomeError = nil
+        configurationWelcomeLoadedExistingConfiguration = true
+        presentsConfigurationWelcome = true
     }
 
     private func reloadConfigurationFromSelectedDirectory() {
@@ -297,11 +305,14 @@ final class AppModel {
         saveSettings()
         if mode == .local {
             await rebuildCombinedFromCache()
+            restartIndividualOutputMonitor()
         } else {
+            individualOutputMonitorTask?.cancel()
             try? await fileStore.removeExportedCombined(
                 fromDirectory: settings.localModuleDirectory,
                 fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
             )
+            await removeAllExportedIndividualModules()
         }
         return true
     }
@@ -405,8 +416,24 @@ final class AppModel {
             modules[index].iconURL = nil
             Task { try? await iconStore.removeIcon(for: id) }
         }
-        _ = previousOutputFileName
         try persistModules()
+        if current.exportsIndividualModuleToICloud,
+           previousOutputFileName != outputFileName {
+            let updatedModule = modules[index]
+            Task {
+                individualOutputMutationsInProgress.insert(id)
+                defer { individualOutputMutationsInProgress.remove(id) }
+                do {
+                    try await exportIndividualICloudModule(updatedModule)
+                    try await removeExportedIndividualFiles(
+                        moduleID: id,
+                        outputFileName: previousOutputFileName
+                    )
+                } catch {
+                    presentedError = error.localizedDescription
+                }
+            }
+        }
         statusMessage = "已保存 \(modules[index].name)，即将自动更新"
         if modules[index].isEnabled {
             scheduleAutomaticUpdate()
@@ -426,6 +453,39 @@ final class AppModel {
             scheduleAutomaticUpdate()
         } else {
             scheduleCombinedRebuild()
+        }
+    }
+
+    func setModuleIndividualICloudExport(id: UUID, enabled: Bool) async {
+        guard settings.storageMode == .local,
+              let index = modules.firstIndex(where: { $0.id == id }),
+              modules[index].exportsIndividualModuleToICloud != enabled else { return }
+        registerLocalChange()
+        modules[index].exportsIndividualModuleToICloud = enabled
+        individualOutputMutationsInProgress.insert(id)
+        defer { individualOutputMutationsInProgress.remove(id) }
+        do {
+            try persistModules()
+            let module = modules[index]
+            if enabled {
+                if await fileStore.hasComponent(id: id) {
+                    try await exportIndividualICloudModule(module)
+                    statusMessage = "已输出 \(module.name) 的独立模块"
+                } else {
+                    statusMessage = "正在生成 \(module.name) 的独立模块"
+                    await updateAll()
+                }
+            } else {
+                try await removeExportedIndividualFiles(
+                    moduleID: module.id,
+                    outputFileName: module.outputFileName
+                )
+                statusMessage = "已停止输出 \(module.name) 的独立模块"
+            }
+        } catch {
+            modules[index].exportsIndividualModuleToICloud.toggle()
+            try? persistModules()
+            presentedError = error.localizedDescription
         }
     }
 
@@ -464,6 +524,10 @@ final class AppModel {
         guard let index = modules.firstIndex(where: { $0.id == id }) else { return }
         registerLocalChange()
         let module = modules.remove(at: index)
+        try? await removeExportedIndividualFiles(
+            moduleID: module.id,
+            outputFileName: module.outputFileName
+        )
         try? await fileStore.removeComponent(id: id)
         try? await fileStore.removeAssets(id: id)
         try? await iconStore.removeIcon(for: id)
@@ -493,8 +557,11 @@ final class AppModel {
 
     private func performSynchronization() async {
         let enabledModules = modules.filter(\.isEnabled)
+        let synchronizationModules = modules.filter {
+            $0.isEnabled || (settings.storageMode == .local && $0.exportsIndividualModuleToICloud)
+        }
         guard !isWorking else { return }
-        guard !enabledModules.isEmpty else {
+        guard !synchronizationModules.isEmpty else {
             statusMessage = "已是最新。"
             return
         }
@@ -502,7 +569,7 @@ final class AppModel {
         let updateGeneration = localChangeGeneration
         isWorking = true
         synchronizationCompletedCount = 0
-        synchronizationTotalCount = enabledModules.count
+        synchronizationTotalCount = synchronizationModules.count
         synchronizingModuleID = nil
         defer {
             synchronizingModuleID = nil
@@ -523,7 +590,7 @@ final class AppModel {
         var synchronizationErrors: [String] = []
         var newHistory: [UpdateHistoryEntry] = []
 
-        for moduleValue in enabledModules {
+        for moduleValue in synchronizationModules {
             var module = moduleValue
             let startedAt = Date.now
             var revisionSnapshot: SourceRevisionSnapshot?
@@ -550,7 +617,9 @@ final class AppModel {
                                 replace(module)
                                 let cached = try await fileStore.readComponent(id: module.id)
                                 let materialized = await processingWorker.materialize(cached, overrides: module.argumentOverrides)
-                                components.append((module, materialized))
+                                if module.isEnabled {
+                                    components.append((module, materialized))
+                                }
                                 newHistory.append(UpdateHistoryEntry(
                                     moduleID: module.id,
                                     moduleName: module.name,
@@ -575,7 +644,7 @@ final class AppModel {
                 )
                 guard updateGeneration == localChangeGeneration, !Task.isCancelled,
                       let currentIndex = modules.firstIndex(where: { $0.id == module.id }),
-                      modules[currentIndex].isEnabled else {
+                      shouldSynchronizeModule(modules[currentIndex]) else {
                     return
                 }
                 try await fileStore.replaceAssets(result.assets, id: module.id)
@@ -583,7 +652,7 @@ final class AppModel {
                 let effectiveContent = try await fileStore.readComponent(id: module.id)
                 guard updateGeneration == localChangeGeneration, !Task.isCancelled,
                       let latestIndex = modules.firstIndex(where: { $0.id == module.id }),
-                      modules[latestIndex].isEnabled else {
+                      shouldSynchronizeModule(modules[latestIndex]) else {
                     return
                 }
                 module = modules[latestIndex]
@@ -636,7 +705,9 @@ final class AppModel {
                     effectiveContent,
                     overrides: module.argumentOverrides
                 )
-                components.append((module, materialized))
+                if module.isEnabled {
+                    components.append((module, materialized))
+                }
             } catch {
                 guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
                     return
@@ -650,7 +721,9 @@ final class AppModel {
                         cached,
                         overrides: current.argumentOverrides
                     )
-                    components.append((current, materialized))
+                    if current.isEnabled {
+                        components.append((current, materialized))
+                    }
                     newHistory.append(UpdateHistoryEntry(
                         moduleID: module.id,
                         moduleName: module.name,
@@ -660,7 +733,9 @@ final class AppModel {
                         usedCache: true
                     ))
                 } else {
-                    missingCache.append(module.name)
+                    if module.isEnabled {
+                        missingCache.append(module.name)
+                    }
                     newHistory.append(UpdateHistoryEntry(
                         moduleID: module.id,
                         moduleName: module.name,
@@ -687,7 +762,18 @@ final class AppModel {
         }
 
         do {
-            try await writeCombinedModule(components)
+            if enabledModules.isEmpty {
+                try? await fileStore.removeCombined()
+                if settings.storageMode == .local {
+                    try? await fileStore.removeExportedCombined(
+                        fromDirectory: settings.localModuleDirectory,
+                        fileName: AppSettings.fixedCombinedModuleFileName
+                    )
+                    try await syncIndividualICloudExports()
+                }
+            } else {
+                try await writeCombinedModule(components)
+            }
             guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
                 return
             }
@@ -766,7 +852,7 @@ final class AppModel {
             } catch {
                 guard !Task.isCancelled else { return }
                 self.setSynchronizationFailure(error.localizedDescription)
-                self.presentedError = "GitHub 自动发布失败：\(error.localizedDescription)"
+                self.presentedError = "GitHub 自动同步失败：\(error.localizedDescription)"
             }
         }
     }
@@ -779,7 +865,7 @@ final class AppModel {
     }
 
     private func refreshScriptHubInternal(updatesStatus: Bool) async {
-        if updatesStatus { statusMessage = "正在更新 App 内置 Script-Hub 引擎…" }
+        if updatesStatus { statusMessage = "正在更新 App 内置 Script Hub 引擎…" }
         do {
             let result = try await upstreamService.fetchManagedModule(
                 from: settings.scriptHubModuleURL,
@@ -795,7 +881,7 @@ final class AppModel {
             upstreamState.lastError = nil
             PersistenceStore.saveUpstreamState(upstreamState)
             if updatesStatus {
-                statusMessage = result.changed ? "内置 Script-Hub 引擎已更新至 \(result.revision)" : "内置 Script-Hub 引擎已是最新"
+                statusMessage = result.changed ? "内置 Script Hub 引擎已更新至 \(result.revision)" : "内置 Script Hub 引擎已是最新"
             }
         } catch {
             upstreamState.lastCheckedAt = .now
@@ -945,6 +1031,7 @@ final class AppModel {
                     fromDirectory: settings.localModuleDirectory,
                     fileName: AppSettings.fixedCombinedModuleFileName
                 )
+                try? await syncIndividualICloudExports()
             }
             return true
         }
@@ -1015,7 +1102,153 @@ final class AppModel {
                 toDirectory: settings.localModuleDirectory,
                 fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
             )
+            try await syncIndividualICloudExports()
         }
+    }
+
+    private func shouldSynchronizeModule(_ module: RelayModule) -> Bool {
+        module.isEnabled || (settings.storageMode == .local && module.exportsIndividualModuleToICloud)
+    }
+
+    private func exportIndividualICloudModule(_ module: RelayModule) async throws {
+        let content = try await fileStore.readComponent(id: module.id)
+        let materialized = await processingWorker.materialize(content, overrides: module.argumentOverrides)
+        let namedContent = await processingWorker.applyingDisplayName(module.name, to: materialized)
+        try await fileStore.exportIndividual(
+            namedContent,
+            moduleID: module.id,
+            toDirectory: settings.localModuleDirectory,
+            fileName: individualICloudFileName(for: module.outputFileName)
+        )
+        let legacyFileName = FilenameSanitizer.sgmoduleName(from: module.outputFileName)
+        if legacyFileName != individualICloudFileName(for: module.outputFileName) {
+            try await fileStore.removeExportedIndividual(
+                fromDirectory: settings.localModuleDirectory,
+                fileName: legacyFileName,
+                moduleID: module.id
+            )
+        }
+    }
+
+    private func syncIndividualICloudExports() async throws {
+        guard settings.storageMode == .local else { return }
+        var disabledMissingOutputs = false
+        for index in modules.indices {
+            let module = modules[index]
+            if module.exportsIndividualModuleToICloud {
+                guard await fileStore.hasComponent(id: module.id) else { continue }
+                let exists = await fileStore.hasExportedIndividual(
+                    inDirectory: settings.localModuleDirectory,
+                    fileName: individualICloudFileName(for: module.outputFileName),
+                    moduleID: module.id
+                )
+                let hasLegacyOutput = await fileStore.hasExportedIndividual(
+                    inDirectory: settings.localModuleDirectory,
+                    fileName: module.outputFileName,
+                    moduleID: module.id
+                )
+                guard exists || hasLegacyOutput || individualOutputMutationsInProgress.contains(module.id) else {
+                    modules[index].exportsIndividualModuleToICloud = false
+                    disabledMissingOutputs = true
+                    continue
+                }
+                try await exportIndividualICloudModule(module)
+            } else {
+                try await removeExportedIndividualFiles(
+                    moduleID: module.id,
+                    outputFileName: module.outputFileName
+                )
+            }
+        }
+        if disabledMissingOutputs { try persistModules() }
+    }
+
+    private func removeAllExportedIndividualModules() async {
+        var changed = false
+        for index in modules.indices {
+            let module = modules[index]
+            try? await removeExportedIndividualFiles(
+                moduleID: module.id,
+                outputFileName: module.outputFileName
+            )
+            if modules[index].exportsIndividualModuleToICloud {
+                modules[index].exportsIndividualModuleToICloud = false
+                changed = true
+            }
+        }
+        if changed { try? persistModules() }
+    }
+
+    private func individualICloudFileName(for outputFileName: String) -> String {
+        FilenameSanitizer.individualRelayName(from: outputFileName)
+    }
+
+    private func removeExportedIndividualFiles(moduleID: UUID, outputFileName: String) async throws {
+        let targetFileName = individualICloudFileName(for: outputFileName)
+        try await fileStore.removeExportedIndividual(
+            fromDirectory: settings.localModuleDirectory,
+            fileName: targetFileName,
+            moduleID: moduleID
+        )
+        let legacyFileName = FilenameSanitizer.sgmoduleName(from: outputFileName)
+        if legacyFileName != targetFileName {
+            try await fileStore.removeExportedIndividual(
+                fromDirectory: settings.localModuleDirectory,
+                fileName: legacyFileName,
+                moduleID: moduleID
+            )
+        }
+    }
+
+    private func restartIndividualOutputMonitor() {
+        individualOutputMonitorTask?.cancel()
+        guard settings.storageMode == .local else { return }
+        individualOutputMonitorTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                await self.reconcileIndividualICloudOutputs()
+            }
+        }
+    }
+
+    private func reconcileIndividualICloudOutputs() async {
+        guard settings.storageMode == .local else { return }
+        var removedNames: [String] = []
+        for index in modules.indices
+        where modules[index].exportsIndividualModuleToICloud
+            && !individualOutputMutationsInProgress.contains(modules[index].id) {
+            let module = modules[index]
+            let targetExists = await fileStore.hasExportedIndividual(
+                inDirectory: settings.localModuleDirectory,
+                fileName: individualICloudFileName(for: module.outputFileName),
+                moduleID: module.id
+            )
+            if targetExists { continue }
+
+            let legacyExists = await fileStore.hasExportedIndividual(
+                inDirectory: settings.localModuleDirectory,
+                fileName: module.outputFileName,
+                moduleID: module.id
+            )
+            if legacyExists, await fileStore.hasComponent(id: module.id) {
+                do {
+                    try await exportIndividualICloudModule(module)
+                    continue
+                } catch {
+                    presentedError = error.localizedDescription
+                    continue
+                }
+            }
+
+            modules[index].exportsIndividualModuleToICloud = false
+            removedNames.append(module.name)
+        }
+        guard !removedNames.isEmpty else { return }
+        try? persistModules()
+        statusMessage = removedNames.count == 1
+            ? "检测到独立模块已删除，已关闭 \(removedNames[0]) 的 iCloud 输出"
+            : "检测到独立模块已删除，已关闭 \(removedNames.count) 个 iCloud 输出"
     }
 
     var combinedRawURL: URL? {
