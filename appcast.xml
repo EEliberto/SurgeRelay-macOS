@@ -3,14 +3,14 @@
     <channel>
         <title>Surge Relay</title>
         <item>
-            <title>260702</title>
-            <pubDate>Thu, 02 Jul 2026 23:45:28 +0800</pubDate>
-            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260702</link>
-            <sparkle:version>26070202</sparkle:version>
-            <sparkle:shortVersionString>260702</sparkle:shortVersionString>
+            <title>260703</title>
+            <pubDate>Fri, 03 Jul 2026 07:43:05 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260703</link>
+            <sparkle:version>26070301</sparkle:version>
+            <sparkle:shortVersionString>260703</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，260702 推出了以下更新：
+            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，260703 推出了以下更新：
 
 ## 全新设置体验
 
@@ -26,13 +26,14 @@
 * iCloud 模式仅在 Surge 文件夹生成一份汇总模块。
 * iCloud 模式支持单独输出某一模块，在模块内开启选项即可，此选项不影响汇总模块生成（由 @ChuJianyuan 反馈）。
 * 切换到 GitHub 前会验证私有仓库、Cloudflare 及实际发布结果。
+* 修复同步至 GitHub 时可能出现的 429 错误。
 * 修复批量清理逻辑可能移除 iCloud 内其他 `.sgmodule` 文件的问题，并重构 iCloud 同步逻辑（由 @jason-kwok、@XIYINGDU 反馈），不再误删用户自定义模块。
 
 ## Web 管理修复
 
 * 修复 Web 端出现的部分错误。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260702/Surge-Relay-260702.dmg" length="9218171" type="application/octet-stream" sparkle:edSignature="WFDp2cH9+g0v1bpUp7FjnX2RIqB4qdT1ie5oFUGUEduPkxOowwLHi27Yyec6cANVOY/cai/aPf72qzqNYzV8Dw=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260703/Surge-Relay-260703.dmg" length="9248356" type="application/octet-stream" sparkle:edSignature="Ezqjaspmv3yE1J+j/mzNukmXZhzNd85uYdGIQjgWk5owOwA+8tTctn/tHH6hbSOUq0OLmq1VbYLgb81d5lATDQ=="/>
         </item>
         <item>
             <title>1.1.1</title>
