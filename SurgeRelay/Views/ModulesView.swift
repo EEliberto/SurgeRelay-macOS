@@ -217,22 +217,33 @@ struct ModulesView: View {
                 Section {
                     CombinedModuleRow()
                         .tag(AppModel.combinedModuleSelectionID)
-                }
 
-                Section {
-                if searchText.isEmpty {
-                    ForEach(model.modules) { module in
-                        moduleRow(module)
-                    }
-                    .onMove { offsets, destination in
-                        model.moveModules(fromOffsets: offsets, toOffset: destination)
-                    }
-                } else {
-                    ForEach(filteredModules) { module in
-                        moduleRow(module)
+                    Divider()
+                        .frame(maxWidth: .infinity)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .environment(\.defaultMinListRowHeight, 1)
+
+                    if searchText.isEmpty {
+                        ForEach(model.modules) { module in
+                            moduleRow(module)
+                        }
+                        .onMove { offsets, destination in
+                            model.moveModules(fromOffsets: offsets, toOffset: destination)
+                        }
+                    } else {
+                        ForEach(filteredModules) { module in
+                            moduleRow(module)
+                        }
                     }
                 }
-                }
+            }
+            .listStyle(.sidebar)
+            .safeAreaBar(edge: .top, spacing: 4) {
+                sidebarSearchBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
             }
             .overlay {
                 if filteredModules.isEmpty {
@@ -275,14 +286,14 @@ struct ModulesView: View {
                             CombinedModuleDetailView()
                                 .opacity(detailTab == .info ? 1 : 0)
                                 .allowsHitTesting(detailTab == .info)
-                            CombinedPreviewPane()
+                            CombinedPreviewPane(showsFindBar: detailTab == .preview)
                                 .opacity(detailTab == .preview ? 1 : 0)
                                 .allowsHitTesting(detailTab == .preview)
                         case let .module(module):
                             ModuleDetailView(module: module, onEdit: { presentEditor(module) })
                                 .opacity(detailTab == .info ? 1 : 0)
                                 .allowsHitTesting(detailTab == .info)
-                            ModulePreviewPane(module: module)
+                            ModulePreviewPane(module: module, showsFindBar: detailTab == .preview)
                                 .opacity(detailTab == .preview ? 1 : 0)
                                 .allowsHitTesting(detailTab == .preview)
                         }
@@ -292,7 +303,6 @@ struct ModulesView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .searchable(text: $searchText, prompt: "搜索")
             .toolbar {
                 if let selectedDetailTitle {
                     ToolbarItem(placement: .navigation) {
@@ -391,6 +401,40 @@ struct ModulesView: View {
                 Button("删除", role: .destructive) { deleteCandidate = module }
             }
     }
+
+    private var sidebarSearchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            TextField("搜索", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .lineLimit(1)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .frame(maxWidth: .infinity)
+        .contentShape(Capsule())
+        .glassEffect(.regular.interactive(), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color(nsColor: .separatorColor).opacity(0.18), lineWidth: 1)
+        }
+    }
 }
 
 private struct CombinedModuleRow: View {
@@ -418,12 +462,13 @@ private struct CombinedModuleRow: View {
             }
             Spacer(minLength: 4)
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 4)
     }
 
     private var summaryIconShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 28 * ModuleIconView.cornerRadiusRatio, style: .continuous)
     }
+
 }
 
 private struct CombinedModuleDetailView: View {
@@ -458,6 +503,8 @@ private struct CombinedModuleDetailView: View {
                     HStack(spacing: 14) {
                         Image("iCloudIcon")
                             .resizable()
+                            .interpolation(.high)
+                            .antialiased(true)
                             .scaledToFit()
                             .frame(width: 44, height: 44)
                         VStack(alignment: .leading, spacing: 4) {
@@ -538,6 +585,7 @@ private struct ModuleRow: View {
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.mini)
+            .tint(Color(nsColor: .controlAccentColor))
         }
         .padding(.vertical, 5)
         .opacity(module.isEnabled ? 1 : 0.55)
@@ -547,6 +595,8 @@ private struct ModuleRow: View {
 private struct ModuleDetailView: View {
     @Environment(AppModel.self) private var model
     @State private var argumentInfo = ModuleArgumentInfo()
+    @State private var savedArgumentValues: [String: String] = [:]
+    @State private var pendingArgumentValues: [String: String] = [:]
     let module: RelayModule
     let onEdit: () -> Void
 
@@ -624,14 +674,20 @@ private struct ModuleDetailView: View {
                             argumentControl(definition)
                         }
                         HStack {
-                            Text("修改会立即应用")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                             Spacer()
                             Button("恢复默认值") {
-                                model.resetModuleArguments(moduleID: module.id)
+                                pendingArgumentValues = Dictionary(
+                                    uniqueKeysWithValues: argumentInfo.definitions.map {
+                                        ($0.key, $0.defaultValue)
+                                    }
+                                )
                             }
-                            .disabled(module.argumentOverrides.isEmpty)
+                            .disabled(!hasNonDefaultPendingArguments)
+                            Button("确认") {
+                                applyPendingArguments()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!hasPendingArgumentChanges)
                         }
                         if let help = argumentInfo.helpText {
                             DisclosureGroup("参数说明") {
@@ -687,6 +743,7 @@ private struct ModuleDetailView: View {
         .formStyle(.grouped)
         .task(id: "\(module.id.uuidString)-\(module.contentHash ?? "")") {
             argumentInfo = await model.moduleArgumentInfo(for: module)
+            reloadPendingArguments()
         }
     }
 
@@ -701,12 +758,7 @@ private struct ModuleDetailView: View {
             Toggle(definition.key, isOn: Binding(
                 get: { argumentValue(for: definition).lowercased() == "true" },
                 set: { enabled in
-                    model.setModuleArgument(
-                        moduleID: module.id,
-                        key: definition.key,
-                        value: enabled ? "true" : "false",
-                        defaultValue: definition.defaultValue
-                    )
+                    pendingArgumentValues[definition.key] = enabled ? "true" : "false"
                 }
             ))
             .toggleStyle(.switch)
@@ -717,12 +769,7 @@ private struct ModuleDetailView: View {
                     text: Binding(
                         get: { argumentValue(for: definition) },
                         set: { newValue in
-                            model.setModuleArgument(
-                                moduleID: module.id,
-                                key: definition.key,
-                                value: newValue,
-                                defaultValue: definition.defaultValue
-                            )
+                            pendingArgumentValues[definition.key] = newValue
                         }
                     ),
                     prompt: Text(definition.defaultValue)
@@ -737,8 +784,54 @@ private struct ModuleDetailView: View {
     }
 
     private func argumentValue(for definition: ModuleArgumentDefinition) -> String {
-        model.modules.first(where: { $0.id == module.id })?.argumentOverrides[definition.key]
-            ?? definition.defaultValue
+        pendingArgumentValues[definition.key] ?? definition.defaultValue
+    }
+
+    private var hasPendingArgumentChanges: Bool {
+        normalizedArgumentValues(pendingArgumentValues) != normalizedArgumentValues(savedArgumentValues)
+    }
+
+    private var hasNonDefaultPendingArguments: Bool {
+        argumentInfo.definitions.contains { definition in
+            normalizedValue(pendingArgumentValues[definition.key] ?? definition.defaultValue)
+                != normalizedValue(definition.defaultValue)
+        }
+    }
+
+    private func reloadPendingArguments() {
+        let storedOverrides = model.modules.first(where: { $0.id == module.id })?.argumentOverrides
+            ?? module.argumentOverrides
+        let values = Dictionary(uniqueKeysWithValues: argumentInfo.definitions.map { definition in
+            (definition.key, storedOverrides[definition.key] ?? definition.defaultValue)
+        })
+        savedArgumentValues = values
+        pendingArgumentValues = values
+    }
+
+    private func applyPendingArguments() {
+        let defaults = Dictionary(uniqueKeysWithValues: argumentInfo.definitions.map {
+            ($0.key, $0.defaultValue)
+        })
+        model.setModuleArguments(
+            moduleID: module.id,
+            values: pendingArgumentValues,
+            defaultValues: defaults
+        )
+        let normalized = normalizedArgumentValues(pendingArgumentValues)
+        savedArgumentValues = Dictionary(uniqueKeysWithValues: argumentInfo.definitions.map { definition in
+            (definition.key, normalized[definition.key] ?? definition.defaultValue)
+        })
+        pendingArgumentValues = savedArgumentValues
+    }
+
+    private func normalizedArgumentValues(_ values: [String: String]) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: argumentInfo.definitions.map { definition in
+            (definition.key, normalizedValue(values[definition.key] ?? definition.defaultValue))
+        })
+    }
+
+    private func normalizedValue(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func detailRow(_ label: String, value: String, icon: String) -> some View {

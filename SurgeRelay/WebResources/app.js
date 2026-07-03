@@ -10,6 +10,7 @@ const ui = {
   refresh: document.querySelector('#refresh-button'),
   back: document.querySelector('#mobile-back'),
   mobileTitle: document.querySelector('#mobile-title'),
+  mobileActions: document.querySelector('#mobile-detail-actions'),
   desktopTitle: document.querySelector('#desktop-title'),
   desktopActions: document.querySelector('#desktop-detail-actions'),
   status: document.querySelector('#activity-status'),
@@ -115,6 +116,11 @@ let detailTab = 'info';
 let editingID = null;
 let previewText = '';
 let previewSavedText = '';
+let previewSearchQuery = '';
+let previewSearchMatches = [];
+let previewSearchIndex = -1;
+let previewEditorMirrorDirty = false;
+let previewSearchDebounceTimer = null;
 let toastTimer = null;
 let confirmResolver = null;
 let nameLookupTimer = null;
@@ -164,6 +170,7 @@ ui.list.addEventListener('keydown', event => {
 ui.detailRoot.addEventListener('click', handleDetailClick);
 ui.detailRoot.addEventListener('input', handleDetailInput);
 ui.detailRoot.addEventListener('change', handleDetailChange);
+ui.mobileActions.addEventListener('click', handleDetailClick);
 window.addEventListener('popstate', handleHistoryNavigation);
 
 loadState(true, true).finally(startStateEvents);
@@ -315,8 +322,10 @@ function renderActivity() {
 }
 
 function renderDetail(animate = true) {
+  ui.body.classList.toggle('preview-mode', detailTab === 'preview' && Boolean(selectedID));
   if (!state || !selectedID) {
     ui.desktopActions.innerHTML = '';
+    ui.mobileActions.innerHTML = '';
     setDetailHTML(`<div class="empty-state"><div><span class="symbol" data-symbol="sidebar.left"></span><div>选择一个模块</div></div></div>`, animate);
     return;
   }
@@ -347,7 +356,8 @@ function detailToolbar(module = null) {
     </div>
     ${module ? `<button class="button" data-action="edit"><span class="symbol" data-symbol="pencil"></span>编辑</button><button class="button destructive" data-action="delete"><span class="symbol" data-symbol="trash"></span>删除</button>` : ''}`;
   ui.desktopActions.innerHTML = controls;
-  return `<div class="detail-toolbar mobile-detail-toolbar">${controls}</div>`;
+  ui.mobileActions.innerHTML = controls;
+  return '';
 }
 
 function renderCombinedDetail(animate = true) {
@@ -402,7 +412,29 @@ function detailRow(icon, label, value, raw = false) {
 }
 
 function previewShell(label, editable) {
-  return `<section class="preview-shell"><div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button" data-action="copy-preview"><span class="symbol" data-symbol="doc.on.doc"></span>拷贝全部</button>${editable ? `<button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>${editable ? '<textarea class="code-editor" id="code-editor" spellcheck="false" aria-label="模块内容">正在载入…</textarea>' : '<pre class="code-view" id="code-view">正在载入…</pre>'}</section>`;
+  clearTimeout(previewSearchDebounceTimer);
+  previewSearchDebounceTimer = null;
+  previewSearchQuery = '';
+  previewSearchMatches = [];
+  previewSearchIndex = -1;
+  previewEditorMirrorDirty = false;
+  return `<section class="preview-shell">
+    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button" data-action="copy-preview"><span class="symbol" data-symbol="doc.on.doc"></span>拷贝全部</button>${editable ? `<button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
+    <div class="preview-code-stage">
+      <div class="preview-search-wrap">
+        <div class="preview-search-field">
+          <span class="symbol" data-symbol="magnifyingglass"></span>
+          <input id="preview-search-input" type="search" placeholder="搜索" autocomplete="off" aria-label="搜索预览内容">
+          <span class="preview-search-count" id="preview-search-count" aria-live="polite"></span>
+        </div>
+        <div class="preview-search-navigation" aria-label="搜索结果导航">
+          <button class="preview-search-button previous" data-action="preview-search-previous" type="button" aria-label="上一个结果" disabled><span class="symbol" data-symbol="chevron.left"></span></button>
+          <button class="preview-search-button next" data-action="preview-search-next" type="button" aria-label="下一个结果" disabled><span class="symbol" data-symbol="chevron.right"></span></button>
+        </div>
+      </div>
+      ${editable ? '<div class="code-editor-stack"><pre class="code-editor-highlight-layer" id="code-editor-highlight-layer" aria-hidden="true"></pre><textarea class="code-editor" id="code-editor" spellcheck="false" aria-label="模块内容">正在载入…</textarea></div>' : '<pre class="code-view" id="code-view">正在载入…</pre>'}
+    </div>
+  </section>`;
 }
 
 async function loadPreview(path, editable) {
@@ -412,12 +444,16 @@ async function loadPreview(path, editable) {
       const editor = document.querySelector('#code-editor');
       if (!editor) return;
       previewText = text; previewSavedText = text; editor.value = text;
-      editor.addEventListener('input', () => { previewText = editor.value; const save = document.querySelector('[data-action="save-preview"]'); if (save) save.disabled = previewText === previewSavedText; });
+      previewEditorMirrorDirty = true;
+      rebuildPreviewEditorMirror();
+      editor.addEventListener('input', () => { previewText = editor.value; previewEditorMirrorDirty = true; const save = document.querySelector('[data-action="save-preview"]'); if (save) save.disabled = previewText === previewSavedText; refreshPreviewSearch(false); });
+      editor.addEventListener('scroll', syncPreviewEditorHighlightScroll, { passive: true });
     } else {
       const view = document.querySelector('#code-view');
       if (view) view.innerHTML = highlightCode(text);
       previewText = text; previewSavedText = text;
     }
+    refreshPreviewSearch(false);
   } catch (error) { showToast(error.message, true); }
 }
 
@@ -429,7 +465,7 @@ async function loadArguments(module) {
     if (!target || !payload.arguments.length) return;
     target.innerHTML = `<section class="form-section-view page-enter"><h3 class="section-heading">模块参数</h3><div class="group-box">
       ${payload.arguments.map(argumentMarkup).join('')}
-      <div class="arguments-footer"><small>修改会立即应用</small><button class="button" data-action="reset-arguments" ${payload.arguments.every(item => item.value === item.defaultValue) ? 'disabled' : ''}>恢复默认值</button></div>
+      <div class="arguments-footer argument-buttons-footer"><div class="arguments-actions"><button class="button" data-action="reset-arguments" ${payload.arguments.every(item => item.value === item.defaultValue) ? 'disabled' : ''}>恢复默认值</button><button class="button primary" data-action="apply-arguments" disabled>确认</button></div></div>
       ${payload.help ? `<details class="parameter-help"><summary><span class="symbol" data-symbol="chevron.right"></span>参数说明</summary><p>${escapeHTML(payload.help)}</p></details>` : ''}
     </div></section>`;
   } catch (_) {}
@@ -438,8 +474,8 @@ async function loadArguments(module) {
 function argumentMarkup(argument) {
   const isBoolean = ['true', 'false'].includes(String(argument.defaultValue).toLowerCase());
   const control = isBoolean
-    ? `<label class="module-toggle argument-toggle"><input type="checkbox" data-argument-key="${escapeAttribute(argument.key)}" data-default="${escapeAttribute(argument.defaultValue)}" ${String(argument.value).toLowerCase() === 'true' ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>`
-    : `<input class="argument-input" type="text" data-argument-key="${escapeAttribute(argument.key)}" data-default="${escapeAttribute(argument.defaultValue)}" value="${escapeAttribute(argument.value)}" placeholder="${escapeAttribute(argument.defaultValue)}">`;
+    ? `<label class="module-toggle argument-toggle"><input type="checkbox" data-argument-key="${escapeAttribute(argument.key)}" data-default="${escapeAttribute(argument.defaultValue)}" data-saved="${escapeAttribute(argument.value)}" ${String(argument.value).toLowerCase() === 'true' ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>`
+    : `<input class="argument-input" type="text" data-argument-key="${escapeAttribute(argument.key)}" data-default="${escapeAttribute(argument.defaultValue)}" data-saved="${escapeAttribute(argument.value)}" value="${escapeAttribute(argument.value)}" placeholder="${escapeAttribute(argument.defaultValue)}">`;
   return `<div class="detail-row argument-row"><div class="argument-name">${escapeHTML(argument.key)}</div><div class="argument-control">${control}</div></div>`;
 }
 
@@ -589,7 +625,10 @@ async function handleDetailClick(event) {
   case 'copy-preview': await copyText(previewText, source); break;
   case 'save-preview': if (module) await savePreview(module); break;
   case 'restore-preview': if (module) await restorePreview(module); break;
+  case 'preview-search-previous': movePreviewSearch(-1); break;
+  case 'preview-search-next': movePreviewSearch(1); break;
   case 'reset-arguments': if (module) await resetArguments(module); break;
+  case 'apply-arguments': if (module) await applyArguments(module); break;
   case 'accept-override': if (module) await acceptOverride(module); break;
   }
 }
@@ -619,20 +658,212 @@ async function handleDetailChange(event) {
   }
   const input = event.target.closest('[data-argument-key]');
   if (!input || selectedID === 'combined') return;
-  const value = input.type === 'checkbox' ? String(input.checked) : input.value;
-  try {
-    await api(`/api/modules/${selectedID}/arguments`, { method: 'PUT', json: { key: input.dataset.argumentKey, value } });
-    const resetButton = document.querySelector('[data-action="reset-arguments"]');
-    if (resetButton) resetButton.disabled = false;
-    showToast('模块参数已更新');
-  }
-  catch (error) { showToast(error.message, true); }
+  refreshArgumentActions();
 }
 
 function handleDetailInput(event) {
+  if (event.target.matches('#preview-search-input')) {
+    previewSearchQuery = event.target.value;
+    clearTimeout(previewSearchDebounceTimer);
+    if (event.isComposing) {
+      previewSearchDebounceTimer = null;
+      return;
+    }
+    previewSearchDebounceTimer = setTimeout(() => {
+      previewSearchDebounceTimer = null;
+      refreshPreviewSearch(true);
+    }, 150);
+    return;
+  }
   if (!event.target.closest('[data-argument-key]')) return;
-  const resetButton = document.querySelector('[data-action="reset-arguments"]');
-  if (resetButton) resetButton.disabled = false;
+  refreshArgumentActions();
+}
+
+function refreshPreviewSearch(resetSelection = false) {
+  const preserveSearchFocus = document.activeElement?.matches?.('#preview-search-input') ?? false;
+  const needle = previewSearchQuery.trim();
+  previewSearchMatches = [];
+  if (needle) {
+    const haystack = previewText.toLocaleLowerCase();
+    const normalizedNeedle = needle.toLocaleLowerCase();
+    let offset = 0;
+    while ((offset = haystack.indexOf(normalizedNeedle, offset)) !== -1) {
+      previewSearchMatches.push({ start: offset, end: offset + normalizedNeedle.length });
+      offset += Math.max(normalizedNeedle.length, 1);
+    }
+  }
+  if (!previewSearchMatches.length) previewSearchIndex = -1;
+  else if (resetSelection || previewSearchIndex < 0 || previewSearchIndex >= previewSearchMatches.length) previewSearchIndex = 0;
+  updatePreviewSearchUI();
+  paintPreviewSearchMatches();
+  if (previewSearchIndex >= 0) revealPreviewSearchMatch(preserveSearchFocus);
+}
+
+function movePreviewSearch(direction) {
+  if (!previewSearchMatches.length) return;
+  previewSearchIndex = (previewSearchIndex + direction + previewSearchMatches.length) % previewSearchMatches.length;
+  updatePreviewSearchUI();
+  paintPreviewSearchMatches();
+  revealPreviewSearchMatch();
+}
+
+function updatePreviewSearchUI() {
+  const count = document.querySelector('#preview-search-count');
+  if (count) count.textContent = previewSearchQuery.trim() ? (previewSearchMatches.length ? `${previewSearchIndex + 1} / ${previewSearchMatches.length}` : '无结果') : '';
+  document.querySelectorAll('[data-action="preview-search-previous"], [data-action="preview-search-next"]').forEach(button => { button.disabled = !previewSearchMatches.length; });
+}
+
+function paintPreviewSearchMatches() {
+  const view = document.querySelector('#code-view');
+  if (view) {
+    // Keep the syntax DOM created at preview load. Replacing the whole tree on
+    // every keystroke is visibly slow for large modules.
+    unwrapPreviewSearchMatches(view);
+    wrapPreviewSearchMatches(view);
+  }
+
+  const editor = document.querySelector('#code-editor');
+  const layer = document.querySelector('#code-editor-highlight-layer');
+  if (!editor || !layer) return;
+  if (previewEditorMirrorDirty) rebuildPreviewEditorMirror();
+  else unwrapPreviewSearchMatches(layer);
+  const hasMatches = previewSearchMatches.length > 0;
+  editor.classList.toggle('search-highlighting', hasMatches);
+  layer.hidden = !hasMatches;
+  if (!hasMatches) {
+    return;
+  }
+  wrapPreviewSearchMatches(layer);
+  syncPreviewEditorHighlightScroll();
+}
+
+function rebuildPreviewEditorMirror() {
+  const layer = document.querySelector('#code-editor-highlight-layer');
+  if (!layer) return;
+  layer.innerHTML = highlightCode(previewText);
+  previewEditorMirrorDirty = false;
+}
+
+function unwrapPreviewSearchMatches(root) {
+  const parents = new Set();
+  root.querySelectorAll('.preview-search-match').forEach(mark => {
+    if (mark.parentNode) parents.add(mark.parentNode);
+    mark.replaceWith(...mark.childNodes);
+  });
+  // Rejoin adjacent text nodes so subsequent offset lookups remain cheap even
+  // after many searches.
+  parents.forEach(parent => parent.normalize());
+}
+
+function wrapPreviewSearchMatches(root) {
+  if (!previewSearchMatches.length || previewSearchIndex < 0) return;
+  const lines = [...root.querySelectorAll('.code-line')];
+  const match = previewSearchMatches[previewSearchIndex];
+  const line = lines.find(candidate => {
+    const start = Number(candidate.dataset.sourceStart);
+    const length = Number(candidate.dataset.sourceLength);
+    return Number.isFinite(start) && Number.isFinite(length) && match.start >= start && match.end <= start + length;
+  });
+  if (!line) return;
+  const lineStart = Number(line.dataset.sourceStart);
+  const startBoundary = textBoundaryAtOffset(line, match.start - lineStart);
+  const endBoundary = textBoundaryAtOffset(line, match.end - lineStart);
+  if (!startBoundary || !endBoundary) return;
+  const range = document.createRange();
+  range.setStart(startBoundary.node, startBoundary.offset);
+  range.setEnd(endBoundary.node, endBoundary.offset);
+  if (range.collapsed) return;
+  const mark = document.createElement('mark');
+  mark.className = 'preview-search-match current';
+  mark.dataset.searchIndex = String(previewSearchIndex);
+  mark.append(range.extractContents());
+  range.insertNode(mark);
+}
+
+function syncPreviewEditorHighlightScroll() {
+  const editor = document.querySelector('#code-editor');
+  const layer = document.querySelector('#code-editor-highlight-layer');
+  if (!editor || !layer) return;
+  layer.scrollTop = editor.scrollTop;
+  layer.scrollLeft = editor.scrollLeft;
+}
+
+function textRangeForOffsets(root, start, end) {
+  if (root.matches?.('#code-view, #code-editor-highlight-layer')) {
+    const lines = [...root.querySelectorAll('.code-line')];
+    for (const line of lines) {
+      const lineStart = Number(line.dataset.sourceStart);
+      const lineLength = Number(line.dataset.sourceLength);
+      if (!Number.isFinite(lineStart) || !Number.isFinite(lineLength)) continue;
+      const lineEnd = lineStart + lineLength;
+      if (start < lineStart || end > lineEnd) continue;
+      const startBoundary = textBoundaryAtOffset(line, start - lineStart);
+      const endBoundary = textBoundaryAtOffset(line, end - lineStart);
+      if (!startBoundary || !endBoundary) return null;
+      const range = document.createRange();
+      range.setStart(startBoundary.node, startBoundary.offset);
+      range.setEnd(endBoundary.node, endBoundary.offset);
+      return range;
+    }
+    return null;
+  }
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  let offset = 0;
+  let startNode = null;
+  let startOffset = 0;
+  while ((node = walker.nextNode())) {
+    const nextOffset = offset + node.data.length;
+    if (!startNode && start >= offset && start <= nextOffset) {
+      startNode = node;
+      startOffset = start - offset;
+    }
+    if (startNode && end >= offset && end <= nextOffset) {
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(node, end - offset);
+      return range;
+    }
+    offset = nextOffset;
+  }
+  return null;
+}
+
+function textBoundaryAtOffset(root, targetOffset) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  let offset = 0;
+  let lastNode = null;
+  while ((node = walker.nextNode())) {
+    lastNode = node;
+    if (targetOffset <= offset + node.data.length) return { node, offset: targetOffset - offset };
+    offset += node.data.length;
+  }
+  return lastNode ? { node: lastNode, offset: lastNode.data.length } : null;
+}
+
+function revealPreviewSearchMatch(preserveSearchFocus = false) {
+  const match = previewSearchMatches[previewSearchIndex];
+  if (!match) return;
+  const editor = document.querySelector('#code-editor');
+  if (editor) {
+    const searchInput = preserveSearchFocus ? document.querySelector('#preview-search-input') : null;
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(match.start, match.end);
+    const before = editor.value.slice(0, match.start);
+    const line = before.split('\n').length - 1;
+    const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 19;
+    editor.scrollTop = Math.max(0, line * lineHeight - editor.clientHeight * .42);
+    if (searchInput) searchInput.focus({ preventScroll: true });
+    return;
+  }
+  const view = document.querySelector('#code-view');
+  if (!view) return;
+  const currentMark = view.querySelector(`.preview-search-match[data-search-index="${previewSearchIndex}"]`);
+  const range = currentMark ? null : textRangeForOffsets(view, match.start, match.end);
+  const rect = currentMark?.getBoundingClientRect() ?? range?.getBoundingClientRect();
+  const viewRect = view.getBoundingClientRect();
+  if (rect) view.scrollTop += rect.top - viewRect.top - view.clientHeight * .42;
 }
 
 function selectItem(id, pushHistory = true) {
@@ -751,13 +982,40 @@ async function savePreview(module) {
 
 async function restorePreview(module) {
   if (!await askConfirmation('恢复转换结果？', `“${module.name}”的手动修改会被丢弃。`, '恢复')) return;
-  try { const text = await api(`/api/modules/${module.id}/preview`, { method: 'DELETE' }); const editor = document.querySelector('#code-editor'); if (editor) editor.value = text; previewText = text; previewSavedText = text; document.querySelector('[data-action="save-preview"]').disabled = true; showToast('已恢复转换结果'); }
+  try { const text = await api(`/api/modules/${module.id}/preview`, { method: 'DELETE' }); const editor = document.querySelector('#code-editor'); if (editor) editor.value = text; previewText = text; previewSavedText = text; previewEditorMirrorDirty = true; document.querySelector('[data-action="save-preview"]').disabled = true; refreshPreviewSearch(false); showToast('已恢复转换结果'); }
   catch (error) { showToast(error.message, true); }
 }
 
 async function resetArguments(module) {
+  document.querySelectorAll('#arguments-section [data-argument-key]').forEach(input => {
+    if (input.type === 'checkbox') input.checked = String(input.dataset.default).toLowerCase() === 'true';
+    else input.value = input.dataset.default;
+  });
+  refreshArgumentActions();
+}
+
+function argumentValuesFromControls() {
+  const values = {};
+  document.querySelectorAll('#arguments-section [data-argument-key]').forEach(input => {
+    values[input.dataset.argumentKey] = input.type === 'checkbox' ? String(input.checked) : input.value;
+  });
+  return values;
+}
+
+function refreshArgumentActions() {
+  const inputs = [...document.querySelectorAll('#arguments-section [data-argument-key]')];
+  const resetButton = document.querySelector('[data-action="reset-arguments"]');
+  const applyButton = document.querySelector('[data-action="apply-arguments"]');
+  const valueFor = input => input.type === 'checkbox' ? String(input.checked) : input.value.trim();
+  if (resetButton) resetButton.disabled = inputs.every(input => valueFor(input) === String(input.dataset.default).trim());
+  if (applyButton) applyButton.disabled = inputs.every(input => valueFor(input) === String(input.dataset.saved).trim());
+}
+
+async function applyArguments(module) {
   try {
-    const result = await api(`/api/modules/${module.id}/arguments`, { method: 'DELETE' });
+    const result = await api(`/api/modules/${module.id}/arguments`, {
+      method: 'PUT', json: { values: argumentValuesFromControls() }
+    });
     showToast(result.message);
     await loadArguments(module);
   }
@@ -839,15 +1097,40 @@ function showCopySuccess(button) {
 }
 
 function highlightCode(text) {
+  let sourceOffset = 0;
   return text.split('\n').map(line => {
-    const trimmed = line.trim(); let value = escapeHTML(line);
-    if (/^\[[^\]]+\]$/.test(trimmed)) return `<span class="code-line code-section">${value}</span>`;
-    if (/^(#|\/\/|;)/.test(trimmed)) return `<span class="code-line code-comment">${value}</span>`;
-    value = value.replace(/(https?:\/\/[^\s,&lt;&gt;]+)/g, '<span class="code-url">$1</span>');
-    value = value.replace(/^([A-Za-z][A-Za-z0-9_-]*)(\s*=)/, '<span class="code-key">$1</span>$2');
-    value = value.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="code-number">$1</span>');
-    return `<span class="code-line">${value || ' '}</span>`;
+    const lineStart = sourceOffset;
+    sourceOffset += line.length + 1;
+    const sourceAttributes = ` data-source-start="${lineStart}" data-source-length="${line.length}"`;
+    const trimmed = line.trim();
+    if (/^\[[^\]]+\]$/.test(trimmed)) return `<span class="code-line code-section"${sourceAttributes}>${escapeHTML(line)}</span>`;
+    if (/^(#|\/\/|;)/.test(trimmed)) return `<span class="code-line code-comment"${sourceAttributes}>${escapeHTML(line)}</span>`;
+    const value = highlightInlineCode(line);
+    return `<span class="code-line"${sourceAttributes}>${value || '<br>'}</span>`;
   }).join('');
+}
+
+function highlightInlineCode(line) {
+  let output = '';
+  let cursor = 0;
+  const keyMatch = line.match(/^([A-Za-z][A-Za-z0-9_-]*)(\s*=)/);
+  if (keyMatch) {
+    output += `<span class="code-key">${escapeHTML(keyMatch[1])}</span>${escapeHTML(keyMatch[2])}`;
+    cursor = keyMatch[0].length;
+  }
+
+  const tokenPattern = /(https?:\/\/[^\s,<>&]+)|\b(\d+(?:\.\d+)?)\b/g;
+  tokenPattern.lastIndex = cursor;
+  let match;
+  while ((match = tokenPattern.exec(line)) !== null) {
+    output += escapeHTML(line.slice(cursor, match.index));
+    output += match[1]
+      ? `<span class="code-url">${escapeHTML(match[0])}</span>`
+      : `<span class="code-number">${escapeHTML(match[0])}</span>`;
+    cursor = match.index + match[0].length;
+  }
+  output += escapeHTML(line.slice(cursor));
+  return output;
 }
 
 function showToast(message, isError = false) { clearTimeout(toastTimer); ui.toast.textContent = message; ui.toast.classList.toggle('error', isError); ui.toast.classList.add('visible'); toastTimer = setTimeout(() => ui.toast.classList.remove('visible'), 2600); }

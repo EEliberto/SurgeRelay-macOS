@@ -106,6 +106,7 @@ struct SettingsView: View {
         case scriptHub
         case synchronization
         case diagnostics
+        case about
 
         var id: Self { self }
 
@@ -116,6 +117,7 @@ struct SettingsView: View {
             case .scriptHub: "Script Hub"
             case .synchronization: "同步"
             case .diagnostics: "诊断"
+            case .about: "关于"
             }
         }
 
@@ -126,6 +128,7 @@ struct SettingsView: View {
             case .scriptHub: "arrow.triangle.branch"
             case .synchronization: "arrow.trianglehead.2.clockwise.rotate.90"
             case .diagnostics: "stethoscope"
+            case .about: "info.circle"
             }
         }
     }
@@ -137,7 +140,7 @@ struct SettingsView: View {
                     .tag(pane)
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 250)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 225)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             detailView(for: selectedPane)
@@ -165,12 +168,19 @@ struct SettingsView: View {
         .navigationSplitViewStyle(.balanced)
         .toolbar(removing: .title)
         .background(SettingsWindowConfigurator())
-        .frame(minWidth: 860, minHeight: 560)
+        .frame(minWidth: 760, minHeight: 560)
         .onAppear {
             resetNavigation()
+            if SurgeRelaySettingsNavigation.consumeAboutRequest() {
+                navigate(to: .about)
+            }
             loadGitHubDraftIfNeeded()
         }
         .onDisappear(perform: resetNavigation)
+        .onReceive(NotificationCenter.default.publisher(for: .showSurgeRelayAbout)) { _ in
+            guard SurgeRelaySettingsNavigation.consumeAboutRequest() else { return }
+            navigate(to: .about)
+        }
         .onChange(of: selectedPane) { oldValue, newValue in
             guard oldValue != newValue else { return }
             if isHistoryNavigation {
@@ -210,6 +220,7 @@ struct SettingsView: View {
         case .scriptHub: scriptHubSettings
         case .synchronization: synchronizationSettings
         case .diagnostics: diagnosticsSettings
+        case .about: aboutSettings
         }
     }
 
@@ -234,6 +245,14 @@ struct SettingsView: View {
         backStack.append(selectedPane)
         isHistoryNavigation = true
         selectedPane = next
+    }
+
+    private func navigate(to pane: SettingsPane) {
+        guard selectedPane != pane else { return }
+        backStack.append(selectedPane)
+        forwardStack.removeAll()
+        isHistoryNavigation = true
+        selectedPane = pane
     }
 
     private var generalSettings: some View {
@@ -388,13 +407,11 @@ struct SettingsView: View {
 
                 if effectiveStorageMode == .local {
                     Section("iCloud 云盘") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Label("通过 iCloud 保持 Surge Relay 同步", systemImage: "icloud.fill")
-                                .font(.body.weight(.medium))
-                            Text("汇总模块保存在 iCloud 云盘的 Surge 文件夹中，配置与同步状态由 Surge Relay 管理。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        storageProviderSummary(
+                            assetName: "iCloudIcon",
+                            title: "通过 iCloud 保持 Surge Relay 同步",
+                            detail: "汇总模块保存在 iCloud 云盘的 Surge 文件夹中，配置与同步状态由 Surge Relay 管理。"
+                        )
 
                         if showsStableICloudStatus {
                             Label(
@@ -407,13 +424,11 @@ struct SettingsView: View {
                     }
                 } else {
                     Section("GitHub 私有仓库") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Label("通过私有仓库同步", systemImage: "lock.fill")
-                                .font(.body.weight(.medium))
-                            Text("Surge Relay 会验证仓库权限，并通过 Cloudflare 提供设备可访问的稳定订阅。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        storageProviderSummary(
+                            assetName: "GitHubIcon",
+                            title: "通过私有仓库同步",
+                            detail: "Surge Relay 会验证仓库权限，并通过 Cloudflare 提供设备可访问的稳定订阅。"
+                        )
 
                         TextField("仓库地址", text: $githubRepositoryInput)
                             .onChange(of: githubRepositoryInput) { _, _ in connectionResult = nil }
@@ -475,6 +490,32 @@ struct SettingsView: View {
         }
     }
 
+    private func storageProviderSummary(
+        assetName: String,
+        title: String,
+        detail: String
+    ) -> some View {
+        HStack(spacing: 14) {
+            Image(assetName)
+                .resizable()
+                .interpolation(.high)
+                .antialiased(true)
+                .scaledToFit()
+                .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.body.weight(.medium))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
+    }
+
     private var diagnosticsSettings: some View {
         Form {
             Section {
@@ -503,6 +544,101 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var aboutSettings: some View {
+        Form {
+            Section {
+                VStack(spacing: 10) {
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
+                        .scaledToFit()
+                        .frame(width: 76, height: 76)
+
+                    VStack(spacing: 3) {
+                        Text("Surge Relay")
+                            .font(.title2.weight(.semibold))
+                        Text("版本 \(appVersion)")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+
+            Section("项目") {
+                aboutLink(
+                    title: "Surge Relay",
+                    detail: "EEliberto/SurgeRelay-macOS",
+                    url: "https://github.com/EEliberto/SurgeRelay-macOS",
+                    image: .asset("GitHubIcon")
+                )
+
+                aboutLink(
+                    title: "Script Hub",
+                    detail: "github.com/Script-Hub-Org",
+                    url: "https://github.com/Script-Hub-Org",
+                    image: .asset("ScriptHubIcon")
+                )
+
+                aboutLink(
+                    title: "Surge",
+                    detail: "nssurge.com",
+                    url: "https://nssurge.com",
+                    image: .asset("SurgeIcon")
+                )
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private enum AboutLinkImage {
+        case asset(String)
+    }
+
+    private func aboutLink(
+        title: String,
+        detail: String,
+        url: String,
+        image: AboutLinkImage
+    ) -> some View {
+        Link(destination: URL(string: url)!) {
+            HStack(spacing: 12) {
+                switch image {
+                case let .asset(name):
+                    Image(name)
+                        .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
+                        .scaledToFill()
+                        .frame(width: 38, height: 38)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 
     private func diagnosticRow(_ entry: UpdateHistoryEntry) -> some View {

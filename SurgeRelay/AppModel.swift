@@ -1291,17 +1291,32 @@ final class AppModel {
     }
 
     func setModuleArgument(moduleID: UUID, key: String, value: String, defaultValue: String) {
+        setModuleArguments(
+            moduleID: moduleID,
+            values: [key: value],
+            defaultValues: [key: defaultValue]
+        )
+    }
+
+    func setModuleArguments(
+        moduleID: UUID,
+        values: [String: String],
+        defaultValues: [String: String]
+    ) {
         guard let index = modules.firstIndex(where: { $0.id == moduleID }) else { return }
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let stored = modules[index].argumentOverrides[key]
-        let nextStored: String? = normalized == defaultValue ? nil : normalized
-        guard stored != nextStored else { return }
-        registerLocalChange()
-        if let nextStored {
-            modules[index].argumentOverrides[key] = nextStored
-        } else {
-            modules[index].argumentOverrides.removeValue(forKey: key)
+        var nextOverrides = modules[index].argumentOverrides
+        for (key, defaultValue) in defaultValues {
+            guard let value = values[key] else { continue }
+            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if normalized == defaultValue {
+                nextOverrides.removeValue(forKey: key)
+            } else {
+                nextOverrides[key] = normalized
+            }
         }
+        guard modules[index].argumentOverrides != nextOverrides else { return }
+        registerLocalChange()
+        modules[index].argumentOverrides = nextOverrides
         try? persistModules()
         statusMessage = "已更新 \(modules[index].name) 的模块参数"
         scheduleCombinedRebuild()

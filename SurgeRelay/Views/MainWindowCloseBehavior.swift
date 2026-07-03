@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Keeps the app resident in the menu bar by turning the main window's close
 /// button into a hide action. This avoids replacing SwiftUI's window delegate.
+@MainActor
 struct MainWindowCloseBehavior: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -16,6 +17,7 @@ struct MainWindowCloseBehavior: NSViewRepresentable {
         DispatchQueue.main.async { context.coordinator.install(on: view.window) }
     }
 
+    @MainActor
     final class Coordinator: NSObject {
         private weak var window: NSWindow?
 

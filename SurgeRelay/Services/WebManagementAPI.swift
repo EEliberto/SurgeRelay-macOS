@@ -119,15 +119,31 @@ enum WebManagementAPI {
         case ("PUT", "arguments"):
             let payload = try request.decodeBody(WebArgumentMutation.self)
             let info = await model.moduleArgumentInfo(for: module)
-            guard let definition = info.definitions.first(where: { $0.key == payload.key }) else {
-                throw WebAPIError.invalidArgument
+            let defaults = Dictionary(uniqueKeysWithValues: info.definitions.map {
+                ($0.key, $0.defaultValue)
+            })
+            if let values = payload.values {
+                guard !values.keys.contains(where: { defaults[$0] == nil }) else {
+                    throw WebAPIError.invalidArgument
+                }
+                model.setModuleArguments(
+                    moduleID: id,
+                    values: values,
+                    defaultValues: defaults
+                )
+            } else {
+                guard let key = payload.key,
+                      let value = payload.value,
+                      let defaultValue = defaults[key] else {
+                    throw WebAPIError.invalidArgument
+                }
+                model.setModuleArgument(
+                    moduleID: id,
+                    key: key,
+                    value: value,
+                    defaultValue: defaultValue
+                )
             }
-            model.setModuleArgument(
-                moduleID: id,
-                key: payload.key,
-                value: payload.value,
-                defaultValue: definition.defaultValue
-            )
             return .json(ActionPayload(ok: true, message: model.statusMessage))
         case ("DELETE", "arguments"):
             model.resetModuleArguments(moduleID: id)
@@ -339,8 +355,9 @@ private struct WebSourceNamePayload: Encodable {
 }
 
 private struct WebArgumentMutation: Decodable {
-    let key: String
-    let value: String
+    let key: String?
+    let value: String?
+    let values: [String: String]?
 }
 
 private struct WebArgumentPayload: Encodable {

@@ -1,11 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "iCloud.png",
+      "filename" : "iCloud-1x.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "iCloud.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

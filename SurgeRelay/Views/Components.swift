@@ -154,12 +154,16 @@ struct URLCopyButton: View {
 struct ModulePreviewPane: View {
     @Environment(AppModel.self) private var model
     let module: RelayModule
+    let showsFindBar: Bool
     @State private var text = ""
     @State private var savedText = ""
     @State private var isLoading = true
     @State private var isWriting = false
     @State private var errorMessage: String?
     @State private var showsComparison = false
+    @State private var searchText = ""
+    @State private var searchCommand = CodeSearchCommand()
+    @State private var searchResult = CodeSearchResult()
 
     private var currentModule: RelayModule {
         model.modules.first(where: { $0.id == module.id }) ?? module
@@ -181,13 +185,29 @@ struct ModulePreviewPane: View {
                 .background(.orange.opacity(0.08))
                 Divider()
             }
-            ModuleCodeTextView(
-                text: $text,
-                isEditable: !isLoading,
-                modules: [module],
-                selectedModuleID: module.id
-            )
-            .ignoresSafeArea(.container, edges: .top)
+            ZStack(alignment: .top) {
+                ModuleCodeTextView(
+                    text: $text,
+                    isEditable: !isLoading,
+                    modules: [module],
+                    selectedModuleID: module.id,
+                    searchQuery: showsFindBar ? searchText : "",
+                    searchCommand: searchCommand,
+                    searchResult: $searchResult,
+                    topContentInset: showsFindBar ? 72 : 16
+                )
+                .ignoresSafeArea(.container, edges: .top)
+
+                if showsFindBar {
+                    CodePreviewSearchBar(
+                        query: $searchText,
+                        result: searchResult,
+                        onNavigate: navigateSearch
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                }
+            }
 
             Divider()
             HStack(spacing: 12) {
@@ -219,6 +239,10 @@ struct ModulePreviewPane: View {
             OverrideComparisonView(module: currentModule)
                 .environment(model)
         }
+    }
+
+    private func navigateSearch(_ direction: CodeSearchDirection) {
+        searchCommand = CodeSearchCommand(serial: searchCommand.serial + 1, direction: direction)
     }
 
     private func load() async {
@@ -323,9 +347,13 @@ private struct OverrideComparisonView: View {
 /// Inline, read-only preview of the merged final module.
 struct CombinedPreviewPane: View {
     @Environment(AppModel.self) private var model
+    let showsFindBar: Bool
     @State private var text = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var searchText = ""
+    @State private var searchCommand = CodeSearchCommand()
+    @State private var searchResult = CodeSearchResult()
 
     private var enabledModules: [RelayModule] {
         model.modules.filter(\.isEnabled)
@@ -336,13 +364,29 @@ struct CombinedPreviewPane: View {
     }
 
     var body: some View {
-        ModuleCodeTextView(
-            text: .constant(text),
-            isEditable: false,
-            modules: enabledModules,
-            selectedModuleID: nil
-        )
-        .ignoresSafeArea(.container, edges: .top)
+        ZStack(alignment: .top) {
+            ModuleCodeTextView(
+                text: .constant(text),
+                isEditable: false,
+                modules: enabledModules,
+                selectedModuleID: nil,
+                searchQuery: showsFindBar ? searchText : "",
+                searchCommand: searchCommand,
+                searchResult: $searchResult,
+                topContentInset: showsFindBar ? 72 : 16
+            )
+            .ignoresSafeArea(.container, edges: .top)
+
+            if showsFindBar {
+                CodePreviewSearchBar(
+                    query: $searchText,
+                    result: searchResult,
+                    onNavigate: navigateSearch
+                )
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            }
+        }
         .overlay {
             if !isLoading, text.isEmpty {
                 ContentUnavailableView("没有可预览的内容", systemImage: "doc.text.magnifyingglass")
@@ -357,6 +401,10 @@ struct CombinedPreviewPane: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    private func navigateSearch(_ direction: CodeSearchDirection) {
+        searchCommand = CodeSearchCommand(serial: searchCommand.serial + 1, direction: direction)
     }
 
     private func load() async {
@@ -375,11 +423,99 @@ struct CombinedPreviewPane: View {
     }
 }
 
+private enum CodeSearchDirection: Equatable {
+    case previous
+    case next
+}
+
+private struct CodeSearchCommand: Equatable {
+    var serial = 0
+    var direction: CodeSearchDirection = .next
+}
+
+private struct CodeSearchResult: Equatable {
+    var current = 0
+    var count = 0
+}
+
+private struct CodePreviewSearchBar: View {
+    @Binding var query: String
+    let result: CodeSearchResult
+    let onNavigate: (CodeSearchDirection) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                TextField("搜索", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .onSubmit { onNavigate(.next) }
+
+                if !query.isEmpty {
+                    Text(result.count == 0 ? "无结果" : "\(result.current)/\(result.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .frame(maxWidth: .infinity)
+            .contentShape(Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.18), lineWidth: 1)
+            }
+
+            HStack(spacing: 0) {
+                Button { onNavigate(.previous) } label: {
+                    Image(systemName: "chevron.up")
+                        .frame(width: 30, height: 30)
+                }
+                .disabled(result.count == 0)
+
+                Button { onNavigate(.next) } label: {
+                    Image(systemName: "chevron.down")
+                        .frame(width: 30, height: 30)
+                }
+                .disabled(result.count == 0)
+            }
+            .padding(.horizontal, 3)
+            .frame(height: 36)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.18), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct ModuleCodeTextView: NSViewRepresentable {
     @Binding var text: String
     let isEditable: Bool
     let modules: [RelayModule]
     let selectedModuleID: UUID?
+    let searchQuery: String
+    let searchCommand: CodeSearchCommand
+    @Binding var searchResult: CodeSearchResult
+    let topContentInset: CGFloat
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
@@ -400,24 +536,31 @@ private struct ModuleCodeTextView: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.isSelectable = true
         textView.allowsUndo = true
-        textView.usesFindPanel = true
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainerInset = NSSize(width: 18, height: 16)
+        textView.textContainerInset = NSSize(width: 18, height: topContentInset)
         textView.string = text
         scrollView.documentView = textView
         context.coordinator.textView = textView
         context.coordinator.applyHighlighting(modules: modules, selectedModuleID: selectedModuleID)
         _ = context.coordinator.needsHighlight(text: text, selectedModuleID: selectedModuleID)
+        context.coordinator.updateSearch(
+            query: searchQuery,
+            command: searchCommand,
+            result: $searchResult
+        )
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
         textView.isEditable = isEditable
+        if textView.textContainerInset.height != topContentInset {
+            textView.textContainerInset = NSSize(width: 18, height: topContentInset)
+        }
         if textView.string != text {
             context.coordinator.isApplyingUpdate = true
             textView.string = text
@@ -430,6 +573,11 @@ private struct ModuleCodeTextView: NSViewRepresentable {
             context.coordinator.applyHighlighting(modules: modules, selectedModuleID: selectedModuleID)
         }
         context.coordinator.scrollToSelectedModule(selectedModuleID, modules: modules)
+        context.coordinator.updateSearch(
+            query: searchQuery,
+            command: searchCommand,
+            result: $searchResult
+        )
     }
 
     @MainActor
@@ -440,6 +588,11 @@ private struct ModuleCodeTextView: NSViewRepresentable {
         private var lastSelectedModuleID: UUID?
         private var lastHighlightedText: String?
         private var lastHighlightedSelection: UUID?
+        private var lastSearchQuery = ""
+        private var lastSearchedText = ""
+        private var lastSearchCommandSerial = 0
+        private var searchRanges: [NSRange] = []
+        private var selectedSearchIndex: Int?
 
         init(text: Binding<String>) {
             _text = text
@@ -459,6 +612,75 @@ private struct ModuleCodeTextView: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard !isApplyingUpdate, let textView else { return }
             text = textView.string
+        }
+
+        func updateSearch(
+            query: String,
+            command: CodeSearchCommand,
+            result: Binding<CodeSearchResult>
+        ) {
+            guard let textView else { return }
+
+            if query != lastSearchQuery || textView.string != lastSearchedText {
+                lastSearchQuery = query
+                lastSearchedText = textView.string
+                searchRanges = ranges(of: query, in: textView.string)
+                selectedSearchIndex = searchRanges.isEmpty ? nil : 0
+                revealSelectedSearchRange(in: textView)
+                publishSearchResult(to: result)
+            }
+
+            guard command.serial != lastSearchCommandSerial else { return }
+            lastSearchCommandSerial = command.serial
+            guard !searchRanges.isEmpty else {
+                publishSearchResult(to: result)
+                return
+            }
+
+            let current = selectedSearchIndex ?? 0
+            switch command.direction {
+            case .previous:
+                selectedSearchIndex = (current - 1 + searchRanges.count) % searchRanges.count
+            case .next:
+                selectedSearchIndex = (current + 1) % searchRanges.count
+            }
+            revealSelectedSearchRange(in: textView)
+            publishSearchResult(to: result)
+        }
+
+        private func ranges(of query: String, in text: String) -> [NSRange] {
+            guard !query.isEmpty else { return [] }
+            let source = text as NSString
+            var results: [NSRange] = []
+            var searchRange = NSRange(location: 0, length: source.length)
+            while searchRange.length > 0 {
+                let match = source.range(of: query, options: [.caseInsensitive], range: searchRange)
+                guard match.location != NSNotFound else { break }
+                results.append(match)
+                let nextLocation = NSMaxRange(match)
+                guard nextLocation < source.length else { break }
+                searchRange = NSRange(location: nextLocation, length: source.length - nextLocation)
+            }
+            return results
+        }
+
+        private func revealSelectedSearchRange(in textView: NSTextView) {
+            guard let selectedSearchIndex, searchRanges.indices.contains(selectedSearchIndex) else { return }
+            let range = searchRanges[selectedSearchIndex]
+            textView.setSelectedRange(range)
+            textView.scrollRangeToVisible(range)
+            textView.showFindIndicator(for: range)
+        }
+
+        private func publishSearchResult(to binding: Binding<CodeSearchResult>) {
+            let value = CodeSearchResult(
+                current: selectedSearchIndex.map { $0 + 1 } ?? 0,
+                count: searchRanges.count
+            )
+            guard binding.wrappedValue != value else { return }
+            DispatchQueue.main.async {
+                binding.wrappedValue = value
+            }
         }
 
         func applyHighlighting(modules: [RelayModule], selectedModuleID: UUID?) {

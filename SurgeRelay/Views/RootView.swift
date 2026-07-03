@@ -112,6 +112,8 @@ private struct ConfigurationWelcomeView: View {
                 HStack(alignment: .top, spacing: 16) {
                     Image("iCloudIcon")
                         .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
                         .scaledToFit()
                         .frame(width: 48, height: 48)
 
@@ -164,6 +166,8 @@ private struct ConfigurationWelcomeView: View {
             HStack(spacing: 13) {
                 Image(assetName)
                     .resizable()
+                    .interpolation(.high)
+                    .antialiased(true)
                     .scaledToFit()
                     .frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 3) {

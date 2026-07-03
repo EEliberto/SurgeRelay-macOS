@@ -7,6 +7,41 @@ enum SurgeRelayWindow {
     static let settings = "settings"
 }
 
+extension Notification.Name {
+    static let showSurgeRelayAbout = Notification.Name("showSurgeRelayAbout")
+}
+
+@MainActor
+enum SurgeRelaySettingsNavigation {
+    private static var hasPendingAboutRequest = false
+
+    static func requestAbout() {
+        hasPendingAboutRequest = true
+        NotificationCenter.default.post(name: .showSurgeRelayAbout, object: nil)
+    }
+
+    static func consumeAboutRequest() -> Bool {
+        defer { hasPendingAboutRequest = false }
+        return hasPendingAboutRequest
+    }
+}
+
+@MainActor
+private struct SurgeRelayAppInfoCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("关于 Surge Relay") {
+                NSApp.setActivationPolicy(.regular)
+                SurgeRelaySettingsNavigation.requestAbout()
+                openWindow(id: SurgeRelayWindow.settings)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+}
+
 private struct SurgeRelaySettingsCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
@@ -67,6 +102,7 @@ struct SurgeRelayApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1240, height: 760)
         .commands {
+            SurgeRelayAppInfoCommands()
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
@@ -84,10 +120,10 @@ struct SurgeRelayApp: App {
             SettingsView()
                 .environment(model)
                 .environment(\.locale, Locale(identifier: "zh_CN"))
-                .frame(minWidth: 860, minHeight: 560)
+                .frame(minWidth: 760, minHeight: 560)
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 920, height: 620)
+        .defaultSize(width: 800, height: 620)
         .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
 
