@@ -409,7 +409,16 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
 .confirm-icon { width: 28px; height: 28px; color: var(--orange); }
 .confirm-content h2 { margin: 10px 0 5px; font-size: 18px; }
 .confirm-content p { margin: 0; color: var(--secondary-label); white-space: pre-wrap; }
-.toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 20; max-width: min(480px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 999px; background: rgba(30,30,32,.88); color: #fff; box-shadow: var(--shadow); backdrop-filter: blur(20px); transform: translate(-50%, 24px); opacity: 0; pointer-events: none; transition: opacity 180ms ease, transform 180ms ease; }
+.toast {
+  position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 20;
+  width: max-content; max-width: min(480px, calc(100vw - 32px)); min-height: 40px; padding: 10px 15px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; background: rgba(30,30,32,.88); color: #fff; box-shadow: var(--shadow);
+  font-size: 14px; line-height: 1.38; text-align: center; white-space: normal; overflow-wrap: anywhere;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  transform: translate(-50%, 24px); opacity: 0; pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { background: color-mix(in srgb, var(--red) 86%, #111); }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 2px; }
@@ -491,6 +500,16 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   .detail-toolbar .segmented-control button .symbol { width: 16px; height: 16px; }
   .detail-toolbar > .button { min-height: 40px; padding: 7px 13px; border-radius: 999px; line-height: 1; white-space: nowrap; }
   .detail-row { margin: 0 14px; grid-template-columns: 1fr; gap: 5px; }
+  .detail-row.individual-output-row {
+    grid-template-columns: minmax(0, 1fr) 34px;
+    gap: 12px;
+    align-items: center;
+  }
+  .individual-output-row .detail-label { min-width: 0; align-items: center; }
+  .individual-output-row .detail-label > span:last-child { min-width: 0; line-height: 1.35; }
+  .individual-output-row .module-toggle { align-self: center; justify-self: end; }
+  .arguments-footer { margin: 0 14px; padding: 12px 0 14px; align-items: flex-start; }
+  .arguments-footer small { display: block; line-height: 1.45; }
   .argument-row { grid-template-columns: 1fr; }
   .argument-control { justify-content: stretch; }
   .argument-control input[type="text"] { max-width: none; text-align: left; }
@@ -500,6 +519,12 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   .form-row { grid-template-columns: 1fr; gap: 6px; }
   .switch-row { grid-template-columns: minmax(0,1fr) 34px; }
   .dialog-actions { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .toast {
+    bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
+    max-width: calc(100vw - 40px);
+    padding: 10px 14px;
+    border-radius: 13px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
