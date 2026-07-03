@@ -68,7 +68,7 @@ https://github.com/your-name/Surge-Relay
 7. 展开 `Repository permissions`，把 **Contents** 设置为 **Read and write**；其他权限保持默认。
 8. 点击 **Generate token**，立即复制生成的 Token。
 
-![为 Surge Relay 创建可写 Fine-grained Token](images/github-token-permissions.svg)
+<img width="696" height="463" alt="image" src="https://github.com/user-attachments/assets/d245ff4b-8f00-49e8-af94-79f6bf023e9b" />
 
 Token 通常以 `github_pat_` 开头。GitHub 只会完整显示一次；如果丢失，请删除旧 Token 后重新创建。
 
@@ -195,7 +195,7 @@ export default {
 
 `GITHUB_OWNER` 是 GitHub 用户名，不是邮箱或昵称。`GITHUB_TOKEN` 必须选择 **Secret** 类型。
 
-![Cloudflare Worker 需要配置的变量与 Secret](images/cloudflare-worker-settings.svg)
+<img width="1200" height="680" alt="cloudflare-worker-settings" src="https://github.com/user-attachments/assets/a5e1d51d-1703-4104-83b4-a8dc2cbeb5e6" />
 
 添加完成后点击 **Deploy**。Cloudflare 会提供一个类似下面的公共地址：
 
