@@ -55,7 +55,7 @@ Surge Relay 运行在你的 Mac 上，负责拉取上游模块、调用 Script-H
 
 生成后的模块可以自动发布到私有 GitHub 仓库并搭配 Cloudflare，或保存到 iCloud Drive (推荐)。为避免公开仓库被批量滥用，Surge Relay 不允许将公开仓库用作同步目标。Mac 只负责构建和发布，用户设备读取的是已经发布好的稳定文件。因此，即使 Mac 关机或暂时无法连接，已经发布的模块仍然可以正常使用。
 
-## Github 和 Cloudflare Worker 配置教程
+#### Github 和 Cloudflare Worker 配置教程
 
 - [从零配置 GitHub 私有仓库与 Cloudflare Worker](docs/GitHub-Cloudflare-Guide.md) — 面向新手的图文教程，包含 Token 权限、Worker 配置、验证方法和常见错误。
 - 你可以使用 AI 工具，例如 Claude Code 或 Codex 进行一键部署。如果你觉得操作过于繁琐，建议直接使用 iCloud 同步模式，无需此步骤 (最推荐🌟)。
