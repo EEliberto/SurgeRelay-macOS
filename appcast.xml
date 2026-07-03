@@ -6,7 +6,7 @@
             <title>260703</title>
             <pubDate>Fri, 03 Jul 2026 07:43:05 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260703</link>
-            <sparkle:version>26070301</sparkle:version>
+            <sparkle:version>26070302</sparkle:version>
             <sparkle:shortVersionString>260703</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -32,8 +32,9 @@
 ## Web 管理修复
 
 * 修复 Web 端出现的部分错误。
+* 修复移动端 iCloud 独立模块开关与状态提示的排版问题。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260703/Surge-Relay-260703.dmg" length="9248356" type="application/octet-stream" sparkle:edSignature="Ezqjaspmv3yE1J+j/mzNukmXZhzNd85uYdGIQjgWk5owOwA+8tTctn/tHH6hbSOUq0OLmq1VbYLgb81d5lATDQ=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260703/Surge-Relay-260703-build-26070302.dmg" length="9248559" type="application/octet-stream" sparkle:edSignature="rczMuIIKNs2nyaLE8uy5Epp75TfAeaaMHjFZ/0DZ/RH5UFHbUm5AjzoKLvwowHB9dl8AwbPqQ3N7F2Om/mWYDg=="/>
         </item>
         <item>
             <title>1.1.1</title>
