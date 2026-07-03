@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">Create a private GitHub repository</title><desc id="desc">Illustration highlighting repository name, private visibility and add README options.</desc>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8f9fb"/><stop offset="1" stop-color="#eef2f7"/></linearGradient><filter id="s"><feDropShadow dy="12" stdDeviation="18" flood-opacity=".16"/></filter></defs>
+  <rect width="1200" height="650" rx="32" fill="url(#g)"/>
+  <rect x="130" y="55" width="940" height="540" rx="24" fill="#fff" filter="url(#s)"/>
+  <rect x="130" y="55" width="940" height="64" rx="24" fill="#24292f"/><circle cx="173" cy="87" r="8" fill="#ff5f57"/><circle cx="199" cy="87" r="8" fill="#febc2e"/><circle cx="225" cy="87" r="8" fill="#28c840"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"><text x="180" y="165" font-size="27" font-weight="700" fill="#1f2328">Create a new repository</text><text x="180" y="204" font-size="15" fill="#57606a">Repository name</text><rect x="180" y="220" width="700" height="50" rx="9" fill="#fff" stroke="#0969da" stroke-width="3"/><text x="200" y="252" font-size="18" fill="#1f2328">Surge-Relay</text>
+  <rect x="180" y="302" width="20" height="20" rx="10" fill="#0969da"/><circle cx="190" cy="312" r="4" fill="#fff"/><text x="218" y="318" font-size="18" font-weight="650" fill="#1f2328">Private</text><text x="218" y="342" font-size="14" fill="#57606a">Only you and people you share with can see this repository.</text>
+  <rect x="180" y="378" width="20" height="20" rx="4" fill="#0969da"/><path d="M185 388l4 4 7-9" fill="none" stroke="#fff" stroke-width="2.5"/><text x="218" y="394" font-size="18" fill="#1f2328">Add a README file</text><text x="218" y="418" font-size="14" fill="#57606a">创建 main 分支，不能省略</text>
+  <rect x="180" y="474" width="190" height="50" rx="10" fill="#1f883d"/><text x="275" y="506" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">Create repository</text>
+  <rect x="900" y="210" width="126" height="38" rx="19" fill="#fff4ce"/><text x="963" y="235" text-anchor="middle" font-size="15" font-weight="700" fill="#8a5a00">① 仓库名称</text><path d="M900 250l-58 16" stroke="#d4a72c" stroke-width="2"/>
+  <rect x="900" y="300" width="126" height="38" rx="19" fill="#ddf4ff"/><text x="963" y="325" text-anchor="middle" font-size="15" font-weight="700" fill="#0969da">② 必须私有</text><path d="M900 320l-680 4" stroke="#54aeff" stroke-width="2"/>
+  <rect x="900" y="390" width="126" height="38" rx="19" fill="#dafbe1"/><text x="963" y="415" text-anchor="middle" font-size="15" font-weight="700" fill="#1a7f37">③ 添加 README</text><path d="M900 407l-680-8" stroke="#4ac26b" stroke-width="2"/></g>
+</svg>
