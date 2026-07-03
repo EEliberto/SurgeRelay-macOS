@@ -68,7 +68,7 @@ https://github.com/your-name/Surge-Relay
 7. 展开 `Repository permissions`，把 **Contents** 设置为 **Read and write**；其他权限保持默认。
 8. 点击 **Generate token**，立即复制生成的 Token。
 
-<img width="696" height="463" alt="image" src="https://github.com/user-attachments/assets/d245ff4b-8f00-49e8-af94-79f6bf023e9b" />
+<img width="1134" height="613" alt="image" src="https://github.com/user-attachments/assets/466b16ee-c2cc-440d-bdd3-bbb8d25cf76d" />
 
 Token 通常以 `github_pat_` 开头。GitHub 只会完整显示一次；如果丢失，请删除旧 Token 后重新创建。
 
