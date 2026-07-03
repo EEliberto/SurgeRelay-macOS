@@ -2,9 +2,9 @@
 
 这份教程面向第一次接触 GitHub 与 Cloudflare 的用户。完成后，Surge Relay 会把生成的模块写入你的 **GitHub 私有仓库**，再由 **Cloudflare Worker** 提供一个不暴露 GitHub Token 的稳定订阅地址。
 
-> 整个过程大约需要 10–15 分钟。GitHub 与 Cloudflare 的界面文字可能随版本略有变化，但设置名称和逻辑不变。
+> 整个过程大约需要 10–15 分钟。GitHub 与 Cloudflare 的界面文字可能随版本略有变化，但设置名称和逻辑不变。你可以使用 AI 工具，例如 Claude Code 或 Codex 进行一键部署。如果你觉得操作过于繁琐，建议直接使用 iCloud 同步模式 (最推荐🌟)。
 
-<img width="997" height="405" alt="image" src="https://github.com/user-attachments/assets/28f0cc3d-a72f-4691-a607-3a98b77a70c6" />
+<img width="1013" height="441" alt="image" src="https://github.com/user-attachments/assets/2b503277-9f06-4f8b-a3ad-0a7518dfc7ea" />
 
 ## 快捷操作入口
 
