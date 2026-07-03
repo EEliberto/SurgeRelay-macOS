@@ -4,7 +4,7 @@
 
 > 整个过程大约需要 10–15 分钟。GitHub 与 Cloudflare 的界面文字可能随版本略有变化，但设置名称和逻辑不变。
 
-![Surge Relay、GitHub 私有仓库与 Cloudflare Worker 的工作流程](images/github-cloudflare-flow.svg)
+<img width="997" height="405" alt="image" src="https://github.com/user-attachments/assets/28f0cc3d-a72f-4691-a607-3a98b77a70c6" />
 
 ## 快捷操作入口
 
@@ -44,7 +44,8 @@
 4. 勾选 **Add a README file**。这一步会创建 `main` 分支；空仓库无法通过 Surge Relay 完成首次发布。
 5. 点击 **Create repository**。
 
-![创建 GitHub 私有仓库时需要选择的选项](images/github-private-repository.svg)
+<img width="780" height="792" alt="image" src="https://github.com/user-attachments/assets/86287165-e847-46ea-b28c-a1faf518a0b5" />
+
 
 创建后，复制浏览器地址栏中的仓库地址，例如：
 
@@ -222,7 +223,7 @@ https://surge-relay.your-subdomain.workers.dev
 6. `公共地址` 填写 Cloudflare 提供的 `workers.dev` 地址，不要在末尾添加文件名。
 7. 点击 **验证并切换到 GitHub**。
 
-![在 Surge Relay 中填写 GitHub 与 Cloudflare 信息](images/surge-relay-github-settings.svg)
+<img width="1032" height="732" alt="image" src="https://github.com/user-attachments/assets/31f52d5b-9d6b-46e7-8426-5c70395875f6" />
 
 验证过程中，Surge Relay 会依次确认：
 
