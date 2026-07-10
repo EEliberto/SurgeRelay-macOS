@@ -1,5 +1,3 @@
-Switched to a new branch 'readme-fix'
-Branch 'readme-fix' set up to track remote branch 'main' from 'origin'.
 # Surge Relay (macOS)
 
 <p align="center">
