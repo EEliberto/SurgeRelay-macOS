@@ -38,10 +38,13 @@ private struct ModuleNavigationButtons: View {
     }
 }
 
+
+
 struct ModulesView: View {
     @Environment(AppModel.self) private var model
     @State private var searchText = ""
     @State private var editorRoute: ModuleEditorRoute?
+    @State private var iconEditorContext: IconEditorContext?
     @State private var deleteCandidate: RelayModule?
     @State private var detailTab: DetailTab = .info
     @State private var contentIndex: [UUID: String] = [:]
@@ -53,15 +56,18 @@ struct ModulesView: View {
     private enum DetailTab: Hashable { case info, preview }
 
     private enum SelectionKind {
-        case combined
+        case combined(RelayPlatform)
         case module(RelayModule)
     }
 
     private var selectionKind: SelectionKind? {
-        if model.selectedModuleID == AppModel.combinedModuleSelectionID { return .combined }
-        if let id = model.selectedModuleID,
-           let module = model.modules.first(where: { $0.id == id }) {
-            return .module(module)
+        if let id = model.selectedModuleID {
+            if let platform = RelayPlatform.from(selectionID: id) {
+                return .combined(platform)
+            }
+            if let module = model.modules.first(where: { $0.id == id }) {
+                return .module(module)
+            }
         }
         return nil
     }
@@ -69,7 +75,7 @@ struct ModulesView: View {
     private var selectedDetailTitle: String? {
         guard let selectionKind else { return nil }
         switch selectionKind {
-        case .combined: return "Surge Relay 汇总"
+        case let .combined(platform): return "Surge Relay 汇总 (\(platform.displayName))"
         case let .module(module): return module.name
         }
     }
@@ -98,6 +104,85 @@ struct ModulesView: View {
         return parts.joined(separator: "\n").lowercased()
     }
 
+    private var detailTabSwitcher: some View {
+        DetailTabSegmentedControl(selection: $detailTab)
+            .frame(width: 160, height: 32)
+    }
+
+    private struct DetailTabSegmentedControl: NSViewRepresentable {
+        @Binding var selection: DetailTab
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(selection: $selection)
+        }
+
+        func makeNSView(context: Context) -> NSSegmentedControl {
+            let control = NSSegmentedControl(
+                labels: ["详情", "预览"],
+                trackingMode: .selectOne,
+                target: context.coordinator,
+                action: #selector(Coordinator.selectionChanged(_:))
+            )
+            control.segmentStyle = .rounded
+            control.controlSize = .regular
+            configure(control)
+            control.selectedSegment = segmentIndex(for: selection)
+            return control
+        }
+
+        func updateNSView(_ control: NSSegmentedControl, context: Context) {
+            context.coordinator.selection = $selection
+            configure(control)
+            control.selectedSegment = segmentIndex(for: selection)
+        }
+
+        private func configure(_ control: NSSegmentedControl) {
+            control.segmentCount = 2
+
+            control.setLabel("详情", forSegment: 0)
+            control.setImage(
+                NSImage(systemSymbolName: "info.circle", accessibilityDescription: "详情"),
+                forSegment: 0
+            )
+            control.setImageScaling(.scaleProportionallyDown, forSegment: 0)
+            control.setWidth(80, forSegment: 0)
+
+            control.setLabel("预览", forSegment: 1)
+            control.setImage(
+                NSImage(systemSymbolName: "curlybraces", accessibilityDescription: "预览"),
+                forSegment: 1
+            )
+            control.setImageScaling(.scaleProportionallyDown, forSegment: 1)
+            control.setWidth(80, forSegment: 1)
+        }
+
+        private func segmentIndex(for tab: DetailTab) -> Int {
+            switch tab {
+            case .info: return 0
+            case .preview: return 1
+            }
+        }
+
+        final class Coordinator: NSObject {
+            var selection: Binding<DetailTab>
+
+            init(selection: Binding<DetailTab>) {
+                self.selection = selection
+            }
+
+            @MainActor @objc func selectionChanged(_ sender: NSSegmentedControl) {
+                switch sender.selectedSegment {
+                case 0:
+                    selection.wrappedValue = .info
+                case 1:
+                    selection.wrappedValue = .preview
+                default:
+                    break
+                }
+            }
+        }
+    }
+
     private var contentIndexToken: String {
         model.modules.map { "\($0.id.uuidString)\($0.contentHash ?? "")" }.joined()
     }
@@ -122,6 +207,8 @@ struct ModulesView: View {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .truncationMode(.tail)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                     Spacer(minLength: 4)
@@ -136,7 +223,7 @@ struct ModulesView: View {
                 Divider()
             }
 
-            if model.isWorking {
+            if model.isWorking || model.settings.storageMode == .local {
                 if let name = synchronizingModuleName, model.synchronizationTotalCount > 0 {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 8) {
@@ -157,8 +244,13 @@ struct ModulesView: View {
                     }
                 } else {
                     HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
+                        if model.isWorking {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
                         Text(model.statusMessage)
                             .font(.caption)
                             .lineLimit(2)
@@ -214,16 +306,14 @@ struct ModulesView: View {
         @Bindable var model = model
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $model.selectedModuleID) {
-                Section {
-                    CombinedModuleRow()
-                        .tag(AppModel.combinedModuleSelectionID)
+                Section("汇总模块") {
+                    ForEach(model.enabledPlatforms) { platform in
+                        CombinedModuleRow(platform: platform)
+                            .tag(platform.selectionID)
+                    }
+                }
 
-                    Divider()
-                        .frame(maxWidth: .infinity)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .environment(\.defaultMinListRowHeight, 1)
-
+                Section("来源模块") {
                     if searchText.isEmpty {
                         ForEach(model.modules) { module in
                             moduleRow(module)
@@ -239,9 +329,9 @@ struct ModulesView: View {
                 }
             }
             .listStyle(.sidebar)
-            .safeAreaBar(edge: .top, spacing: 4) {
+            .safeAreaInset(edge: .top, spacing: 4) {
                 sidebarSearchBar
-                    .padding(.horizontal, 12)
+                        .padding(.horizontal, 16)
                     .padding(.top, 6)
                     .padding(.bottom, 8)
             }
@@ -254,7 +344,7 @@ struct ModulesView: View {
                     )
                 }
             }
-            .safeAreaInset(edge: .bottom) { statusCard }
+            .safeAreaBar(edge: .bottom, spacing: 0) { statusCard }
             .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 380)
             .navigationTitle("模块")
             .toolbar {
@@ -282,15 +372,17 @@ struct ModulesView: View {
                     // view — that recreation is what caused the white flash.
                     ZStack {
                         switch kind {
-                        case .combined:
-                            CombinedModuleDetailView()
+                        case let .combined(platform):
+                            CombinedModuleDetailView(platform: platform)
                                 .opacity(detailTab == .info ? 1 : 0)
                                 .allowsHitTesting(detailTab == .info)
-                            CombinedPreviewPane(showsFindBar: detailTab == .preview)
+                            CombinedPreviewPane(platform: platform, showsFindBar: detailTab == .preview)
                                 .opacity(detailTab == .preview ? 1 : 0)
                                 .allowsHitTesting(detailTab == .preview)
                         case let .module(module):
-                            ModuleDetailView(module: module, onEdit: { presentEditor(module) })
+                            ModuleDetailView(module: module, onEdit: { presentEditor(module) }, onEditIcon: {
+                                iconEditorContext = .module(module.id)
+                            })
                                 .opacity(detailTab == .info ? 1 : 0)
                                 .allowsHitTesting(detailTab == .info)
                             ModulePreviewPane(module: module, showsFindBar: detailTab == .preview)
@@ -303,39 +395,23 @@ struct ModulesView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaPadding(.vertical, 1)
             .toolbar {
-                if let selectedDetailTitle {
+                if selectionKind != nil {
                     ToolbarItem(placement: .navigation) {
-                        HStack(spacing: 12) {
-                            ModuleNavigationButtons(
-                                canGoBack: !backStack.isEmpty,
-                                canGoForward: !forwardStack.isEmpty,
-                                goBack: goBack,
-                                goForward: goForward
-                            )
-
-                            Text(selectedDetailTitle)
-                                .font(.system(size: 15, weight: .semibold))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .frame(maxWidth: 280, alignment: .leading)
-                        }
+                        ModuleNavigationButtons(
+                            canGoBack: !backStack.isEmpty,
+                            canGoForward: !forwardStack.isEmpty,
+                            goBack: goBack,
+                            goForward: goForward
+                        )
                     }
                     .sharedBackgroundVisibility(.hidden)
                 }
                 ToolbarSpacer(.flexible)
                 if selectionKind != nil {
                     ToolbarItem {
-                        Picker("视图", selection: $detailTab) {
-                            Image(systemName: "info.circle")
-                                .accessibilityLabel("详情")
-                                .tag(DetailTab.info)
-                            Image(systemName: "curlybraces")
-                                .accessibilityLabel("预览")
-                                .tag(DetailTab.preview)
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
+                        detailTabSwitcher
                     }
                 }
             }
@@ -353,6 +429,10 @@ struct ModulesView: View {
         .task(id: contentIndexToken) { await rebuildContentIndex() }
         .sheet(item: $editorRoute) { route in
             ModuleEditorView(module: route.module)
+                .environment(model)
+        }
+        .sheet(item: $iconEditorContext) { context in
+            IconEditorView(context: context)
                 .environment(model)
         }
         .confirmationDialog(
@@ -396,7 +476,8 @@ struct ModulesView: View {
         ModuleRow(module: module)
             .tag(module.id)
             .contextMenu {
-                Button("编辑") { presentEditor(module) }
+                Button("编辑模块") { presentEditor(module) }
+                Button("修改图标") { iconEditorContext = .module(module.id) }
                 Divider()
                 Button("删除", role: .destructive) { deleteCandidate = module }
             }
@@ -439,23 +520,25 @@ struct ModulesView: View {
 
 private struct CombinedModuleRow: View {
     @Environment(AppModel.self) private var model
+    let platform: RelayPlatform
 
     var body: some View {
         HStack(spacing: 9) {
-            Image("SummaryIcon")
+            Image(platform.summaryIconAssetName)
                 .resizable()
-                .scaledToFit()
-                .frame(width: 28, height: 28)
-                .clipShape(summaryIconShape)
-                .overlay {
-                    summaryIconShape
-                        .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
-                }
+                .scaledToFill()
+            .frame(width: 28, height: 28)
+            .clipShape(summaryIconShape)
+            .overlay {
+                summaryIconShape
+                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+            }
             VStack(alignment: .leading, spacing: 3) {
-                Text("Surge Relay 汇总")
+                Text("Surge Relay 汇总 (\(platform.displayName))")
                     .fontWeight(.semibold)
                     .lineLimit(1)
-                Text("\(model.modules.filter(\.isEnabled).count) 个来源 · 总模块订阅")
+                let platformModules = model.settings.modules(for: platform, globalModules: model.modules)
+                Text("\(platformModules.filter(\.isEnabled).count) 个来源")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -473,18 +556,40 @@ private struct CombinedModuleRow: View {
 
 private struct CombinedModuleDetailView: View {
     @Environment(AppModel.self) private var model
+    let platform: RelayPlatform
 
     private var latestUpdateAt: Date? {
-        model.modules.compactMap(\.lastUpdatedAt).max()
+        let platformModules = model.settings.modules(for: platform, globalModules: model.modules)
+        return platformModules.compactMap(\.lastUpdatedAt).max()
     }
 
     var body: some View {
         Form {
-            Section("汇总模块") {
-                detailRow("名称", value: "Surge Relay 汇总", icon: "square.stack.3d.up.fill")
+            Section {
+                HStack(spacing: 16) {
+                    Image(platform.summaryIconAssetName)
+                        .resizable()
+                        .scaledToFill()
+                    .frame(width: 54, height: 54)
+                    .clipShape(RoundedRectangle(cornerRadius: 54 * ModuleIconView.cornerRadiusRatio, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 54 * ModuleIconView.cornerRadiusRatio, style: .continuous)
+                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+                    )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Surge Relay 汇总 (\(platform.displayName))")
+                            .font(.title3.bold())
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            
+            Section("汇总模块信息") {
+                detailRow("名称", value: "Surge Relay 汇总 (\(platform.displayName))", icon: "square.stack.3d.up.fill")
+                let platformModules = model.settings.modules(for: platform, globalModules: model.modules)
                 detailRow(
                     "包含来源",
-                    value: "\(model.modules.filter(\.isEnabled).count) / \(model.modules.count)",
+                    value: "\(platformModules.filter(\.isEnabled).count) / \(platformModules.count)",
                     icon: "shippingbox"
                 )
                 detailRow(
@@ -510,7 +615,7 @@ private struct CombinedModuleDetailView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("通过 iCloud 保持 Surge Relay 同步")
                                 .font(.body.weight(.medium))
-                            Text("iCloud/Surge/Surge-Relay.sgmodule")
+                            Text("iCloud/Surge/\(model.platformFileName(for: platform))")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
@@ -518,19 +623,74 @@ private struct CombinedModuleDetailView: View {
                     }
                 }
             } else {
-                Section("总模块订阅地址") {
-                    if let rawURL = model.combinedRawURL {
-                        VStack(alignment: .leading, spacing: 10) {
+                Section("GitHub 私有仓库") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 14) {
+                            Image("GitHubIcon")
+                                .resizable()
+                                .interpolation(.high)
+                                .antialiased(true)
+                                .scaledToFit()
+                                .frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("通过 GitHub 保持 Surge Relay 同步")
+                                    .font(.body.weight(.medium))
+                                Text("经 Cloudflare Worker 分发稳定订阅")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        Divider()
+
+                        if let rawURL = model.combinedRawURL(for: platform) {
                             Text(rawURL.absoluteString)
                                 .font(.system(.callout, design: .monospaced))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             URLCopyButton(url: rawURL)
+                        } else {
+                            Label("完成发布配置后，这里会显示稳定订阅地址。", systemImage: "info.circle")
+                                .foregroundStyle(.secondary)
                         }
-                    } else {
-                        Label("完成发布配置后，这里会显示稳定订阅地址。", systemImage: "info.circle")
-                            .foregroundStyle(.secondary)
                     }
+                }
+            }
+
+            Section {
+                let platformModules = model.settings.modules(for: platform, globalModules: model.modules)
+                ForEach(platformModules) { module in
+                    HStack(spacing: 8) {
+                        ModuleIconView(module: module, size: 20)
+                        Text(module.name)
+                            .font(.body)
+                            .lineLimit(1)
+                            .textSelection(.disabled)
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { module.isEnabled },
+                            set: { enabled in
+                                model.setPlatformModuleEnabled(platform: platform, moduleID: module.id, enabled: enabled)
+                            }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    }
+                    .padding(.vertical, 2)
+                }
+            } header: {
+                HStack {
+                    Text("来源模块选择")
+                    Spacer()
+                    Button(model.settings.modules(for: platform, globalModules: model.modules).allSatisfy { $0.isEnabled } ? "全部停用" : "全部启用") {
+                        let allEnabled = model.settings.modules(for: platform, globalModules: model.modules).allSatisfy { $0.isEnabled }
+                        model.setAllPlatformModulesEnabled(platform: platform, enabled: !allEnabled)
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
                 }
             }
         }
@@ -543,7 +703,6 @@ private struct CombinedModuleDetailView: View {
                 .frame(width: 108, alignment: .leading)
             Text(value)
                 .foregroundStyle(.secondary)
-                .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -578,14 +737,6 @@ private struct ModuleRow: View {
                 ProgressView()
                     .controlSize(.small)
             }
-            Toggle("包含", isOn: Binding(
-                get: { module.isEnabled },
-                set: { model.setModuleEnabled(id: module.id, enabled: $0) }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .tint(Color(nsColor: .controlAccentColor))
         }
         .padding(.vertical, 5)
         .opacity(module.isEnabled ? 1 : 0.55)
@@ -597,21 +748,39 @@ private struct ModuleDetailView: View {
     @State private var argumentInfo = ModuleArgumentInfo()
     @State private var savedArgumentValues: [String: String] = [:]
     @State private var pendingArgumentValues: [String: String] = [:]
+    
     let module: RelayModule
     let onEdit: () -> Void
+    let onEditIcon: () -> Void
 
     var body: some View {
         Form {
-                Section("模块信息") {
+            Section {
+                HStack(spacing: 16) {
+                    ModuleIconView(module: module, size: 54)
+                        .onTapGesture {
+                            onEditIcon()
+                        }
+                        .help("点击修改图标")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(module.name)
+                            .font(.title3.bold())
+                        HStack(spacing: 10) {
+                            Button("修改图标") { onEditIcon() }
+                            Button("编辑模块") { onEdit() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .font(.callout)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+
+            Section("模块信息") {
                     detailRow("原始地址", value: module.sourceURL, icon: "link")
                     detailRow("来源格式", value: module.sourceFormatDisplayTitle, icon: "doc.text")
-                    if model.settings.storageMode == .local {
-                        detailRow(
-                            "同步方式",
-                            value: "通过 iCloud 同步至 Surge-Relay.sgmodule",
-                            icon: "icloud.fill"
-                        )
-                    } else {
+                    if model.settings.storageMode == .gitHub {
                         detailRow(
                             "汇总订阅",
                             value: combinedOutputLocation,
@@ -627,32 +796,63 @@ private struct ModuleDetailView: View {
                         )) ?? "从未更新",
                         icon: "clock"
                     )
-                    Button("编辑模块…", systemImage: "pencil", action: onEdit)
                 }
 
                 if model.settings.storageMode == .local {
                     Section("iCloud 云盘") {
-                        Toggle(
-                            "输出独立模块至 iCloud 云盘",
-                            isOn: Binding(
-                                get: {
-                                    model.modules.first(where: { $0.id == module.id })?
-                                        .exportsIndividualModuleToICloud
-                                        ?? module.exportsIndividualModuleToICloud
-                                },
-                                set: { enabled in
-                                    Task {
-                                        await model.setModuleIndividualICloudExport(
-                                            id: module.id,
-                                            enabled: enabled
-                                        )
+                        HStack(spacing: 14) {
+                            Image("iCloudIcon")
+                                .resizable()
+                                .interpolation(.high)
+                                .antialiased(true)
+                                .scaledToFit()
+                                .frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("输出独立模块至 iCloud 云盘")
+                                    .font(.body.weight(.medium))
+                                Text(individualICloudLocation)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                            Spacer(minLength: 8)
+                            Toggle(
+                                "输出独立模块至 iCloud 云盘",
+                                isOn: Binding(
+                                    get: {
+                                        model.modules.first(where: { $0.id == module.id })?
+                                            .exportsIndividualModuleToICloud
+                                            ?? module.exportsIndividualModuleToICloud
+                                    },
+                                    set: { enabled in
+                                        Task {
+                                            await model.setModuleIndividualICloudExport(
+                                                id: module.id,
+                                                enabled: enabled
+                                            )
+                                        }
                                     }
-                                }
+                                )
                             )
-                        )
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                        }
                         Text("开启后在 Surge 文件夹生成该模块的独立文件；关闭后自动删除。汇总模块不受影响。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("提示：若要自行修改模块内容，请通过右上角“预览”进行编辑。直接修改 iCloud 生成的同步文件将在下一次同步时被覆盖。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .allowsTightening(true)
+                                .minimumScaleFactor(0.75)
+                                .layoutPriority(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
@@ -702,20 +902,50 @@ private struct ModuleDetailView: View {
                     }
                 }
 
+
                 if model.settings.storageMode == .gitHub {
-                    Section(model.settings.github.repositoryIsPrivate == true ? "Cloudflare" : "GitHub") {
-                        if let rawURL = model.rawURL(for: module) {
-                            VStack(alignment: .leading, spacing: 10) {
+                    Section("GitHub 私有仓库") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 14) {
+                                Image("GitHubIcon")
+                                    .resizable()
+                                    .interpolation(.high)
+                                    .antialiased(true)
+                                    .scaledToFit()
+                                    .frame(width: 44, height: 44)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("通过 GitHub 同步独立模块")
+                                        .font(.body.weight(.medium))
+                                    Text("经 Cloudflare Worker 分发稳定订阅")
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+
+                            Divider()
+
+                            if let rawURL = model.rawURL(for: module) {
                                 Text(rawURL.absoluteString)
                                     .font(.system(.callout, design: .monospaced))
                                     .textSelection(.enabled)
-                                HStack {
-                                    URLCopyButton(url: rawURL)
-                                }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                URLCopyButton(url: rawURL)
+                            } else {
+                                Label("完成发布配置后，这里会出现该模块自己的稳定地址。", systemImage: "info.circle")
+                                    .foregroundStyle(.secondary)
                             }
-                        } else {
-                            Label("完成发布配置后，这里会出现该模块自己的稳定地址。", systemImage: "info.circle")
-                                .foregroundStyle(.secondary)
+                            Divider()
+                            HStack(alignment: .top, spacing: 6) {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("提示：若要自行修改模块内容，请通过右上角“预览”进行编辑。直接修改 GitHub 里的生成模块将在下次发布时被覆盖。")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                 }
@@ -747,8 +977,13 @@ private struct ModuleDetailView: View {
         }
     }
 
+
     private var combinedOutputLocation: String {
-        return model.combinedRawURL?.absoluteString ?? "等待 GitHub 发布配置"
+        return model.combinedRawURL(for: .ios)?.absoluteString ?? "等待 GitHub 发布配置"
+    }
+
+    private var individualICloudLocation: String {
+        "iCloud/Surge/\(FilenameSanitizer.individualRelayName(from: module.outputFileName))"
     }
 
     @ViewBuilder
@@ -842,6 +1077,493 @@ private struct ModuleDetailView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+enum IconEditorContext: Identifiable, Hashable {
+    case module(UUID)
+    case platform(String)
+
+    var id: String {
+        switch self {
+        case let .module(id): return "module-\(id.uuidString)"
+        case let .platform(p): return "platform-\(p)"
+        }
+    }
+}
+
+struct IconEditorView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let context: IconEditorContext
+
+    @State private var query = ""
+    @State private var isSearching = false
+    @State private var searchResults: [IconSearchResult] = []
+    @State private var customURLInput = ""
+    @State private var selectedIconURL: String?
+    @State private var pendingIconURL: String?
+    @State private var pendingIconSource: CustomIconSource = .manual
+    @State private var hasPendingIconSelection = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(navigationTitle)
+                        .font(.title2.bold())
+                    Text(supportsAppStoreSearch ? "手动输入图片链接，或从 App Store 搜索并选择图标。" : "汇总图标仅支持手动导入图片链接。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                iconPreview
+            }
+            .padding(24)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    manualIconSection
+
+                    if supportsAppStoreSearch {
+                        appStoreSearchSection
+                    }
+                    if !supportsAppStoreSearch {
+                        Text("汇总图标仅支持手动导入图片 (PNG 或 JPEG) 链接。")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider()
+
+            HStack {
+                Button("取消", role: .cancel) { dismiss() }
+                Spacer()
+                if hasCustomIcon {
+                    Button(role: .destructive) {
+                        pendingIconURL = nil
+                        selectedIconURL = nil
+                        pendingIconSource = .manual
+                        hasPendingIconSelection = true
+                    } label: {
+                        Label("恢复默认图标", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Button("完成") {
+                    if pendingIconURL != currentCustomIconURL {
+                        saveIcon(pendingIconURL, source: pendingIconSource)
+                    } else {
+                        dismiss()
+                    }
+                }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(20)
+        }
+        .frame(width: 620, height: supportsAppStoreSearch ? 540 : 320)
+        .task {
+            customURLInput = currentCustomIconSource == .manual ? (currentCustomIconURL ?? "") : ""
+            selectedIconURL = currentCustomIconURL
+            pendingIconURL = currentCustomIconURL
+            pendingIconSource = currentCustomIconSource
+            hasPendingIconSelection = false
+            guard case let .module(id) = context,
+                  let module = model.modules.first(where: { $0.id == id }) else {
+                return
+            }
+            query = AppModel.cleanSearchQuery(module.name)
+            performSearch()
+        }
+        .alert("保存失败", isPresented: isPresentingSaveError) {
+            Button("确定", role: .cancel) {
+                errorMessage = nil
+            }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .dialogSeverity(.critical)
+    }
+
+    private var manualIconSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                    Text("手动导入")
+                        .fixedSize(horizontal: true, vertical: false)
+
+                    TextField("", text: $customURLInput, prompt: Text("https://example.com/icon.png"))
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .layoutPriority(1)
+                        .id("custom-icon-url-field")
+
+                    Button("载入") {
+                        let trimmed = customURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                        pendingIconURL = trimmed
+                        selectedIconURL = trimmed
+                        pendingIconSource = .manual
+                        hasPendingIconSelection = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .disabled(customURLInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32)
+            .padding(.trailing, 4)
+
+        }
+        .padding(16)
+        .background(
+            .quaternary.opacity(0.35),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var appStoreSearchSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Text("从 App Store 搜索")
+                    .font(.headline)
+                regionMenu
+            }
+
+            HStack(alignment: .center, spacing: 12) {
+                    TextField("", text: $query, prompt: Text("输入 App 名称或关键字"))
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+                    .layoutPriority(1)
+                    .id("app-store-icon-search-field")
+                    .onSubmit { performSearch() }
+
+                    Button {
+                        performSearch()
+                    } label: {
+                        Text("搜索")
+                    }
+                    .buttonStyle(.bordered)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32)
+            .padding(.trailing, 4)
+
+            if isSearching {
+                HStack {
+                    Spacer()
+                    ProgressView().controlSize(.small)
+                    Text("正在搜索...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+            } else if searchResults.isEmpty {
+                HStack(spacing: 8) {
+                    Spacer()
+                    Image(systemName: "magnifyingglass")
+                    Text(query.isEmpty ? "请输入关键字进行搜索。" : "未找到相关图标。")
+                    Spacer()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 12)
+            } else {
+                LazyVGrid(columns: iconGridColumns, alignment: .leading, spacing: 14) {
+                    ForEach(rankedSearchResults, id: \.url) { result in
+                        Button {
+                            selectedIconURL = result.url
+                            pendingIconURL = result.url
+                            pendingIconSource = .appStore
+                            hasPendingIconSelection = true
+                        } label: {
+                            IconSearchResultCell(
+                                result: result,
+                                isSelected: selectedIconURL == result.url
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help(result.name)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+        }
+        .padding(16)
+        .background(
+            .quaternary.opacity(0.35),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var regionMenu: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                }
+
+            Menu {
+                Button("🇨🇳 中国") { setSearchRegion("cn") }
+                Button("🇺🇸 美国") { setSearchRegion("us") }
+                Button("🇯🇵 日本") { setSearchRegion("jp") }
+                Button("🇭🇰 香港") { setSearchRegion("hk") }
+                Button("🇹🇼 台湾") { setSearchRegion("tw") }
+            } label: {
+                Text(regionEmojiAndName(model.settings.iconSearchRegion))
+                    .font(.callout)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
+            .menuStyle(.borderlessButton)
+            .buttonStyle(.plain)
+            .controlSize(.small)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+        .frame(width: 78, height: 24)
+    }
+
+    @ViewBuilder
+    private var iconPreview: some View {
+        Group {
+            if let urlString = (hasPendingIconSelection ? pendingIconURL : currentCustomIconURL),
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: "shippingbox")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                defaultIconPreview
+            }
+        }
+        .frame(width: 48, height: 48)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+        }
+    }
+
+    @ViewBuilder
+    private var defaultIconPreview: some View {
+        switch context {
+        case let .module(id):
+            if let module = model.modules.first(where: { $0.id == id }),
+               let iconURL = module.iconURL,
+               let url = URL(string: iconURL) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        Image(systemName: "shippingbox")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Image(systemName: "shippingbox")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+        case let .platform(platformID):
+            Image(RelayPlatform(rawValue: platformID)?.summaryIconAssetName ?? "SummaryIOSIcon")
+                .resizable()
+                .scaledToFit()
+        }
+    }
+
+    private let iconGridColumns = [
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center),
+        GridItem(.flexible(), spacing: 14, alignment: .center)
+    ]
+
+    private var navigationTitle: String {
+        if case .module = context { return "修改模块图标" }
+        return "修改汇总图标"
+    }
+
+    private var supportsAppStoreSearch: Bool {
+        if case .module = context { return true }
+        return false
+    }
+
+    private var currentCustomIconURL: String? {
+        switch context {
+        case let .module(id):
+            return model.modules.first(where: { $0.id == id })?.customIconURL
+        case let .platform(platformID):
+            return model.settings.platformSettings[platformID]?.customIconURL
+        }
+    }
+
+    private var currentCustomIconSource: CustomIconSource {
+        let storedSource: CustomIconSource
+        switch context {
+        case let .module(id):
+            storedSource = model.modules.first(where: { $0.id == id })?.customIconSource ?? .manual
+        case let .platform(platformID):
+            storedSource = model.settings.platformSettings[platformID]?.customIconSource ?? .manual
+        }
+        if storedSource == .manual,
+           let url = currentCustomIconURL,
+           url.localizedCaseInsensitiveContains("mzstatic.com") {
+            return .appStore
+        }
+        return storedSource
+    }
+
+    private var rankedSearchResults: [IconSearchResult] {
+        let normalizedQuery = normalizedSearchText(query)
+        return searchResults.enumerated()
+            .sorted { lhs, rhs in
+                let leftScore = searchRank(for: lhs.element, normalizedQuery: normalizedQuery)
+                let rightScore = searchRank(for: rhs.element, normalizedQuery: normalizedQuery)
+                if leftScore != rightScore { return leftScore < rightScore }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
+
+    private var isPresentingSaveError: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented { errorMessage = nil }
+            }
+        )
+    }
+
+    private func setSearchRegion(_ region: String) {
+        model.settings.iconSearchRegion = region
+        model.saveSettings()
+        performSearch()
+    }
+
+    private func performSearch() {
+        let q = AppModel.cleanSearchQuery(query)
+        query = q
+        guard !q.isEmpty else { return }
+        isSearching = true
+        searchResults = []
+        Task {
+            searchResults = await model.searchIcons(query: q, region: model.settings.iconSearchRegion)
+            isSearching = false
+        }
+    }
+
+    private func saveIcon(_ url: String?, source: CustomIconSource = .manual, dismissAfterSave: Bool = true) {
+        errorMessage = nil
+        Task {
+            do {
+                switch context {
+                case let .module(id):
+                    try await model.updateModuleCustomIcon(id: id, customIconURL: url, source: source)
+                case let .platform(platformID):
+                    if let platform = RelayPlatform(rawValue: platformID) {
+                        try await model.updatePlatformCustomIcon(platform: platform, customIconURL: url, source: source)
+                    }
+                }
+                selectedIconURL = url
+                pendingIconURL = url
+                pendingIconSource = source
+                hasPendingIconSelection = false
+                if dismissAfterSave {
+                    dismiss()
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private var hasCustomIcon: Bool {
+        currentCustomIconURL != nil
+    }
+
+    private func regionEmojiAndName(_ region: String) -> String {
+        switch region {
+        case "cn": "🇨🇳 中国"
+        case "us": "🇺🇸 美国"
+        case "jp": "🇯🇵 日本"
+        case "hk": "🇭🇰 香港"
+        case "tw": "🇹🇼 台湾"
+        default: "🇨🇳 中国"
+        }
+    }
+
+    private func searchRank(for result: IconSearchResult, normalizedQuery: String) -> Int {
+        let normalizedName = normalizedSearchText(result.name)
+        if normalizedName == normalizedQuery { return 0 }
+        if normalizedName.hasPrefix(normalizedQuery) { return 1 }
+        if normalizedName.contains(normalizedQuery) { return 2 }
+        return 3
+    }
+
+    private func normalizedSearchText(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private struct IconSearchResultCell: View {
+        let result: IconSearchResult
+        let isSelected: Bool
+
+        var body: some View {
+            ZStack {
+                AsyncImage(url: URL(string: result.url)) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(.quaternary)
+                    }
+                }
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .brightness(isSelected ? -0.32 : 0)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .frame(width: 54, height: 54)
+            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
     }
 }

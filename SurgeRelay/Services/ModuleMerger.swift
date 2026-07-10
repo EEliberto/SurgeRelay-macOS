@@ -9,7 +9,7 @@ enum ModuleMerger {
         var authors: [String]
     }
 
-    static func merge(_ components: [(RelayModule, String)], engineRevision: String?) throws -> String {
+    static func merge(_ components: [(RelayModule, String)], platform: RelayPlatform, iconURL: String? = nil, engineRevision: String?) throws -> String {
         let parsed = components.map {
             parse(
                 module: $0.0,
@@ -23,11 +23,15 @@ enum ModuleMerger {
         }
 
         var output: [String] = [
-            "#!name=Surge Relay",
-            "#!desc=由 Surge Relay 整合 \(components.count) 个模块",
+            "#!name=Surge Relay (\(platform.displayName))",
+            "#!desc=由 Surge Relay 整合 \(components.count) 个模块，\(platform.displayName) 专用。",
             "#!author=Surge Relay" + mergedAuthors(parsed),
             "#!category=Surge Relay",
         ]
+
+        if let iconURL = iconURL {
+            output.append("#!icon=\(iconURL)")
+        }
 
         let requirements = Array(Set(parsed.flatMap(\.requirements).compactMap(sanitizeRequirement))).sorted()
         if !requirements.isEmpty {
@@ -188,8 +192,192 @@ enum ModuleMerger {
 }
 
 actor ModuleProcessingWorker {
-    func materialize(_ content: String, overrides: [String: String]) -> String {
-        ModuleArgumentProcessor.materialize(content, overrides: overrides)
+    func materialize(
+        _ content: String,
+        overrides: [String: String],
+        policyOverrides: [String: String] = [:],
+        customRules: [String] = [],
+        customMitM: [String] = []
+    ) -> String {
+        var resolved = ModuleArgumentProcessor.materialize(content, overrides: overrides)
+        
+        var sections: [String: [String]] = [:]
+        var currentSection = ""
+        var originalLineOrder: [String] = []
+        
+        let lines = resolved.components(separatedBy: "\n")
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = trimmed.lowercased()
+            if lower.hasPrefix("# ***") ||
+               lower.hasPrefix("# !warning") ||
+               lower.hasPrefix("# this file") ||
+               lower.hasPrefix("# to this file") ||
+               lower.hasPrefix("# to customize") ||
+               lower.hasPrefix("# !警告") ||
+               lower.hasPrefix("# 本文件由") ||
+               lower.hasPrefix("# 如需自行") ||
+               lower.hasPrefix("# 如需个性化") ||
+               lower == "#" {
+                continue
+            }
+            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                currentSection = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                sections[currentSection] = []
+                originalLineOrder.append("[\(currentSection)]")
+            } else if !currentSection.isEmpty {
+                sections[currentSection]?.append(line)
+            } else {
+                originalLineOrder.append(line)
+            }
+        }
+        
+        if let scriptLines = sections["Script"] {
+            var updatedScriptLines: [String] = []
+            for line in scriptLines {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                    updatedScriptLines.append(line)
+                    continue
+                }
+                
+                let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
+                guard parts.count == 2 else {
+                    updatedScriptLines.append(line)
+                    continue
+                }
+                let scriptName = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let scriptConfig = parts[1]
+                
+                if let overrideArg = overrides[scriptName] {
+                    var configParts = scriptConfig.components(separatedBy: ",")
+                    var argIndex = -1
+                    for (index, part) in configParts.enumerated() {
+                        let trimmedPart = part.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmedPart.hasPrefix("argument=") {
+                            argIndex = index
+                            break
+                        }
+                    }
+                    
+                    if argIndex >= 0 {
+                        configParts[argIndex] = "argument=\(overrideArg)"
+                    } else {
+                        configParts.append("argument=\(overrideArg)")
+                    }
+                    let newConfig = configParts.joined(separator: ",")
+                    updatedScriptLines.append("\(scriptName) =\(newConfig)")
+                } else {
+                    updatedScriptLines.append(line)
+                }
+            }
+            sections["Script"] = updatedScriptLines
+        }
+        
+        var updatedRuleLines: [String] = []
+        if let ruleLines = sections["Rule"] {
+            for line in ruleLines {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                    updatedRuleLines.append(line)
+                    continue
+                }
+                
+                var ruleParts = line.components(separatedBy: ",")
+                if ruleParts.count >= 3 {
+                    let policyIndex = 2
+                    let originalPolicy = ruleParts[policyIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let mappedPolicy = policyOverrides[originalPolicy] {
+                        ruleParts[policyIndex] = mappedPolicy
+                        updatedRuleLines.append(ruleParts.joined(separator: ","))
+                        continue
+                    }
+                }
+                updatedRuleLines.append(line)
+            }
+        }
+        
+        for customRule in customRules {
+            updatedRuleLines.append(customRule)
+        }
+        
+        if !updatedRuleLines.isEmpty || !customRules.isEmpty {
+            if sections["Rule"] == nil {
+                sections["Rule"] = []
+                originalLineOrder.append("[Rule]")
+            }
+            sections["Rule"] = updatedRuleLines
+        }
+        
+        if !customMitM.isEmpty {
+            var updatedMitmLines: [String] = []
+            var hostnameLineIndex = -1
+            
+            let mitmLines = sections["MitM"] ?? []
+            for (index, line) in mitmLines.enumerated() {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("hostname") {
+                    hostnameLineIndex = index
+                    break
+                }
+            }
+            
+            if hostnameLineIndex >= 0 {
+                let hostnameLine = mitmLines[hostnameLineIndex]
+                let parts = hostnameLine.split(separator: "=", maxSplits: 1).map(String.init)
+                if parts.count == 2 {
+                    let currentHostnames = parts[1].components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    var newHostnames = currentHostnames
+                    for host in customMitM {
+                        if !newHostnames.contains(host) {
+                            newHostnames.append(host)
+                        }
+                    }
+                    let newHostnameLine = "hostname = \(newHostnames.joined(separator: ", "))"
+                    var newMitmLines = mitmLines
+                    newMitmLines[hostnameLineIndex] = newHostnameLine
+                    sections["MitM"] = newMitmLines
+                }
+            } else {
+                var newMitmLines = mitmLines
+                newMitmLines.append("hostname = \(customMitM.joined(separator: ", "))")
+                sections["MitM"] = newMitmLines
+                if sections["MitM"] == nil {
+                    originalLineOrder.append("[MitM]")
+                }
+            }
+        }
+        
+        var reconstructed: [String] = []
+        
+        let warningHeader = """
+        # **************************************************************************
+        # !WARNING: DO NOT EDIT THIS FILE ON DISK DIRECTLY.
+        # This file is automatically generated by Surge Relay. Any direct edits 
+        # to this file will be overwritten and lost during the next update/sync.
+        # To customize, please edit via the "Preview" tab inside Surge Relay.
+        #
+        # !警告：请勿在磁盘上直接修改此文件。
+        # 本文件由 Surge Relay 自动生成，直接在此修改的内容将在下一次同步或更新时被覆盖。
+        # 如需自行修改模块内容，请通过 Surge Relay 右上角的“预览”进行编辑。
+        # **************************************************************************
+        """
+        reconstructed.append(warningHeader)
+        
+        for item in originalLineOrder {
+            if item.hasPrefix("[") && item.hasSuffix("]") {
+                let sectionName = String(item.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                reconstructed.append(item)
+                if let secLines = sections[sectionName] {
+                    reconstructed.append(contentsOf: secLines)
+                }
+            } else {
+                reconstructed.append(item)
+            }
+        }
+        
+        return reconstructed.joined(separator: "\n")
     }
 
     func argumentInfo(in content: String) -> ModuleArgumentInfo {
@@ -215,8 +403,8 @@ actor ModuleProcessingWorker {
         return data.sha256String
     }
 
-    func merge(_ components: [(RelayModule, String)], engineRevision: String?) throws -> String {
-        try ModuleMerger.merge(components, engineRevision: engineRevision)
+    func merge(_ components: [(RelayModule, String)], platform: RelayPlatform, iconURL: String? = nil, engineRevision: String?) throws -> String {
+        try ModuleMerger.merge(components, platform: platform, iconURL: iconURL, engineRevision: engineRevision)
     }
 }
 

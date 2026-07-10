@@ -1,11 +1,12 @@
 import AppKit
 import Foundation
 import Observation
+import CryptoKit
 
 @MainActor
 @Observable
 final class AppModel {
-    static let combinedModuleSelectionID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    static let combinedModuleSelectionID = RelayPlatform.ios.selectionID
 
     var modules: [RelayModule]
     var settings: AppSettings
@@ -37,14 +38,30 @@ final class AppModel {
     @ObservationIgnored private let webServer = WebManagementServer()
     @ObservationIgnored private var schedulerTask: Task<Void, Never>?
     @ObservationIgnored private var synchronizationTask: Task<Void, Never>?
+    @ObservationIgnored private var synchronizationRequestID = UUID()
     @ObservationIgnored private var combinedRebuildTask: Task<Void, Never>?
     @ObservationIgnored private var automaticUpdateTask: Task<Void, Never>?
     @ObservationIgnored private var automaticPublishTask: Task<Void, Never>?
     @ObservationIgnored private var individualOutputMonitorTask: Task<Void, Never>?
     @ObservationIgnored private var individualOutputMutationsInProgress = Set<UUID>()
+    @ObservationIgnored private var activeWorkToken: UUID?
     @ObservationIgnored private var localChangeGeneration = 0
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var configurationExistedBeforeLaunch = false
+
+    private func beginWork() -> UUID? {
+        guard activeWorkToken == nil else { return nil }
+        let token = UUID()
+        activeWorkToken = token
+        isWorking = true
+        return token
+    }
+
+    private func endWork(_ token: UUID) {
+        guard activeWorkToken == token else { return }
+        activeWorkToken = nil
+        isWorking = false
+    }
 
     init() {
         let defaultConfiguration = URL(
@@ -65,16 +82,29 @@ final class AppModel {
                 directoryHint: .isDirectory
             )
         ).path
-        let loadedModules = Self.normalizedModuleNaming(
+        var loadedModules = Self.normalizedModuleNaming(
             PersistenceStore.loadModules(),
             combinedFileName: loadedSettings.combinedModuleFileName
         )
+        var migrated = false
+        for i in 0..<loadedModules.count {
+            if !loadedModules[i].isEnabled {
+                let id = loadedModules[i].id
+                loadedModules[i].isEnabled = true
+                migrated = true
+                for platform in RelayPlatform.allCases {
+                    var platSettings = loadedSettings.platformSettings[platform.rawValue] ?? PlatformSettings()
+                    platSettings.disabledModules.insert(id)
+                    loadedSettings.platformSettings[platform.rawValue] = platSettings
+                }
+            }
+        }
         modules = loadedModules
         settings = loadedSettings
         upstreamState = PersistenceStore.loadUpstreamState()
         updateHistory = PersistenceStore.loadUpdateHistory()
         githubToken = loadedSettings.githubToken
-        selectedModuleID = Self.combinedModuleSelectionID
+        selectedModuleID = RelayPlatform.ios.selectionID
         PersistenceStore.saveSettings(loadedSettings)
         try? PersistenceStore.saveModules(loadedModules)
     }
@@ -105,10 +135,12 @@ final class AppModel {
         applyWebServerSettings(persist: false)
         restartScheduler()
         if settings.storageMode == .gitHub {
-            try? await fileStore.removeExportedCombined(
-                fromDirectory: settings.localModuleDirectory,
-                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
-            )
+            for platform in RelayPlatform.allCases {
+                try? await fileStore.removeExportedCombined(
+                    fromDirectory: settings.localModuleDirectory,
+                    fileName: platformFileName(for: platform)
+                )
+            }
         }
         Task {
             do {
@@ -175,10 +207,12 @@ final class AppModel {
         if storageMode == .local {
             await rebuildCombinedFromCache()
         } else {
-            try? await fileStore.removeExportedCombined(
-                fromDirectory: settings.localModuleDirectory,
-                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
-            )
+            for platform in RelayPlatform.allCases {
+                try? await fileStore.removeExportedCombined(
+                    fromDirectory: settings.localModuleDirectory,
+                    fileName: platformFileName(for: platform)
+                )
+            }
             await removeAllExportedIndividualModules()
         }
         return true
@@ -204,7 +238,7 @@ final class AppModel {
         upstreamState = PersistenceStore.loadUpstreamState()
         updateHistory = PersistenceStore.loadUpdateHistory()
         githubToken = loadedSettings.githubToken
-        selectedModuleID = Self.combinedModuleSelectionID
+        selectedModuleID = RelayPlatform.ios.selectionID
     }
 
     private func shouldUpdateModulesOnLaunch() async -> Bool {
@@ -308,10 +342,15 @@ final class AppModel {
             restartIndividualOutputMonitor()
         } else {
             individualOutputMonitorTask?.cancel()
-            try? await fileStore.removeExportedCombined(
-                fromDirectory: settings.localModuleDirectory,
-                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
-            )
+            // Remove only the platform-specific files generated by Surge Relay.
+            // ModuleFileStore verifies the managed header before deleting, so a
+            // user-owned .sgmodule with the same name is left untouched.
+            for platform in RelayPlatform.allCases {
+                try? await fileStore.removeExportedCombined(
+                    fromDirectory: settings.localModuleDirectory,
+                    fileName: platformFileName(for: platform)
+                )
+            }
             await removeAllExportedIndividualModules()
         }
         return true
@@ -541,14 +580,16 @@ final class AppModel {
         synchronizationTask?.cancel()
         combinedRebuildTask?.cancel()
         automaticPublishTask?.cancel()
+        let requestID = UUID()
+        synchronizationRequestID = requestID
         statusMessage = synchronizationInProgressMessage
         let task = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(450))
-            guard !Task.isCancelled, let self else { return }
-            while self.isWorking, !Task.isCancelled {
+            guard !Task.isCancelled, let self, self.synchronizationRequestID == requestID else { return }
+            while self.isWorking, !Task.isCancelled, self.synchronizationRequestID == requestID {
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self.synchronizationRequestID == requestID else { return }
             await self.performSynchronization()
         }
         synchronizationTask = task
@@ -556,24 +597,23 @@ final class AppModel {
     }
 
     private func performSynchronization() async {
-        let enabledModules = modules.filter(\.isEnabled)
         let synchronizationModules = modules.filter {
             $0.isEnabled || (settings.storageMode == .local && $0.exportsIndividualModuleToICloud)
         }
-        guard !isWorking else { return }
+        guard let workToken = beginWork() else { return }
         guard !synchronizationModules.isEmpty else {
+            endWork(workToken)
             statusMessage = "已是最新。"
             return
         }
         automaticPublishTask?.cancel()
         let updateGeneration = localChangeGeneration
-        isWorking = true
         synchronizationCompletedCount = 0
         synchronizationTotalCount = synchronizationModules.count
         synchronizingModuleID = nil
         defer {
             synchronizingModuleID = nil
-            isWorking = false
+            endWork(workToken)
         }
 
         let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
@@ -616,7 +656,13 @@ final class AppModel {
                                 module.lastError = nil
                                 replace(module)
                                 let cached = try await fileStore.readComponent(id: module.id)
-                                let materialized = await processingWorker.materialize(cached, overrides: module.argumentOverrides)
+                                let materialized = await processingWorker.materialize(
+                                    cached,
+                                    overrides: module.argumentOverrides,
+                                    policyOverrides: module.policyOverrides,
+                                    customRules: module.customRules,
+                                    customMitM: module.customMitM
+                                )
                                 if module.isEnabled {
                                     components.append((module, materialized))
                                 }
@@ -666,9 +712,17 @@ final class AppModel {
                 }
                 module.conversionEngineRevision = nativeModule ? nil : upstreamState.revision
                 let convertedContent = try await fileStore.readConvertedComponent(id: module.id)
-                if await fileStore.hasOverride(id: module.id),
-                   let baseHash = module.overrideBaseHash {
-                    module.hasOverrideConflict = baseHash != Data(convertedContent.utf8).sha256String
+                if await fileStore.hasOverride(id: module.id) {
+                    let materialized = await processingWorker.materialize(
+                        convertedContent,
+                        overrides: module.argumentOverrides,
+                        policyOverrides: module.policyOverrides,
+                        customRules: module.customRules,
+                        customMitM: module.customMitM
+                    )
+                    try? await fileStore.writeComponentOverride(materialized, id: module.id)
+                    module.overrideBaseHash = Data(convertedContent.utf8).sha256String
+                    module.hasOverrideConflict = false
                 } else {
                     module.hasOverrideConflict = false
                 }
@@ -678,7 +732,9 @@ final class AppModel {
                 )
                 module.iconURL = detectedIcon?.absoluteString
                 module.detectedSourceFormat = detectedFormat(for: module.sourceFormat, source: module.sourceURL)
-                if let detectedIcon {
+                if let customStr = module.customIconURL, let customURL = URL(string: customStr) {
+                    try? await iconStore.cacheIcon(from: customURL, for: module.id, force: true)
+                } else if let detectedIcon {
                     try? await iconStore.cacheIcon(from: detectedIcon, for: module.id, force: true)
                 } else {
                     try? await iconStore.removeIcon(for: module.id)
@@ -729,7 +785,7 @@ final class AppModel {
                         moduleName: module.name,
                         outcome: .cachedAfterFailure,
                         duration: Date.now.timeIntervalSince(startedAt),
-                        message: error.localizedDescription,
+                        message: diagnosticDescription(for: error),
                         usedCache: true
                     ))
                 } else {
@@ -741,7 +797,7 @@ final class AppModel {
                         moduleName: module.name,
                         outcome: .failed,
                         duration: Date.now.timeIntervalSince(startedAt),
-                        message: error.localizedDescription
+                        message: diagnosticDescription(for: error)
                     ))
                 }
             }
@@ -762,22 +818,11 @@ final class AppModel {
         }
 
         do {
-            if enabledModules.isEmpty {
-                try? await fileStore.removeCombined()
-                if settings.storageMode == .local {
-                    try? await fileStore.removeExportedCombined(
-                        fromDirectory: settings.localModuleDirectory,
-                        fileName: AppSettings.fixedCombinedModuleFileName
-                    )
-                    try await syncIndividualICloudExports()
-                }
-            } else {
-                try await writeCombinedModule(components)
-            }
+            let success = await rebuildCombinedFromCache()
             guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
                 return
             }
-            if settings.storageMode == .gitHub {
+            if success, settings.storageMode == .gitHub {
                 _ = try await publishAllInternal()
             }
             if failures == 0 {
@@ -834,9 +879,9 @@ final class AppModel {
                   self.settings.automaticallyPublish,
                   self.settings.github.isConfigured,
                   !self.githubToken.isEmpty else { return }
-            self.isWorking = true
+            guard let workToken = self.beginWork() else { return }
             self.statusMessage = "正在同步到 Github…"
-            defer { self.isWorking = false }
+            defer { self.endWork(workToken) }
             do {
                 let report = try await self.publishAllInternal()
                 guard !Task.isCancelled else { return }
@@ -859,9 +904,10 @@ final class AppModel {
 
     func refreshScriptHub(showProgress: Bool = true) async {
         guard !isWorking || !showProgress else { return }
-        if showProgress { isWorking = true }
+        let workToken = showProgress ? beginWork() : nil
+        guard !showProgress || workToken != nil else { return }
         await refreshScriptHubInternal(updatesStatus: true)
-        if showProgress { isWorking = false }
+        if let workToken { endWork(workToken) }
     }
 
     private func refreshScriptHubInternal(updatesStatus: Bool) async {
@@ -896,8 +942,9 @@ final class AppModel {
 
     func testGitHub(showProgress: Bool = true) async {
         guard !isWorking || !showProgress else { return }
-        if showProgress { isWorking = true }
-        defer { if showProgress { isWorking = false } }
+        let workToken = showProgress ? beginWork() : nil
+        guard !showProgress || workToken != nil else { return }
+        defer { if let workToken { endWork(workToken) } }
         do {
             try await validateGitHubDestination(publishCurrentModule: false)
             saveSettings()
@@ -938,8 +985,8 @@ final class AppModel {
         }
     }
 
-    private func verifyCloudflarePublishedModule(expected: Data) async throws {
-        let fileName = FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
+    private func verifyCloudflarePublishedModule(expected: Data, platform: RelayPlatform) async throws {
+        let fileName = platformFileName(for: platform)
         guard let url = settings.github.publicURL(for: fileName) else {
             throw RelayError.cloudflareNotConfigured
         }
@@ -952,15 +999,15 @@ final class AppModel {
             if (200..<300).contains(status), data == expected { return }
             if attempt < 3 { try await Task.sleep(for: .seconds(1)) }
         }
-        throw RelayError.invalidOutput("Cloudflare 尚未返回刚发布的汇总模块，本地文件已保留。")
+        throw RelayError.invalidOutput("Cloudflare 尚未返回刚发布的 \(platform.rawValue) 汇总模块，本地文件已保留。")
     }
 
     func publishAll() async {
         guard !isWorking else { return }
         automaticPublishTask?.cancel()
-        isWorking = true
+        guard let workToken = beginWork() else { return }
         statusMessage = "正在同步到 Github…"
-        defer { isWorking = false }
+        defer { endWork(workToken) }
         do {
             _ = try await publishAllInternal()
             statusMessage = "已是最新。"
@@ -975,15 +1022,34 @@ final class AppModel {
         guard settings.github.hasValidCloudflarePublicBaseURL else {
             throw RelayError.cloudflareNotConfigured
         }
-        let fileName = FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
-        let data = try await fileStore.readCombined()
-        var files = [PublishFile(name: fileName, data: data)]
+        var files: [PublishFile] = []
+        var verificationSteps: [(data: Data, platform: RelayPlatform)] = []
+        let enabledPlats = settings.enabledPlatforms
+        for platform in enabledPlats {
+            let fileName = platformFileName(for: platform)
+            let data = try await fileStore.readCombined(platform: platform)
+            files.append(PublishFile(name: fileName, data: data))
+            verificationSteps.append((data, platform))
+        }
         for module in modules {
             try Task.checkCancellation()
             guard let content = try? await fileStore.readComponent(id: module.id) else { continue }
-            let materialized = await processingWorker.materialize(content, overrides: module.argumentOverrides)
+            let materialized = await processingWorker.materialize(
+                content,
+                overrides: module.argumentOverrides,
+                policyOverrides: module.policyOverrides,
+                customRules: module.customRules,
+                customMitM: module.customMitM
+            )
             let namedContent = await processingWorker.applyingDisplayName(module.name, to: materialized)
-            files.append(PublishFile(name: module.outputFileName, data: Data(namedContent.utf8)))
+            let individualFileName = individualICloudFileName(for: module.outputFileName)
+            let legacyFileName = FilenameSanitizer.sgmoduleName(from: module.outputFileName)
+            let publishContent = Self.surgeRelayCategorizedModuleContent(namedContent)
+            files.append(PublishFile(
+                name: individualFileName,
+                data: Data(publishContent.utf8),
+                legacyNames: legacyFileName == individualFileName ? [] : [legacyFileName]
+            ))
         }
         let assets = try await fileStore.generatedAssetFiles()
         let report = try await githubClient.publish(
@@ -995,7 +1061,9 @@ final class AppModel {
             settings.github.repositoryIsPrivate = true
             saveSettings()
         }
-        try await verifyCloudflarePublishedModule(expected: data)
+        for step in verificationSteps {
+            try await verifyCloudflarePublishedModule(expected: step.data, platform: step.platform)
+        }
         return report
     }
 
@@ -1023,38 +1091,98 @@ final class AppModel {
     @discardableResult
     private func rebuildCombinedFromCache() async -> Bool {
         let rebuildGeneration = localChangeGeneration
-        let enabled = modules.filter(\.isEnabled)
-        guard !enabled.isEmpty else {
+        let enabledPlats = settings.enabledPlatforms
+
+        if enabledPlats.isEmpty {
             try? await fileStore.removeCombined()
             if settings.storageMode == .local {
-                try? await fileStore.removeExportedCombined(
-                    fromDirectory: settings.localModuleDirectory,
-                    fileName: AppSettings.fixedCombinedModuleFileName
-                )
+                for platform in RelayPlatform.allCases {
+                    try? await fileStore.removeExportedCombined(
+                        fromDirectory: settings.localModuleDirectory,
+                        fileName: platformFileName(for: platform)
+                    )
+                }
                 try? await syncIndividualICloudExports()
             }
             return true
         }
-        var components: [(RelayModule, String)] = []
-        for module in enabled {
-            guard let content = try? await fileStore.readComponent(id: module.id) else { return false }
-            let materialized = await processingWorker.materialize(
-                content,
-                overrides: module.argumentOverrides
-            )
-            components.append((module, materialized))
-        }
-        do {
-            try await writeCombinedModule(components)
-            guard rebuildGeneration == localChangeGeneration else {
-                return await rebuildCombinedFromCache()
+
+        var allSucceeded = true
+
+        for platform in enabledPlats {
+            let platformModules = settings.modules(for: platform, globalModules: modules)
+            let enabledModules = platformModules.filter(\.isEnabled)
+            
+            guard !enabledModules.isEmpty else {
+                try? await fileStore.removeCombined(platform: platform)
+                if settings.storageMode == .local {
+                    try? await fileStore.removeExportedCombined(
+                        fromDirectory: settings.localModuleDirectory,
+                        fileName: platformFileName(for: platform)
+                    )
+                }
+                continue
             }
-            scheduleAutomaticPublish()
-            return true
-        } catch {
-            presentedError = "自动合并失败：\(error.localizedDescription)"
-            setSynchronizationFailure(error.localizedDescription)
-            return false
+
+            var components: [(RelayModule, String)] = []
+            for module in enabledModules {
+                guard let content = try? await fileStore.readComponent(id: module.id) else {
+                    allSucceeded = false
+                    continue
+                }
+                let materialized = await processingWorker.materialize(
+                    content,
+                    overrides: module.argumentOverrides
+                )
+                components.append((module, materialized))
+            }
+
+            do {
+                try await writeCombinedModule(components, platform: platform)
+            } catch {
+                presentedError = "\(platform.rawValue) 自动合并失败：\(error.localizedDescription)"
+                setSynchronizationFailure(error.localizedDescription)
+                allSucceeded = false
+            }
+        }
+
+        // Clean up disabled platforms
+        for platform in RelayPlatform.allCases where !enabledPlats.contains(platform) {
+            try? await fileStore.removeCombined(platform: platform)
+            if settings.storageMode == .local {
+                try? await fileStore.removeExportedCombined(
+                    fromDirectory: settings.localModuleDirectory,
+                    fileName: platformFileName(for: platform)
+                )
+            }
+        }
+
+        if settings.storageMode == .local {
+            try? await syncIndividualICloudExports()
+        }
+
+        guard rebuildGeneration == localChangeGeneration else {
+            return await rebuildCombinedFromCache()
+        }
+
+        scheduleAutomaticPublish()
+        return allSucceeded
+    }
+
+    private func writeCombinedModule(_ components: [(RelayModule, String)], platform: RelayPlatform) async throws {
+        let merged = try await processingWorker.merge(
+            components,
+            platform: platform,
+            iconURL: nil,
+            engineRevision: upstreamState.revision
+        )
+        try await fileStore.writeCombined(merged, platform: platform)
+        if settings.storageMode == .local {
+            try await fileStore.exportCombined(
+                merged,
+                toDirectory: settings.localModuleDirectory,
+                fileName: platformFileName(for: platform)
+            )
         }
     }
 
@@ -1081,7 +1209,9 @@ final class AppModel {
                 replace(module)
                 changed = true
             }
-            if let detectedIcon {
+            if let customStr = module.customIconURL, let customURL = URL(string: customStr) {
+                try? await iconStore.cacheIcon(from: customURL, for: module.id, force: iconChanged)
+            } else if let detectedIcon {
                 try? await iconStore.cacheIcon(from: detectedIcon, for: module.id, force: iconChanged)
             } else {
                 try? await iconStore.removeIcon(for: module.id)
@@ -1090,32 +1220,23 @@ final class AppModel {
         if changed { try? persistModules() }
     }
 
-    private func writeCombinedModule(_ components: [(RelayModule, String)]) async throws {
-        let merged = try await processingWorker.merge(
-            components,
-            engineRevision: upstreamState.revision
-        )
-        try await fileStore.writeCombined(merged)
-        if settings.storageMode == .local {
-            try await fileStore.exportCombined(
-                merged,
-                toDirectory: settings.localModuleDirectory,
-                fileName: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
-            )
-            try await syncIndividualICloudExports()
-        }
-    }
-
     private func shouldSynchronizeModule(_ module: RelayModule) -> Bool {
         module.isEnabled || (settings.storageMode == .local && module.exportsIndividualModuleToICloud)
     }
 
     private func exportIndividualICloudModule(_ module: RelayModule) async throws {
         let content = try await fileStore.readComponent(id: module.id)
-        let materialized = await processingWorker.materialize(content, overrides: module.argumentOverrides)
+        let materialized = await processingWorker.materialize(
+            content,
+            overrides: module.argumentOverrides,
+            policyOverrides: module.policyOverrides,
+            customRules: module.customRules,
+            customMitM: module.customMitM
+        )
         let namedContent = await processingWorker.applyingDisplayName(module.name, to: materialized)
+        let exportContent = Self.surgeRelayCategorizedModuleContent(namedContent)
         try await fileStore.exportIndividual(
-            namedContent,
+            exportContent,
             moduleID: module.id,
             toDirectory: settings.localModuleDirectory,
             fileName: individualICloudFileName(for: module.outputFileName)
@@ -1144,7 +1265,7 @@ final class AppModel {
                 )
                 let hasLegacyOutput = await fileStore.hasExportedIndividual(
                     inDirectory: settings.localModuleDirectory,
-                    fileName: module.outputFileName,
+                    fileName: FilenameSanitizer.sgmoduleName(from: module.outputFileName),
                     moduleID: module.id
                 )
                 guard exists || hasLegacyOutput || individualOutputMutationsInProgress.contains(module.id) else {
@@ -1181,6 +1302,14 @@ final class AppModel {
 
     private func individualICloudFileName(for outputFileName: String) -> String {
         FilenameSanitizer.individualRelayName(from: outputFileName)
+    }
+
+    private nonisolated static func surgeRelayCategorizedModuleContent(_ content: String) -> String {
+        let normalized = content.replacingOccurrences(of: "\r\n", with: "\n")
+        var lines = normalized.components(separatedBy: "\n")
+        lines.removeAll { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#!category=") }
+        let body = lines.joined(separator: "\n").trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
+        return "#!category=Surge Relay\n" + body + "\n"
     }
 
     private func removeExportedIndividualFiles(moduleID: UUID, outputFileName: String) async throws {
@@ -1251,12 +1380,25 @@ final class AppModel {
             : "检测到独立模块已删除，已关闭 \(removedNames.count) 个 iCloud 输出"
     }
 
-    var combinedRawURL: URL? {
-        settings.publishedURL(for: FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName))
+    var enabledPlatforms: [RelayPlatform] {
+        settings.enabledPlatforms
     }
 
-    var combinedLocalFileURL: URL? {
-        settings.localCombinedModuleURL
+    func platformFileName(for platform: RelayPlatform) -> String {
+        let cleanName = FilenameSanitizer.sgmoduleName(from: settings.combinedModuleFileName)
+        if platform == .ios {
+            return cleanName
+        }
+        let base = FilenameSanitizer.baseName(from: settings.combinedModuleFileName)
+        return "\(base)-\(platform.rawValue).sgmodule"
+    }
+
+    func combinedRawURL(for platform: RelayPlatform) -> URL? {
+        settings.publishedURL(for: platformFileName(for: platform))
+    }
+
+    func combinedLocalFileURL(for platform: RelayPlatform) -> URL? {
+        settings.localCombinedModuleURL(for: platform)
     }
 
     var webManagementURL: URL? {
@@ -1267,20 +1409,31 @@ final class AppModel {
     }
 
     func rawURL(for module: RelayModule) -> URL? {
-        settings.publishedURL(for: module.outputFileName)
+        settings.publishedURL(for: individualICloudFileName(for: module.outputFileName))
+    }
+
+    func rawComponentContent(id: UUID) async throws -> String {
+        try await fileStore.readComponent(id: id)
     }
 
     func previewContent(for module: RelayModule) async throws -> String {
         let content = try await fileStore.readComponent(id: module.id)
-        return await processingWorker.materialize(content, overrides: module.argumentOverrides)
+        let materialized = await processingWorker.materialize(
+            content,
+            overrides: module.argumentOverrides,
+            policyOverrides: module.policyOverrides,
+            customRules: module.customRules,
+            customMitM: module.customMitM
+        )
+        return ModuleMetadataParser.stripWarningHeader(materialized)
     }
 
     func hasPreviewContent(for module: RelayModule) async -> Bool {
         await fileStore.hasComponent(id: module.id)
     }
 
-    func hasCombinedPreviewContent() async -> Bool {
-        await fileStore.hasCombined()
+    func hasCombinedPreviewContent(platform: RelayPlatform) async -> Bool {
+        await fileStore.hasCombined(platform: platform)
     }
 
     func moduleArgumentInfo(for module: RelayModule) async -> ModuleArgumentInfo {
@@ -1332,12 +1485,90 @@ final class AppModel {
         scheduleCombinedRebuild()
     }
 
-    func combinedPreviewContent() async throws -> String {
-        let data = try await fileStore.readCombined()
+    func updateModuleScriptOverrides(moduleID: UUID, overrides: [String: String]) {
+        guard let index = modules.firstIndex(where: { $0.id == moduleID }) else { return }
+        registerLocalChange()
+        modules[index].argumentOverrides = overrides
+        try? persistModules()
+        statusMessage = "已更新 \(modules[index].name) 的脚本参数覆盖"
+        scheduleCombinedRebuild()
+    }
+
+    func setModulePolicyOverrides(moduleID: UUID, overrides: [String: String]) {
+        guard let index = modules.firstIndex(where: { $0.id == moduleID }) else { return }
+        registerLocalChange()
+        modules[index].policyOverrides = overrides
+        try? persistModules()
+        statusMessage = "已更新 \(modules[index].name) 的策略别名映射"
+        scheduleCombinedRebuild()
+    }
+
+    func setModuleCustomOverrides(moduleID: UUID, rules: [String], mitm: [String]) {
+        guard let index = modules.firstIndex(where: { $0.id == moduleID }) else { return }
+        registerLocalChange()
+        modules[index].customRules = rules.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        modules[index].customMitM = mitm.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        try? persistModules()
+        statusMessage = "已更新 \(modules[index].name) 的自定义规则与解密主机名"
+        scheduleCombinedRebuild()
+    }
+
+    func combinedPreviewContent(platform: RelayPlatform) async throws -> String {
+        let data = try await fileStore.readCombined(platform: platform)
         guard let content = String(data: data, encoding: .utf8) else {
             throw RelayError.invalidOutput("最终模块缓存不是有效的 UTF-8 文本。")
         }
-        return await processingWorker.materialize(content, overrides: [:])
+        let materialized = await processingWorker.materialize(content, overrides: [:])
+        return ModuleMetadataParser.stripWarningHeader(materialized)
+    }
+
+
+
+    func setPlatformModuleEnabled(platform: RelayPlatform, moduleID: UUID, enabled: Bool) {
+        var currentPlatformSettings = settings.platformSettings[platform.rawValue] ?? PlatformSettings()
+        if enabled {
+            currentPlatformSettings.disabledModules.remove(moduleID)
+        } else {
+            currentPlatformSettings.disabledModules.insert(moduleID)
+        }
+        settings.platformSettings[platform.rawValue] = currentPlatformSettings
+        saveSettings()
+        
+        statusMessage = enabled ? "已启用 \(platform.rawValue) 平台下的模块，即将重新合并" : "已停用 \(platform.rawValue) 平台下的模块，正在重新合并"
+        scheduleCombinedRebuild()
+    }
+
+    func setAllPlatformModulesEnabled(platform: RelayPlatform, enabled: Bool) {
+        var currentPlatformSettings = settings.platformSettings[platform.rawValue] ?? PlatformSettings()
+        if enabled {
+            currentPlatformSettings.disabledModules.removeAll()
+        } else {
+            currentPlatformSettings.disabledModules = Set(modules.map { $0.id })
+        }
+        settings.platformSettings[platform.rawValue] = currentPlatformSettings
+        saveSettings()
+        
+        statusMessage = enabled ? "已启用所有平台模块，即将重新合并" : "已停用所有平台模块，正在重新合并"
+        scheduleCombinedRebuild()
+    }
+
+    func setPlatformEnabled(platform: RelayPlatform, isEnabled: Bool) {
+        let isNew = settings.platformSettings[platform.rawValue] == nil
+        var currentSettings = settings.platformSettings[platform.rawValue] ?? PlatformSettings()
+        currentSettings.isEnabled = isEnabled
+        if isNew {
+            currentSettings.disabledModules = Set(modules.map { $0.id })
+        }
+        settings.platformSettings[platform.rawValue] = currentSettings
+        saveSettings()
+        
+        if !isEnabled, selectedModuleID == platform.selectionID {
+            selectedModuleID = settings.enabledPlatforms.first?.selectionID ?? modules.first?.id
+        }
+        
+        Task {
+            await rebuildCombinedFromCache()
+        }
     }
 
     func savePreviewContent(_ content: String, for module: RelayModule) async throws {
@@ -1347,13 +1578,19 @@ final class AppModel {
             statusMessage = "内容没有变化"
             return
         }
-        isWorking = true
-        defer { isWorking = false }
+        guard let workToken = beginWork() else { return }
+        defer { endWork(workToken) }
         registerLocalChange()
         try await fileStore.writeComponentOverride(namedContent, id: module.id)
-        if let index = modules.firstIndex(where: { $0.id == module.id }),
-           let converted = try? await fileStore.readConvertedComponent(id: module.id) {
-            modules[index].overrideBaseHash = Data(converted.utf8).sha256String
+        if let index = modules.firstIndex(where: { $0.id == module.id }) {
+            let original = (try? await fileStore.readConvertedComponent(id: module.id)) ?? ""
+            let extracted = ModuleMetadataParser.extractOverrides(original: original, edited: namedContent)
+            modules[index].argumentOverrides = extracted.argumentOverrides
+            modules[index].policyOverrides = extracted.policyOverrides
+            modules[index].customRules = extracted.customRules
+            modules[index].customMitM = extracted.customMitM
+            
+            modules[index].overrideBaseHash = Data(original.utf8).sha256String
             modules[index].hasOverrideConflict = false
         }
         await rebuildCombinedFromCache()
@@ -1363,8 +1600,10 @@ final class AppModel {
 
     func restorePreviewContent(for module: RelayModule) async throws -> String {
         guard !isWorking else { throw RelayError.invalidOutput("当前正在更新，请稍后再恢复。") }
-        isWorking = true
-        defer { isWorking = false }
+        guard let workToken = beginWork() else {
+            throw RelayError.invalidOutput("当前正在更新，请稍后再恢复。")
+        }
+        defer { endWork(workToken) }
         registerLocalChange()
         let content = try await fileStore.restoreComponent(id: module.id)
         if let index = modules.firstIndex(where: { $0.id == module.id }) {
@@ -1376,7 +1615,14 @@ final class AppModel {
         statusMessage = settings.automaticallyPublish
             ? "已恢复 \(module.name) 的转换结果，等待合并发布"
             : "已恢复 \(module.name) 的转换结果"
-        return await processingWorker.materialize(content, overrides: module.argumentOverrides)
+        let materialized = await processingWorker.materialize(
+            content,
+            overrides: module.argumentOverrides,
+            policyOverrides: module.policyOverrides,
+            customRules: module.customRules,
+            customMitM: module.customMitM
+        )
+        return ModuleMetadataParser.stripWarningHeader(materialized)
     }
 
     func acceptOverrideConflict(moduleID: UUID) async {
@@ -1390,7 +1636,13 @@ final class AppModel {
 
     func convertedPreviewContent(for module: RelayModule) async throws -> String {
         let content = try await fileStore.readConvertedComponent(id: module.id)
-        return await processingWorker.materialize(content, overrides: module.argumentOverrides)
+        return await processingWorker.materialize(
+            content,
+            overrides: module.argumentOverrides,
+            policyOverrides: module.policyOverrides,
+            customRules: module.customRules,
+            customMitM: module.customMitM
+        )
     }
 
     func diagnosticsData() throws -> Data {
@@ -1462,6 +1714,13 @@ final class AppModel {
         PersistenceStore.saveUpdateHistory(updateHistory)
     }
 
+    private func diagnosticDescription(for error: Error) -> String {
+        if let relayError = error as? RelayError {
+            return relayError.diagnosticDescription
+        }
+        return error.localizedDescription
+    }
+
     private func redactedSourceURL(_ value: String) -> String {
         guard var components = URLComponents(string: value) else { return value }
         components.user = nil
@@ -1510,5 +1769,72 @@ final class AppModel {
             return module
         }
     }
+}
 
+struct IconSearchResult: Codable, Sendable {
+    let name: String
+    let url: String
+    let source: String
+}
+
+extension AppModel {
+    func updateModuleCustomIcon(id: UUID, customIconURL: String?, source: CustomIconSource = .manual) async throws {
+        guard let index = modules.firstIndex(where: { $0.id == id }) else { return }
+        
+        registerLocalChange()
+        modules[index].customIconURL = customIconURL
+        modules[index].customIconSource = customIconURL == nil ? .manual : source
+        try persistModules()
+        
+        let effectiveURL = customIconURL ?? modules[index].iconURL
+        if let effectiveURL, let url = URL(string: effectiveURL) {
+            try? await iconStore.cacheIcon(from: url, for: id, force: true)
+        } else {
+            try? await iconStore.removeIcon(for: id)
+        }
+        
+        scheduleCombinedRebuild()
+        statusMessage = "已更新 \(modules[index].name) 的自定义图标"
+    }
+    
+    func updatePlatformCustomIcon(platform: RelayPlatform, customIconURL: String?, source: CustomIconSource = .manual) async throws {
+        throw RelayError.invalidOutput("汇总模块不支持自定义图标。")
+    }
+    
+    nonisolated static func cleanSearchQuery(_ query: String) -> String {
+        var cleaned = query
+        cleaned = cleaned.replacingOccurrences(of: "\\([^)]*\\)", with: "", options: .regularExpression)
+        cleaned = cleaned.replacingOccurrences(of: "（[^）]*）", with: "", options: .regularExpression)
+        cleaned = cleaned.replacingOccurrences(of: "去广告", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "净化", with: "")
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    func searchIcons(query: String, region: String? = nil) async -> [IconSearchResult] {
+        var results: [IconSearchResult] = []
+        
+        let cleaned = AppModel.cleanSearchQuery(query)
+        
+        let searchRegion = region ?? settings.iconSearchRegion
+        if !cleaned.isEmpty, let encodedQuery = cleaned.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            let urlStr = "https://itunes.apple.com/search?term=\(encodedQuery)&entity=software&limit=15&country=\(searchRegion)"
+            if let url = URL(string: urlStr),
+               let (data, _) = try? await URLSession.shared.data(from: url) {
+                 struct iTunesResponse: Codable {
+                     struct iTunesResult: Codable {
+                         let trackName: String
+                         let artworkUrl100: String
+                     }
+                     let results: [iTunesResult]
+                 }
+                 if let response = try? JSONDecoder().decode(iTunesResponse.self, from: data) {
+                     for app in response.results {
+                         results.append(IconSearchResult(name: app.trackName, url: app.artworkUrl100, source: "App Store"))
+                     }
+                 }
+            }
+        }
+        
+        return results
+    }
 }

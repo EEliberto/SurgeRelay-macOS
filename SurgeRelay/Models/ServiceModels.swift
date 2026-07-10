@@ -14,6 +14,7 @@ struct GeneratedAsset: Sendable {
 struct PublishFile: Sendable {
     var name: String
     var data: Data
+    var legacyNames: [String] = []
 }
 
 struct PublishReport: Sendable {
@@ -106,13 +107,20 @@ enum RelayError: LocalizedError, Sendable {
     case cloudflareNotConfigured
     case noFilesToPublish
 
+    var diagnosticDescription: String {
+        switch self {
+        case .httpFailure(let status, let message): "网络请求失败（\(status)）：\(message)"
+        default: errorDescription ?? "未知错误"
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .invalidSourceURL: "来源地址无效。"
         case .invalidServiceURL: "Script Hub 服务地址无效。"
         case .duplicateSourceURL: "该模块已经添加，不能重复添加。"
         case .invalidOutput(let message): "转换结果无效：\(message)"
-        case .httpFailure(let status, let message): "网络请求失败（\(status)）：\(message)"
+        case .httpFailure(let status, _): "网络请求失败（\(status)）"
         case .githubNotConfigured: "请先填写 GitHub 仓库信息。"
         case .githubTokenMissing: "请先保存 GitHub Token。"
         case .githubRepositoryMustBePrivate: "请使用私有 GitHub 仓库搭配 Cloudflare 使用，或使用本地存储。"

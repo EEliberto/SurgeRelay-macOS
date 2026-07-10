@@ -25,7 +25,7 @@ struct MenuBarContent: View {
         }
         .disabled(model.modules.isEmpty || model.isWorking)
 
-        if let url = model.combinedRawURL {
+        if let url = model.combinedRawURL(for: .ios) {
             Button("拷贝总订阅地址") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(url.absoluteString, forType: .string)

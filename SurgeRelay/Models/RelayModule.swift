@@ -96,6 +96,11 @@ enum ModuleUpdateState: String, Codable, Sendable {
     }
 }
 
+enum CustomIconSource: String, Codable, Sendable {
+    case manual
+    case appStore
+}
+
 struct RelayModule: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var name: String
@@ -106,7 +111,12 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
     var exportsIndividualModuleToICloud: Bool
     var scriptHubOptions: ScriptHubOptions
     var argumentOverrides: [String: String]
+    var policyOverrides: [String: String]
+    var customRules: [String]
+    var customMitM: [String]
     var iconURL: String?
+    var customIconURL: String?
+    var customIconSource: CustomIconSource
     var detectedSourceFormat: ModuleSourceFormat?
     var createdAt: Date
     var lastUpdatedAt: Date?
@@ -131,7 +141,12 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         exportsIndividualModuleToICloud: Bool = false,
         scriptHubOptions: ScriptHubOptions = ScriptHubOptions(),
         argumentOverrides: [String: String] = [:],
+        policyOverrides: [String: String] = [:],
+        customRules: [String] = [],
+        customMitM: [String] = [],
         iconURL: String? = nil,
+        customIconURL: String? = nil,
+        customIconSource: CustomIconSource = .manual,
         detectedSourceFormat: ModuleSourceFormat? = nil,
         createdAt: Date = .now,
         lastUpdatedAt: Date? = nil,
@@ -155,7 +170,12 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         self.exportsIndividualModuleToICloud = exportsIndividualModuleToICloud
         self.scriptHubOptions = scriptHubOptions
         self.argumentOverrides = argumentOverrides
+        self.policyOverrides = policyOverrides
+        self.customRules = customRules
+        self.customMitM = customMitM
         self.iconURL = iconURL
+        self.customIconURL = customIconURL
+        self.customIconSource = customIconSource
         self.detectedSourceFormat = detectedSourceFormat
         self.createdAt = createdAt
         self.lastUpdatedAt = lastUpdatedAt
@@ -172,7 +192,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, sourceURL, sourceFormat, outputFileName, isEnabled, exportsIndividualModuleToICloud, scriptHubOptions, argumentOverrides, iconURL, detectedSourceFormat
+        case id, name, sourceURL, sourceFormat, outputFileName, isEnabled, exportsIndividualModuleToICloud, scriptHubOptions, argumentOverrides, policyOverrides, customRules, customMitM, iconURL, customIconURL, customIconSource, detectedSourceFormat
         case createdAt, lastUpdatedAt, contentHash, sourceETag, sourceLastModified, sourceContentHash, sourceCheckedAt
         case conversionEngineRevision, overrideBaseHash, hasOverrideConflict, state, lastError
     }
@@ -192,7 +212,12 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         ) ?? false
         scriptHubOptions = try container.decodeIfPresent(ScriptHubOptions.self, forKey: .scriptHubOptions) ?? ScriptHubOptions()
         argumentOverrides = try container.decodeIfPresent([String: String].self, forKey: .argumentOverrides) ?? [:]
+        policyOverrides = try container.decodeIfPresent([String: String].self, forKey: .policyOverrides) ?? [:]
+        customRules = try container.decodeIfPresent([String].self, forKey: .customRules) ?? []
+        customMitM = try container.decodeIfPresent([String].self, forKey: .customMitM) ?? []
         iconURL = try container.decodeIfPresent(String.self, forKey: .iconURL)
+        customIconURL = try container.decodeIfPresent(String.self, forKey: .customIconURL)
+        customIconSource = try container.decodeIfPresent(CustomIconSource.self, forKey: .customIconSource) ?? .manual
         detectedSourceFormat = try container.decodeIfPresent(ModuleSourceFormat.self, forKey: .detectedSourceFormat)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
         lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)

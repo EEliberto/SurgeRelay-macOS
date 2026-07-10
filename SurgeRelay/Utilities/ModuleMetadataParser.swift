@@ -152,3 +152,257 @@ enum ModuleArgumentProcessor {
         return line.hasPrefix("#") || line.hasPrefix("//") || line.hasPrefix(";")
     }
 }
+
+struct DiscoveredScriptArg: Codable, Sendable, Identifiable {
+    var id: String { name }
+    let name: String
+    let defaultValue: String
+}
+
+extension ModuleMetadataParser {
+    static func discoverScriptArguments(in content: String) -> [DiscoveredScriptArg] {
+        var results: [DiscoveredScriptArg] = []
+        var inScriptSection = false
+        let lines = content.components(separatedBy: "\n")
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                let sectionName = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                inScriptSection = (sectionName == "Script")
+                continue
+            }
+            guard inScriptSection else { continue }
+            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                continue
+            }
+            
+            let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            let name = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let config = parts[1]
+            
+            let configParts = config.components(separatedBy: ",")
+            for part in configParts {
+                let trimmedPart = part.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedPart.hasPrefix("argument=") {
+                    let defaultValue = String(trimmedPart.dropFirst("argument=".count))
+                    results.append(DiscoveredScriptArg(name: name, defaultValue: defaultValue))
+                    break
+                }
+            }
+        }
+        return results
+    }
+
+    static func extractUniquePolicies(in content: String) -> [String] {
+        var policies: Set<String> = []
+        var inRuleSection = false
+        let lines = content.components(separatedBy: "\n")
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                let sectionName = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                inRuleSection = (sectionName == "Rule")
+                continue
+            }
+            guard inRuleSection else { continue }
+            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                continue
+            }
+            let parts = line.components(separatedBy: ",")
+            if parts.count >= 3 {
+                let policy = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                policies.insert(policy)
+            }
+        }
+        return Array(policies).sorted()
+    }
+    
+    static func extractOverrides(original: String, edited: String) -> (
+        argumentOverrides: [String: String],
+        policyOverrides: [String: String],
+        customRules: [String],
+        customMitM: [String]
+    ) {
+        let originalSections = parseSections(from: original)
+        let editedSections = parseSections(from: edited)
+        
+        // 1. Script arguments
+        let originalScripts = parseScripts(from: originalSections["Script"] ?? [])
+        let editedScripts = parseScripts(from: editedSections["Script"] ?? [])
+        var argumentOverrides: [String: String] = [:]
+        for (name, editedConfig) in editedScripts {
+            let editedArg = extractArgument(from: editedConfig)
+            let originalArg = originalScripts[name].flatMap { extractArgument(from: $0) }
+            if editedArg != originalArg {
+                argumentOverrides[name] = editedArg ?? ""
+            }
+        }
+        
+        // 2. Policy mapping
+        let originalRules = parseRules(from: originalSections["Rule"] ?? [])
+        let editedRules = parseRules(from: editedSections["Rule"] ?? [])
+        var policyOverrides: [String: String] = [:]
+        for (key, editedPolicy) in editedRules {
+            if let originalPolicy = originalRules[key] {
+                if editedPolicy != originalPolicy {
+                    policyOverrides[originalPolicy] = editedPolicy
+                }
+            }
+        }
+        
+        // 3. Custom rules
+        var customRules: [String] = []
+        for line in editedSections["Rule"] ?? [] {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                continue
+            }
+            let parts = trimmed.components(separatedBy: ",")
+            if parts.count >= 3 {
+                let matchKey = parts[0...1].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: ",")
+                if originalRules[matchKey] == nil {
+                    customRules.append(trimmed)
+                }
+            } else if parts.count == 2 {
+                let matchKey = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                if originalRules[matchKey] == nil {
+                    customRules.append(trimmed)
+                }
+            }
+        }
+        
+        // 4. Custom MitM
+        let originalMitM = parseMitM(from: originalSections["MitM"] ?? [])
+        let editedMitM = parseMitM(from: editedSections["MitM"] ?? [])
+        let customMitM = editedMitM.subtracting(originalMitM).sorted()
+        
+        return (argumentOverrides, policyOverrides, customRules, customMitM)
+    }
+    
+    private static func parseSections(from content: String) -> [String: [String]] {
+        var sections: [String: [String]] = [:]
+        var currentSection = ""
+        let lines = content.components(separatedBy: "\n")
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("# *******") ||
+               trimmed.hasPrefix("# !WARNING") ||
+               trimmed.hasPrefix("# This file") ||
+               trimmed.hasPrefix("# will be") ||
+               trimmed.hasPrefix("# To customize") ||
+               trimmed.hasPrefix("# !警告") ||
+               trimmed.hasPrefix("# 本文件由") ||
+               trimmed.hasPrefix("# 如需自行") ||
+               trimmed.hasPrefix("# 如需个性化") ||
+               trimmed.isEmpty && currentSection.isEmpty {
+                continue
+            }
+            if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                currentSection = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                continue
+            }
+            if !currentSection.isEmpty {
+                sections[currentSection, default: []].append(line)
+            }
+        }
+        return sections
+    }
+    
+    private static func parseScripts(from lines: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                continue
+            }
+            let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
+            if parts.count == 2 {
+                let name = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let config = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                result[name] = config
+            }
+        }
+        return result
+    }
+    
+    private static func extractArgument(from config: String) -> String? {
+        let configParts = config.components(separatedBy: ",")
+        for part in configParts {
+            let trimmedPart = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedPart.hasPrefix("argument=") {
+                return String(trimmedPart.dropFirst("argument=".count))
+            }
+        }
+        return nil
+    }
+    
+    private static func parseRules(from lines: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                continue
+            }
+            let parts = trimmed.components(separatedBy: ",")
+            if parts.count >= 3 {
+                let matchKey = parts[0...1].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: ",")
+                let policy = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+                result[matchKey] = policy
+            }
+        }
+        return result
+    }
+    
+    private static func parseMitM(from lines: [String]) -> Set<String> {
+        var hostnames: Set<String> = []
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") || trimmed.hasPrefix(";") {
+                continue
+            }
+            if trimmed.contains("hostname") {
+                let parts = trimmed.split(separator: "=", maxSplits: 1).map(String.init)
+                if parts.count == 2 {
+                    let config = parts[1].replacingOccurrences(of: "%APPEND%", with: "")
+                    let names = config.components(separatedBy: ",")
+                    for name in names {
+                        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !n.isEmpty {
+                            hostnames.insert(n)
+                        }
+                    }
+                }
+            }
+        }
+        return hostnames
+    }
+    
+    static func stripWarningHeader(_ content: String) -> String {
+        let lines = content.components(separatedBy: "\n")
+        var filteredLines: [String] = []
+        var skipEmpty = true
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = trimmed.lowercased()
+            if lower.hasPrefix("# ***") ||
+               lower.hasPrefix("# !warning") ||
+               lower.hasPrefix("# this file") ||
+               lower.hasPrefix("# to this file") ||
+               lower.hasPrefix("# to customize") ||
+               lower.hasPrefix("# !警告") ||
+               lower.hasPrefix("# 本文件由") ||
+               lower.hasPrefix("# 如需自行") ||
+               lower.hasPrefix("# 如需个性化") ||
+               lower == "#" {
+                continue
+            }
+            if skipEmpty && trimmed.isEmpty {
+                continue
+            }
+            skipEmpty = false
+            filteredLines.append(line)
+        }
+        return filteredLines.joined(separator: "\n")
+    }
+}

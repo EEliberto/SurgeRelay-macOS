@@ -7,7 +7,21 @@ struct ModuleIconView: View {
 
     var body: some View {
         Group {
-            if let image = cachedImage {
+            if let iconURL = module.customIconURL.flatMap(URL.init(string:)) {
+                AsyncImage(url: iconURL) { phase in
+                    switch phase {
+                    case .empty:
+                        placeholder
+                            .overlay { ProgressView().controlSize(.mini) }
+                    case let .success(image):
+                        moduleImage(image)
+                    case .failure:
+                        placeholder
+                    @unknown default:
+                        placeholder
+                    }
+                }
+            } else if let image = cachedImage {
                 moduleImage(Image(nsImage: image))
             } else if let iconURL = module.iconURL.flatMap(URL.init(string:)) {
                 AsyncImage(url: iconURL) { phase in
@@ -45,7 +59,7 @@ struct ModuleIconView: View {
             .clipShape(iconShape)
             .overlay {
                 iconShape
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
             }
     }
 
@@ -159,6 +173,7 @@ struct ModulePreviewPane: View {
     @State private var savedText = ""
     @State private var isLoading = true
     @State private var isWriting = false
+    @State private var isEditing = false
     @State private var errorMessage: String?
     @State private var showsComparison = false
     @State private var searchText = ""
@@ -188,7 +203,9 @@ struct ModulePreviewPane: View {
             ZStack(alignment: .top) {
                 ModuleCodeTextView(
                     text: $text,
-                    isEditable: !isLoading,
+                    isEditable: showsFindBar && isEditing && !isLoading,
+                    isInteractive: showsFindBar,
+                    onActivate: showsFindBar ? { isEditing = true } : nil,
                     modules: [module],
                     selectedModuleID: module.id,
                     searchQuery: showsFindBar ? searchText : "",
@@ -212,7 +229,7 @@ struct ModulePreviewPane: View {
             Divider()
             HStack(spacing: 12) {
                 Button("恢复") { restore() }
-                    .disabled(isWriting || isLoading)
+                    .disabled(!isEditing || isWriting || isLoading)
                 if !isLoading, text != savedText {
                     Text("有尚未写入的修改")
                         .font(.caption)
@@ -222,11 +239,14 @@ struct ModulePreviewPane: View {
                 Button("保存") { write() }
                     .keyboardShortcut("s", modifiers: .command)
                     .buttonStyle(.borderedProminent)
-                    .disabled(isWriting || isLoading || text == savedText)
+                    .disabled(!isEditing || isWriting || isLoading || text == savedText)
             }
             .padding(12)
         }
         .task(id: "\(module.id.uuidString)-\(currentModule.contentHash ?? "pending")") { await load() }
+        .onChange(of: showsFindBar) { _, isActive in
+            if !isActive { isEditing = false }
+        }
         .alert("无法完成操作", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -347,6 +367,7 @@ private struct OverrideComparisonView: View {
 /// Inline, read-only preview of the merged final module.
 struct CombinedPreviewPane: View {
     @Environment(AppModel.self) private var model
+    let platform: RelayPlatform
     let showsFindBar: Bool
     @State private var text = ""
     @State private var isLoading = true
@@ -356,7 +377,7 @@ struct CombinedPreviewPane: View {
     @State private var searchResult = CodeSearchResult()
 
     private var enabledModules: [RelayModule] {
-        model.modules.filter(\.isEnabled)
+        model.settings.modules(for: platform, globalModules: model.modules).filter(\.isEnabled)
     }
 
     private var reloadToken: String {
@@ -368,6 +389,8 @@ struct CombinedPreviewPane: View {
             ModuleCodeTextView(
                 text: .constant(text),
                 isEditable: false,
+                isInteractive: showsFindBar,
+                onActivate: nil,
                 modules: enabledModules,
                 selectedModuleID: nil,
                 searchQuery: showsFindBar ? searchText : "",
@@ -410,13 +433,13 @@ struct CombinedPreviewPane: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        guard !enabledModules.isEmpty, await model.hasCombinedPreviewContent() else {
+        guard !enabledModules.isEmpty, await model.hasCombinedPreviewContent(platform: platform) else {
             text = ""
             errorMessage = nil
             return
         }
         do {
-            text = try await model.combinedPreviewContent()
+            text = try await model.combinedPreviewContent(platform: platform)
         } catch {
             errorMessage = "无法预览最终模块：\(error.localizedDescription)"
         }
@@ -510,6 +533,8 @@ private struct CodePreviewSearchBar: View {
 private struct ModuleCodeTextView: NSViewRepresentable {
     @Binding var text: String
     let isEditable: Bool
+    let isInteractive: Bool
+    let onActivate: (() -> Void)?
     let modules: [RelayModule]
     let selectedModuleID: UUID?
     let searchQuery: String
@@ -530,11 +555,12 @@ private struct ModuleCodeTextView: NSViewRepresentable {
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
 
-        let textView = NSTextView()
+        let textView = ActivatingTextView()
+        textView.onActivate = onActivate
         textView.delegate = context.coordinator
         textView.isRichText = false
         textView.isEditable = isEditable
-        textView.isSelectable = true
+        textView.isSelectable = isInteractive
         textView.allowsUndo = true
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
@@ -556,8 +582,10 @@ private struct ModuleCodeTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
+        guard let textView = scrollView.documentView as? ActivatingTextView else { return }
         textView.isEditable = isEditable
+        textView.isSelectable = isInteractive
+        textView.onActivate = onActivate
         if textView.textContainerInset.height != topContentInset {
             textView.textContainerInset = NSSize(width: 18, height: topContentInset)
         }
@@ -578,6 +606,20 @@ private struct ModuleCodeTextView: NSViewRepresentable {
             command: searchCommand,
             result: $searchResult
         )
+    }
+
+    private final class ActivatingTextView: NSTextView {
+        var onActivate: (() -> Void)?
+
+        override func mouseDown(with event: NSEvent) {
+            if !isEditable, isSelectable, onActivate != nil {
+                // Enable editing before AppKit processes the click so the first
+                // click places the insertion point and accepts text immediately.
+                isEditable = true
+                onActivate?()
+            }
+            super.mouseDown(with: event)
+        }
     }
 
     @MainActor

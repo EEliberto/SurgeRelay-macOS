@@ -12,8 +12,8 @@
   <link rel="manifest" href="/manifest.webmanifest?v=1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Surge Relay">
-  <link rel="stylesheet" href="/app.css?v=39">
-  <script src="/app.js?v=31" defer></script>
+  <link rel="stylesheet" href="/app.css?v=64">
+  <script src="/app.js?v=62" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -25,17 +25,15 @@
           <div class="toolbar sidebar-toolbar">
             <button class="icon-button" id="add-button" type="button" aria-label="添加模块" title="添加模块"><span class="symbol" data-symbol="plus"></span></button>
             <button class="icon-button" id="refresh-button" type="button" aria-label="更新全部" title="更新全部"><span class="symbol" data-symbol="refresh"></span></button>
+            <button class="icon-button" id="settings-button" type="button" aria-label="设置" title="设置"><span class="symbol" data-symbol="gearshape"></span></button>
           </div>
         </div>
         <label class="search-field"><span class="symbol" data-symbol="magnifyingglass"></span><input id="search-input" type="search" placeholder="搜索" autocomplete="off"></label>
       </div>
 
       <nav class="module-navigation">
-        <button class="summary-row" id="summary-row" type="button">
-          <span class="module-icon summary-icon"><img class="app-icon" src="/app-icon.png?v=1" alt=""></span>
-          <span class="module-copy"><strong>Surge Relay 汇总</strong><small id="summary-subtitle">正在载入…</small></span>
-          <span class="symbol disclosure" data-symbol="chevron.right"></span>
-        </button>
+        <div class="section-label">汇总模块</div>
+        <div id="summary-list"></div>
         <div class="section-label">来源模块</div>
         <div id="module-list" class="module-list"></div>
       </nav>
@@ -53,13 +51,18 @@
     <header class="mobile-header">
       <div class="mobile-title-row">
         <button class="icon-button" id="mobile-back" type="button" aria-label="返回模块列表"><span class="symbol" data-symbol="chevron.left"></span></button>
-        <strong id="mobile-title">模块</strong><span class="mobile-header-spacer"></span>
+        <span id="mobile-title-icon" class="mobile-title-icon" aria-hidden="true"></span><strong id="mobile-title">模块</strong><span class="mobile-header-spacer"></span>
       </div>
       <div class="mobile-detail-actions" id="mobile-detail-actions"></div>
     </header>
 
     <main class="detail" id="detail">
       <header class="desktop-detail-header">
+        <div class="desktop-navigation-buttons" aria-label="页面导航">
+          <button class="icon-button" id="desktop-back" type="button" aria-label="后退" title="后退"><span class="symbol" data-symbol="chevron.left"></span></button>
+          <span class="desktop-navigation-divider" aria-hidden="true"></span>
+          <button class="icon-button" id="desktop-forward" type="button" aria-label="前进" title="前进"><span class="symbol" data-symbol="chevron.right"></span></button>
+        </div>
         <strong id="desktop-title">模块</strong>
         <div class="desktop-detail-actions" id="desktop-detail-actions"></div>
       </header>
@@ -104,6 +107,61 @@
       <div class="dialog-message" id="module-dialog-message" role="alert" hidden></div>
       <div class="dialog-actions"><button class="button secondary close-module-dialog" type="button">取消</button><button class="button primary" type="submit" id="save-module-button">添加</button></div>
     </form>
+  </dialog>
+
+  <dialog id="settings-dialog" class="sheet-dialog settings-dialog">
+    <div class="dialog-header">
+      <button class="icon-button settings-menu-toggle" id="settings-menu-toggle" type="button" aria-label="设置分类"><span class="symbol" data-symbol="line.3.horizontal"></span></button>
+      <div><h2>设置</h2></div>
+      <button class="icon-button close-settings-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button>
+    </div>
+    <div class="form-content" id="settings-content"></div>
+  </dialog>
+
+  <dialog id="icon-dialog" class="sheet-dialog icon-dialog">
+    <div class="dialog-header">
+      <div><h2>修改模块图标</h2><p>手动输入图片链接，或从 App Store 搜索并选择图标。</p></div>
+      <div id="icon-editor-preview" class="icon-editor-preview" aria-hidden="true"></div>
+      <button class="icon-button close-icon-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button>
+    </div>
+    <div class="form-content icon-editor-content">
+      <section class="icon-editor-section">
+        <h3>手动导入</h3>
+        <div class="icon-editor-group icon-manual-group">
+          <label class="icon-input-row" for="custom-icon-url-input">
+            <input id="custom-icon-url-input" type="url" placeholder="https://example.com/icon.png">
+            <button id="save-custom-icon-button" class="button primary" type="button">载入</button>
+          </label>
+          <div id="reset-icon-container" class="icon-reset-row" hidden>
+            <button id="reset-icon-button" class="button" type="button"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复默认图标</button>
+          </div>
+        </div>
+      </section>
+      <section class="icon-editor-section">
+        <h3>从 App Store 搜索</h3>
+        <div class="icon-editor-group icon-store-group">
+          <div class="icon-search-row">
+            <select id="icon-search-region-select" aria-label="地区">
+            <option value="cn">🇨🇳 中国</option>
+            <option value="us">🇺🇸 美国</option>
+            <option value="jp">🇯🇵 日本</option>
+            <option value="hk">🇭🇰 香港</option>
+            <option value="tw">🇹🇼 台湾</option>
+            </select>
+            <input id="icon-search-input" type="text" placeholder="输入 App 名称或关键字">
+            <button id="search-icon-button" class="button" type="button">搜索</button>
+          </div>
+          <div id="icon-search-results" class="icon-search-results">
+            <div class="icon-search-empty">请输入关键字进行搜索</div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="dialog-actions icon-dialog-actions">
+      <button class="button" id="cancel-icon-dialog" type="button">取消</button>
+      <span></span>
+      <button class="button primary" id="done-icon-dialog" type="button">完成</button>
+    </div>
   </dialog>
 
   <dialog id="confirm-dialog" class="confirm-dialog">

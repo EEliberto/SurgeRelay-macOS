@@ -17,12 +17,12 @@ actor ModuleFileStore {
         PersistenceStore.cacheDirectoryURL.appending(path: "Assets", directoryHint: .isDirectory)
     }
 
-    private var combinedCacheURL: URL {
-        PersistenceStore.cacheDirectoryURL.appending(path: "Combined.cache")
+    private func combinedCacheURL(for platform: RelayPlatform) -> URL {
+        PersistenceStore.cacheDirectoryURL.appending(path: "Combined-\(platform.rawValue).cache")
     }
 
-    private var combinedOverrideURL: URL {
-        PersistenceStore.cacheDirectoryURL.appending(path: "CombinedOverride.cache")
+    private func combinedOverrideURL(for platform: RelayPlatform) -> URL {
+        PersistenceStore.cacheDirectoryURL.appending(path: "CombinedOverride-\(platform.rawValue).cache")
     }
 
     func prepareStorage() throws {
@@ -32,8 +32,15 @@ actor ModuleFileStore {
     }
 
     func hasCombined() -> Bool {
-        FileManager.default.fileExists(atPath: combinedOverrideURL.path)
-            || FileManager.default.fileExists(atPath: combinedCacheURL.path)
+        RelayPlatform.allCases.contains { platform in
+            FileManager.default.fileExists(atPath: combinedOverrideURL(for: platform).path)
+                || FileManager.default.fileExists(atPath: combinedCacheURL(for: platform).path)
+        }
+    }
+
+    func hasCombined(platform: RelayPlatform) -> Bool {
+        FileManager.default.fileExists(atPath: combinedOverrideURL(for: platform).path)
+            || FileManager.default.fileExists(atPath: combinedCacheURL(for: platform).path)
     }
 
     func writeComponent(_ content: String, id: UUID) throws {
@@ -103,19 +110,22 @@ actor ModuleFileStore {
     }
 
     @discardableResult
-    func writeCombined(_ content: String) throws -> Bool {
-        try FileManager.default.createDirectory(at: combinedCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    func writeCombined(_ content: String, platform: RelayPlatform) throws -> Bool {
+        let cacheURL = combinedCacheURL(for: platform)
+        try FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = Data(content.utf8)
-        if let existing = try? Data(contentsOf: combinedCacheURL),
+        if let existing = try? Data(contentsOf: cacheURL),
            existing.sha256String == data.sha256String {
             return false
         }
-        try data.write(to: combinedCacheURL, options: .atomic)
+        try data.write(to: cacheURL, options: .atomic)
         return true
     }
 
-    func readCombined() throws -> Data {
-        let url = FileManager.default.fileExists(atPath: combinedOverrideURL.path) ? combinedOverrideURL : combinedCacheURL
+    func readCombined(platform: RelayPlatform) throws -> Data {
+        let overrideURL = combinedOverrideURL(for: platform)
+        let cacheURL = combinedCacheURL(for: platform)
+        let url = FileManager.default.fileExists(atPath: overrideURL.path) ? overrideURL : cacheURL
         return try Data(contentsOf: url)
     }
 
@@ -123,8 +133,10 @@ actor ModuleFileStore {
     /// directory (used by local storage mode so Surge can load it directly).
     @discardableResult
     func exportCombined(_ content: String, toDirectory directoryPath: String, fileName: String) throws -> Bool {
-        guard fileName == AppSettings.fixedCombinedModuleFileName else {
-            throw RelayError.invalidOutput("汇总模块必须使用固定文件名 \(AppSettings.fixedCombinedModuleFileName)。")
+        let base = FilenameSanitizer.baseName(from: AppSettings.fixedCombinedModuleFileName)
+        let allowedNames = RelayPlatform.allCases.map { "\(base)-\($0.rawValue).sgmodule" } + [AppSettings.fixedCombinedModuleFileName]
+        guard allowedNames.contains(fileName) else {
+            throw RelayError.invalidOutput("汇总模块必须是预设的平台文件名之一。")
         }
         let directory = URL(filePath: directoryPath, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -168,7 +180,9 @@ actor ModuleFileStore {
     }
 
     func removeExportedCombined(fromDirectory directoryPath: String, fileName: String) throws {
-        guard fileName == AppSettings.fixedCombinedModuleFileName else { return }
+        let base = FilenameSanitizer.baseName(from: AppSettings.fixedCombinedModuleFileName)
+        let allowedNames = RelayPlatform.allCases.map { "\(base)-\($0.rawValue).sgmodule" } + [AppSettings.fixedCombinedModuleFileName]
+        guard allowedNames.contains(fileName) else { return }
         let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
             .appending(path: fileName)
         guard FileManager.default.fileExists(atPath: url.path) else { return }
@@ -288,24 +302,35 @@ actor ModuleFileStore {
         return Self.isManagedIndividualModule(data, moduleID: moduleID)
     }
 
-    func writeCombinedOverride(_ content: String) throws {
-        try FileManager.default.createDirectory(at: combinedOverrideURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(content.utf8).write(to: combinedOverrideURL, options: .atomic)
+    func writeCombinedOverride(_ content: String, platform: RelayPlatform) throws {
+        let overrideURL = combinedOverrideURL(for: platform)
+        try FileManager.default.createDirectory(at: overrideURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(content.utf8).write(to: overrideURL, options: .atomic)
     }
 
-    func restoreCombined() throws -> String {
-        if FileManager.default.fileExists(atPath: combinedOverrideURL.path) {
-            try FileManager.default.removeItem(at: combinedOverrideURL)
+    func restoreCombined(platform: RelayPlatform) throws -> String {
+        let overrideURL = combinedOverrideURL(for: platform)
+        let cacheURL = combinedCacheURL(for: platform)
+        if FileManager.default.fileExists(atPath: overrideURL.path) {
+            try FileManager.default.removeItem(at: overrideURL)
         }
-        return try decodeText(at: combinedCacheURL)
+        return try decodeText(at: cacheURL)
+    }
+
+    func removeCombined(platform: RelayPlatform) throws {
+        let cacheURL = combinedCacheURL(for: platform)
+        let overrideURL = combinedOverrideURL(for: platform)
+        if FileManager.default.fileExists(atPath: cacheURL.path) {
+            try FileManager.default.removeItem(at: cacheURL)
+        }
+        if FileManager.default.fileExists(atPath: overrideURL.path) {
+            try FileManager.default.removeItem(at: overrideURL)
+        }
     }
 
     func removeCombined() throws {
-        if FileManager.default.fileExists(atPath: combinedCacheURL.path) {
-            try FileManager.default.removeItem(at: combinedCacheURL)
-        }
-        if FileManager.default.fileExists(atPath: combinedOverrideURL.path) {
-            try FileManager.default.removeItem(at: combinedOverrideURL)
+        for platform in RelayPlatform.allCases {
+            try removeCombined(platform: platform)
         }
     }
 
@@ -375,7 +400,12 @@ actor ModuleFileStore {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
-        let hasName = lines.contains("#!name=Surge Relay")
+        // Combined exports include the target platform in the name, for
+        // example "Surge Relay (iOS)". Keep the ownership check strict enough
+        // to protect user files while accepting all Relay-generated platforms.
+        let hasName = lines.contains {
+            $0 == "#!name=Surge Relay" || $0.hasPrefix("#!name=Surge Relay (")
+        }
         let hasCategory = lines.contains("#!category=Surge Relay")
         let hasAuthor = lines.contains {
             $0 == "#!author=Surge Relay" || $0.hasPrefix("#!author=Surge Relay · ")

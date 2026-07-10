@@ -2,9 +2,9 @@
 
 这份教程面向第一次接触 GitHub 与 Cloudflare 的用户。完成后，Surge Relay 会把生成的模块写入你的 **GitHub 私有仓库**，再由 **Cloudflare Worker** 提供一个不暴露 GitHub Token 的稳定订阅地址。
 
-> 整个过程大约需要 10–15 分钟。GitHub 与 Cloudflare 的界面文字可能随版本略有变化，但设置名称和逻辑不变。你可以使用 AI 工具，例如 Claude Code 或 Codex 进行一键部署。如果你觉得操作过于繁琐，建议直接使用 iCloud 同步模式 (最推荐🌟)。
+> 整个过程大约需要 10–15 分钟。GitHub 与 Cloudflare 的界面文字可能随版本略有变化，但设置名称和逻辑不变。
 
-<img width="1013" height="441" alt="image" src="https://github.com/user-attachments/assets/2b503277-9f06-4f8b-a3ad-0a7518dfc7ea" />
+![Surge Relay、GitHub 私有仓库与 Cloudflare Worker 的工作流程](images/github-cloudflare-flow.svg)
 
 ## 快捷操作入口
 
@@ -44,8 +44,7 @@
 4. 勾选 **Add a README file**。这一步会创建 `main` 分支；空仓库无法通过 Surge Relay 完成首次发布。
 5. 点击 **Create repository**。
 
-<img width="780" height="792" alt="image" src="https://github.com/user-attachments/assets/86287165-e847-46ea-b28c-a1faf518a0b5" />
-
+![创建 GitHub 私有仓库时需要选择的选项](images/github-private-repository.svg)
 
 创建后，复制浏览器地址栏中的仓库地址，例如：
 
@@ -68,7 +67,7 @@ https://github.com/your-name/Surge-Relay
 7. 展开 `Repository permissions`，把 **Contents** 设置为 **Read and write**；其他权限保持默认。
 8. 点击 **Generate token**，立即复制生成的 Token。
 
-<img width="1028" alt="GitHub Fine-grained Token 仓库与 Contents 权限设置" src="images/github-token-permissions.png" />
+![为 Surge Relay 创建可写 Fine-grained Token](images/github-token-permissions.svg)
 
 Token 通常以 `github_pat_` 开头。GitHub 只会完整显示一次；如果丢失，请删除旧 Token 后重新创建。
 
@@ -195,7 +194,7 @@ export default {
 
 `GITHUB_OWNER` 是 GitHub 用户名，不是邮箱或昵称。`GITHUB_TOKEN` 必须选择 **Secret** 类型。
 
-<img width="1016" alt="Cloudflare Worker Variables and Secrets 设置" src="images/cloudflare-worker-variables.png" />
+![Cloudflare Worker 需要配置的变量与 Secret](images/cloudflare-worker-settings.svg)
 
 添加完成后点击 **Deploy**。Cloudflare 会提供一个类似下面的公共地址：
 
@@ -223,7 +222,7 @@ https://surge-relay.your-subdomain.workers.dev
 6. `公共地址` 填写 Cloudflare 提供的 `workers.dev` 地址，不要在末尾添加文件名。
 7. 点击 **验证并切换到 GitHub**。
 
-<img width="1032" height="732" alt="image" src="https://github.com/user-attachments/assets/31f52d5b-9d6b-46e7-8426-5c70395875f6" />
+![在 Surge Relay 中填写 GitHub 与 Cloudflare 信息](images/surge-relay-github-settings.svg)
 
 验证过程中，Surge Relay 会依次确认：
 

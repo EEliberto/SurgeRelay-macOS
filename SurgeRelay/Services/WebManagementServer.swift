@@ -304,9 +304,13 @@ final class WebManagementServer: @unchecked Sendable {
             let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
             headers[name] = value
         }
-        let contentLength = Int(headers["content-length", default: "0"]) ?? 0
+        let contentLengthValue = headers["content-length", default: "0"]
+        guard let contentLength = Int(contentLengthValue),
+              contentLength >= 0,
+              contentLength <= 4 * 1024 * 1024 else { return nil }
         let bodyStart = headerRange.upperBound
-        guard data.count >= bodyStart + contentLength else { return nil }
+        guard bodyStart <= data.count,
+              contentLength <= data.count - bodyStart else { return nil }
         let body = data.subdata(in: bodyStart..<(bodyStart + contentLength))
 
         let target = String(requestParts[1])

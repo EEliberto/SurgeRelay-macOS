@@ -3,38 +3,30 @@
     <channel>
         <title>Surge Relay</title>
         <item>
-            <title>260703</title>
-            <pubDate>Fri, 03 Jul 2026 21:53:41 +0800</pubDate>
-            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260703-r3</link>
-            <sparkle:version>26070303</sparkle:version>
-            <sparkle:shortVersionString>260703</sparkle:shortVersionString>
+            <title>260710</title>
+            <pubDate>Fri, 10 Jul 2026 18:59:26 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260710</link>
+            <sparkle:version>26071001</sparkle:version>
+            <sparkle:shortVersionString>260710</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，260703 推出了以下更新：
+            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，全新设计的 20260710 版本已推出！
 
-## 全新设置体验
+此次更新我们带来了以下亮点：
+1.汇总模块分类：基于部份用户反馈和实际需求，很多模块在多设备端并不互相兼容，例如如果 Mac 安装了腾讯视频去广告模块、百度网盘去广告模块，会导致 Mac 上的 App 无法正常工作 (因为 macOS 端禁止 MitM)，现在 iOS (iPadOS)、macOS、tvOS、visionOS 都支持导出单独的汇总模块，并拥有了全新外观。
+2.模块图标支持自定义：即便模块没有设置过图标，也支持从 App Store 或自定义链接添加图标以做区分 (由 @StarYunLee 反馈)。
+3.编辑模块功能增强：除了使用 Script Hub 来自定义模块信息，你可以直接在 Surge Relay 的“预览”功能中编辑模块，Surge Relay 会记住你的修改设置，即便上游模块更新也不用担心，你的自定义设置不会丢失。
 
-* 重新设计欢迎页面，初始设置更简单高效。
-* 默认使用 iCloud 云盘中的 Surge 文件夹。
-* 支持选择 iCloud 云盘或 GitHub 私有仓库存储。
-* 中文覆盖更全面。
-* 全新设置页面，更简约高效。
+其他：
+1.进行了大量 UI 调整，以确保符合 Apple HIG 设计规范。
+2.Web 端拥有了全新的体验，包括设置也来到了 Web 端，你可以使用 Web 接管 Surge Relay 几乎所有操作，以及支持根据设备尺寸自适应布局。
+3.上传/同步至 iCloud 云盘/Github 逻辑进行了大量优化，解决了许多可能因同步而造成的问题。
 
-## 存储与数据安全
+Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
 
-* 配置、覆盖与同步状态统一保存在 Surge Relay 子文件夹。
-* iCloud 模式仅在 Surge 文件夹生成一份汇总模块。
-* iCloud 模式支持单独输出某一模块，在模块内开启选项即可，此选项不影响汇总模块生成（由 @ChuJianyuan 反馈）。
-* 切换到 GitHub 前会验证私有仓库、Cloudflare 及实际发布结果。
-* 修复同步至 GitHub 时可能出现的 429 错误。
-* 修复批量清理逻辑可能移除 iCloud 内其他 `.sgmodule` 文件的问题，并重构 iCloud 同步逻辑（由 @jason-kwok、@XIYINGDU 反馈），不再误删用户自定义模块。
-
-## Web 管理修复
-
-* 修复 Web 端出现的部分错误。
-* 修复移动端 iCloud 独立模块开关与状态提示的排版问题。
+正在开发：超便利的新增模块功能，敬请期待。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260703-r3/Surge-Relay-260703-build-26070303.dmg" length="9066416" type="application/octet-stream" sparkle:edSignature="TPA/5POfRrcR4jnaNei1jeeWqHNXco2jRU3Ah95yPi0Nubgf8qQzaxMjVpbNqKltc6mm8Xow2DYrLa7sgEeDBQ=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260710/Surge-Relay-260710-build-26071001.dmg" length="22310643" type="application/octet-stream" sparkle:edSignature="GsIa+GKhEiT+fHxo4fGLf2byP3ww4z+DIMQmMqv7KEJ3cZE7IMu6JEiPHCe4xLqc/WqwAjNQ+s/kJr6jDm+YCg=="/>
         </item>
         <item>
             <title>1.1.1</title>

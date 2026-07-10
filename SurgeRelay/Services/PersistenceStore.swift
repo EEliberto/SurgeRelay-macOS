@@ -58,6 +58,10 @@ enum PersistenceStore {
         configurationDirectoryURL.appending(path: "settings.json")
     }
 
+    static var settingsBackupURL: URL {
+        configurationDirectoryURL.appending(path: "settings.json.bak")
+    }
+
     static var upstreamStateURL: URL {
         configurationDirectoryURL.appending(path: "script-hub-state.json")
     }
@@ -85,17 +89,24 @@ enum PersistenceStore {
         if let settings: AppSettings = decodeFile(at: settingsURL) {
             return settings
         }
+        if let settings: AppSettings = decodeFile(at: settingsBackupURL) {
+            saveSettings(settings)
+            return settings
+        }
         if let data = UserDefaults.standard.data(forKey: legacySettingsKey),
            let settings = try? decoder.decode(AppSettings.self, from: data) {
             saveSettings(settings)
             return settings
         }
         let settings = AppSettings()
-        saveSettings(settings)
         return settings
     }
 
     static func saveSettings(_ settings: AppSettings) {
+        if FileManager.default.fileExists(atPath: settingsURL.path) {
+            try? FileManager.default.removeItem(at: settingsBackupURL)
+            try? FileManager.default.copyItem(at: settingsURL, to: settingsBackupURL)
+        }
         try? write(settings, to: settingsURL)
     }
 

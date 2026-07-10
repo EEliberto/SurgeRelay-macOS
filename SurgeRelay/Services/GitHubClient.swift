@@ -26,7 +26,21 @@ actor GitHubClient {
         let path: String
         let mode = "100644"
         let type = "blob"
-        let sha: String
+        let sha: String?
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(path, forKey: .path)
+            try container.encode(mode, forKey: .mode)
+            try container.encode(type, forKey: .type)
+            if let sha {
+                try container.encode(sha, forKey: .sha)
+            } else {
+                try container.encodeNil(forKey: .sha)
+            }
+        }
+
+        private enum CodingKeys: String, CodingKey { case path, mode, type, sha }
     }
     private struct TreeRequest: Encodable {
         let baseTree: String
@@ -144,10 +158,14 @@ actor GitHubClient {
                 .filter { $0.type == "blob" }
                 .map { ($0.path, $0.sha) }
         )
+        let desiredPaths = Set(files.map { repositoryPath(for: $0.name, settings: settings) })
         let changedFiles = files.filter { file in
             existingBlobSHAs[repositoryPath(for: file.name, settings: settings)] != file.data.gitBlobSHA1
         }
-        guard !changedFiles.isEmpty else { return PublishReport(publishedFiles: []) }
+        let deletionPaths = Set(files.flatMap(\.legacyNames).map { repositoryPath(for: $0, settings: settings) })
+            .filter { existingBlobSHAs[$0] != nil && !desiredPaths.contains($0) }
+            .sorted()
+        guard !changedFiles.isEmpty || !deletionPaths.isEmpty else { return PublishReport(publishedFiles: []) }
 
         var entries: [TreeEntry] = []
         for file in changedFiles {
@@ -161,6 +179,9 @@ actor GitHubClient {
             )
             let path = repositoryPath(for: file.name, settings: settings)
             entries.append(TreeEntry(path: path, sha: blob.sha))
+        }
+        for path in deletionPaths {
+            entries.append(TreeEntry(path: path, sha: nil))
         }
         let tree: TreeResponse = try await requestJSON(
             path: "git/trees",
@@ -212,7 +233,7 @@ actor GitHubClient {
         guard verifiedCommit.sha == commit.sha, verifiedCommit.tree.sha == tree.sha else {
             throw PublishAttemptError.verificationFailed
         }
-        return PublishReport(publishedFiles: changedFiles.map(\.name), commitSHA: commit.sha)
+        return PublishReport(publishedFiles: changedFiles.map(\.name) + deletionPaths, commitSHA: commit.sha)
     }
 
     private func isRetryablePublishError(_ error: Error) -> Bool {

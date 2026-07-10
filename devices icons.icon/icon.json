@@ -1,0 +1,100 @@
+{
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "hidden" : true,
+          "image-name" : "appletvremote.gen4.png",
+          "name" : "appletvremote.gen4",
+          "position" : {
+            "scale" : 1.11,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "automatic-gradient" : "display-p3:0.41826,0.65746,1.00000,1.00000"
+          },
+          "hidden" : true,
+          "image-name" : "vision.pro.png",
+          "name" : "vision.pro",
+          "position" : {
+            "scale" : 0.86,
+            "translation-in-points" : [
+              3.240000000000009,
+              8.25
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "linear-gradient" : [
+              "display-p3:0.73418,0.43793,0.18767,1.00000",
+              "display-p3:0.45119,0.17775,0.11944,1.00000"
+            ],
+            "orientation" : {
+              "start" : {
+                "x" : 0.5,
+                "y" : 0
+              },
+              "stop" : {
+                "x" : 0.5,
+                "y" : 0.7
+              }
+            }
+          },
+          "hidden" : false,
+          "image-name" : "desktopcomputer.and.macbook.png",
+          "name" : "desktopcomputer.and.macbook",
+          "position" : {
+            "scale" : 0.78,
+            "translation-in-points" : [
+              28.389999999999986,
+              -7.7999999999999545
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "linear-gradient" : [
+              "display-p3:0.41826,0.65746,1.00000,1.00000",
+              "display-p3:0.42407,0.35986,0.96783,1.00000"
+            ],
+            "orientation" : {
+              "start" : {
+                "x" : 0.5,
+                "y" : 0
+              },
+              "stop" : {
+                "x" : 0.5,
+                "y" : 0.7
+              }
+            }
+          },
+          "hidden" : true,
+          "image-name" : "ipad.landscape.and.iphone.png",
+          "name" : "ipad.landscape.and.iphone"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

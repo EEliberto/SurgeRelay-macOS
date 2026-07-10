@@ -62,6 +62,70 @@ struct GitHubSettings: Codable, Equatable, Sendable {
     }
 }
 
+enum RelayPlatform: String, Codable, CaseIterable, Identifiable, Sendable {
+    case ios = "iOS"
+    case macos = "macOS"
+    case tvos = "tvOS"
+    case visionos = "visionOS"
+
+    var id: String { rawValue }
+    var displayName: String { rawValue }
+
+    var summaryIconAssetName: String {
+        switch self {
+        case .ios: return "SummaryIOSIcon"
+        case .macos: return "SummaryMacOSIcon"
+        case .tvos: return "SummaryTVOSIcon"
+        case .visionos: return "SummaryVisionOSIcon"
+        }
+    }
+
+    var selectionID: UUID {
+        switch self {
+        case .ios: return UUID(uuidString: "00000000-0000-0000-0000-000000000010")!
+        case .macos: return UUID(uuidString: "00000000-0000-0000-0000-000000000020")!
+        case .tvos: return UUID(uuidString: "00000000-0000-0000-0000-000000000030")!
+        case .visionos: return UUID(uuidString: "00000000-0000-0000-0000-000000000040")!
+        }
+    }
+
+    static func from(selectionID: UUID) -> RelayPlatform? {
+        for platform in allCases {
+            if platform.selectionID == selectionID {
+                return platform
+            }
+        }
+        return nil
+    }
+}
+
+struct PlatformSettings: Codable, Equatable, Sendable {
+    var isEnabled: Bool = false
+    var moduleOrder: [UUID] = []
+    var disabledModules: Set<UUID> = []
+    var customIconURL: String?
+    var customIconSource: CustomIconSource = .manual
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled, moduleOrder, disabledModules, customIconURL, customIconSource
+    }
+
+    init() {}
+
+    init(isEnabled: Bool) {
+        self.isEnabled = isEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false
+        moduleOrder = try container.decodeIfPresent([UUID].self, forKey: .moduleOrder) ?? []
+        disabledModules = try container.decodeIfPresent(Set<UUID>.self, forKey: .disabledModules) ?? []
+        customIconURL = try container.decodeIfPresent(String.self, forKey: .customIconURL)
+        customIconSource = try container.decodeIfPresent(CustomIconSource.self, forKey: .customIconSource) ?? .manual
+    }
+}
+
 struct AppSettings: Codable, Equatable, Sendable {
     static let fixedCombinedModuleFileName = "Surge-Relay.sgmodule"
 
@@ -83,6 +147,13 @@ struct AppSettings: Codable, Equatable, Sendable {
     var localModuleDirectory: String = AppSettings.defaultSurgeDirectory
     var webServerEnabled = false
     var webServerPort = 8787
+    var platformSettings: [String: PlatformSettings] = [
+        RelayPlatform.ios.rawValue: PlatformSettings(isEnabled: true),
+        RelayPlatform.macos.rawValue: PlatformSettings(isEnabled: true),
+        RelayPlatform.tvos.rawValue: PlatformSettings(isEnabled: false),
+        RelayPlatform.visionos.rawValue: PlatformSettings(isEnabled: false)
+    ]
+    var iconSearchRegion: String = "cn"
 
     init() {}
 
@@ -104,6 +175,43 @@ struct AppSettings: Codable, Equatable, Sendable {
         localModuleDirectory = try container.decodeIfPresent(String.self, forKey: .localModuleDirectory) ?? Self.defaultSurgeDirectory
         webServerEnabled = try container.decodeIfPresent(Bool.self, forKey: .webServerEnabled) ?? false
         webServerPort = try container.decodeIfPresent(Int.self, forKey: .webServerPort) ?? 8787
+        platformSettings = try container.decodeIfPresent([String: PlatformSettings].self, forKey: .platformSettings) ?? [
+            RelayPlatform.ios.rawValue: PlatformSettings(isEnabled: true),
+            RelayPlatform.macos.rawValue: PlatformSettings(isEnabled: true),
+            RelayPlatform.tvos.rawValue: PlatformSettings(isEnabled: false),
+            RelayPlatform.visionos.rawValue: PlatformSettings(isEnabled: false)
+        ]
+        iconSearchRegion = try container.decodeIfPresent(String.self, forKey: .iconSearchRegion) ?? "cn"
+    }
+
+    var enabledPlatforms: [RelayPlatform] {
+        RelayPlatform.allCases.filter { platform in
+            platformSettings[platform.rawValue]?.isEnabled ?? false
+        }
+    }
+
+    func modules(for platform: RelayPlatform, globalModules: [RelayModule]) -> [RelayModule] {
+        let settings = platformSettings[platform.rawValue] ?? PlatformSettings()
+        let globalLookup = Dictionary(uniqueKeysWithValues: globalModules.map { ($0.id, $0) })
+        
+        var orderedIds = settings.moduleOrder
+        // Filter out any IDs that no longer exist globally
+        orderedIds = orderedIds.filter { globalLookup[$0] != nil }
+        
+        // Append any global modules that are not in the ordered list
+        let orderedSet = Set(orderedIds)
+        for module in globalModules {
+            if !orderedSet.contains(module.id) {
+                orderedIds.append(module.id)
+            }
+        }
+        
+        // Map to RelayModule and apply platform-specific enabled state
+        return orderedIds.compactMap { id -> RelayModule? in
+            guard var module = globalLookup[id] else { return nil }
+            module.isEnabled = module.isEnabled && !settings.disabledModules.contains(id)
+            return module
+        }
     }
 
     static var defaultOutputDirectory: String {
@@ -140,12 +248,19 @@ struct AppSettings: Codable, Equatable, Sendable {
         return github.publicURL(for: fileName)
     }
 
-    var localCombinedModuleURL: URL? {
+    func localCombinedModuleURL(for platform: RelayPlatform) -> URL? {
         guard storageMode == .local else { return nil }
         let directory = localModuleDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !directory.isEmpty else { return nil }
+        let platFileName: String
+        if platform == .ios {
+            platFileName = FilenameSanitizer.sgmoduleName(from: combinedModuleFileName)
+        } else {
+            let base = FilenameSanitizer.baseName(from: combinedModuleFileName)
+            platFileName = "\(base)-\(platform.rawValue).sgmodule"
+        }
         return URL(filePath: directory, directoryHint: .isDirectory)
-            .appending(path: FilenameSanitizer.sgmoduleName(from: combinedModuleFileName))
+            .appending(path: platFileName)
     }
 }
 

@@ -309,6 +309,17 @@ struct SettingsView: View {
                     set: { model.settings.automaticallyPublish = $0; model.saveSettings() }
                 ))
             }
+
+            Section("汇总平台") {
+                ForEach(RelayPlatform.allCases) { platform in
+                    Toggle("生成 Surge Relay 汇总 (\(platform.displayName))", isOn: Binding(
+                        get: { model.settings.platformSettings[platform.rawValue]?.isEnabled ?? false },
+                        set: { isEnabled in
+                            model.setPlatformEnabled(platform: platform, isEnabled: isEnabled)
+                        }
+                    ))
+                }
+            }
         }
         .formStyle(.grouped)
     }
@@ -397,12 +408,15 @@ struct SettingsView: View {
     private var synchronizationSettings: some View {
         VStack(spacing: 0) {
             Form {
-                Section("同步方式") {
+                Section {
                     Picker("同步方式", selection: storageModeBinding) {
                         Text("iCloud 云盘").tag(StorageMode.local)
                         Text("GitHub 私有仓库").tag(StorageMode.gitHub)
                     }
                     .pickerStyle(.segmented)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
                 }
 
                 if effectiveStorageMode == .local {
@@ -437,9 +451,7 @@ struct SettingsView: View {
                             set: { model.githubToken = $0 }
                         ))
                         .onChange(of: model.githubToken) { _, _ in connectionResult = nil }
-                    }
 
-                    Section("Cloudflare") {
                         TextField("公共地址", text: $githubCloudflareInput)
                             .onChange(of: githubCloudflareInput) { _, _ in connectionResult = nil }
                         Text("用于生成可在 Surge 中长期使用的稳定订阅地址。")
