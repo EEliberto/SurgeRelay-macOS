@@ -422,12 +422,15 @@ body.preview-mode .code-editor { min-height: 0; }
   100% { transform: none; }
 }
 .button.destructive { color: var(--red); }
+.copy-button,
 .detail-row.action-row .button:not(.primary) {
   border-radius: 9px;
   background: color-mix(in srgb, var(--accent) 11%, transparent);
   color: var(--accent);
 }
+.copy-button:hover,
 .detail-row.action-row .button:not(.primary):hover { background: color-mix(in srgb, var(--accent) 17%, transparent); }
+.copy-button.copy-success,
 .detail-row.action-row .button.copy-success {
   background: rgba(52, 199, 89, .14) !important;
   color: var(--green) !important;
@@ -695,6 +698,7 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
 .sheet-dialog .dialog-actions .button { border-radius: 9px; }
 .dialog-message { margin: 0 18px 12px; padding: 9px 12px; border-radius: 10px; background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); font-size: 12px; font-weight: 550; }
 .icon-dialog { width: min(620px, calc(100vw - 32px)); height: min(680px, calc(100dvh - 32px)); max-height: min(680px, calc(100dvh - 32px)); display: flex; flex-direction: column; }
+.icon-dialog:not([open]) { display: none; }
 .icon-dialog .dialog-header { align-items: center; }
 .dialog-header > .icon-editor-preview { width: 54px; height: 54px; flex: 0 0 54px; overflow: hidden; border: 1px solid var(--separator); border-radius: 14px; background: var(--fill); }
 .icon-editor-preview:empty { display: none; }
@@ -756,15 +760,15 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
 @media (max-width: 700px) {
   html, body {
     width: 100%; max-width: 100%; height: 100%; min-height: 0;
-    overflow: hidden; overscroll-behavior: none;
+    overflow-x: clip; overscroll-behavior-x: none;
     background: var(--background);
   }
-  body { height: 100dvh; min-height: 0; }
+  body { height: auto; min-height: 100lvh; }
   input:not([type="checkbox"]), select, textarea { font-size: 16px; }
-  .app-shell { width: 100%; max-width: 100%; height: 100dvh; min-height: 0; display: block; overflow: hidden; }
+  .app-shell { width: 100%; max-width: 100%; height: auto; min-height: 100lvh; display: block; overflow-x: clip; }
   .sidebar {
-    position: relative; inset: auto; width: 100%; height: 100dvh; min-height: 0;
-    overflow: hidden; border: 0;
+    position: relative; inset: auto; width: 100%; height: auto; min-height: 100lvh;
+    overflow-x: clip; overflow-y: visible; border: 0;
     transition: none;
   }
   body:not(.has-selection) .sidebar { touch-action: pan-y; }
@@ -778,7 +782,7 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
     background: var(--bar-glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   }
   .module-navigation {
-    height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain;
+    height: auto; min-height: calc(100lvh - 138px); overflow: visible; overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: calc(max(16px, env(safe-area-inset-top)) + 120px) 12px calc(132px + env(safe-area-inset-bottom));
     transition: transform 280ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease;
@@ -792,13 +796,13 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   body.has-selection .activity-shell { opacity: 0; transform: translateY(12px); pointer-events: none; }
   .detail {
     position: fixed; inset: 0; z-index: 5;
-    width: 100%; max-width: 100%; height: 100dvh; min-height: 0; overflow: hidden;
+    width: 100%; max-width: 100%; min-height: 100lvh; overflow-x: clip; overflow-y: visible;
     background: var(--background); transform: translateX(100%); opacity: .75;
     visibility: hidden; pointer-events: none;
     transition: transform 280ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease;
   }
   body.has-selection .detail {
-    position: fixed;
+    position: relative;
     visibility: visible; transform: none; opacity: 1; pointer-events: auto;
   }
   .mobile-header {
@@ -833,9 +837,8 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   }
   .mobile-header-spacer { width: 40px; flex: 0 0 40px; }
   .detail-content {
-    width: auto; height: 100%; min-height: 0; margin: 0;
-    overflow-y: auto; overscroll-behavior-y: contain;
-    -webkit-overflow-scrolling: touch;
+    width: auto; height: auto; min-height: 0; margin: 0;
+    overflow: visible; overscroll-behavior-y: auto;
     padding: calc(128px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom));
   }
   .detail-row { margin: 0 14px; grid-template-columns: 1fr; gap: 5px; }
@@ -852,12 +855,12 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   .argument-row { grid-template-columns: 1fr; }
   .argument-control { justify-content: stretch; }
   .argument-control input[type="text"] { max-width: none; text-align: left; }
-  .preview-shell { min-height: calc(100dvh - 100px); margin: 0 -16px -42px; border-left: 0; border-right: 0; border-radius: 0; }
+  .preview-shell { min-height: calc(100lvh - 100px); margin: 0 -16px -42px; border-left: 0; border-right: 0; border-radius: 0; }
   .preview-search-wrap { padding: 8px 12px; }
   .preview-search-field { height: 38px; }
   .preview-search-navigation { height: 38px; }
   .preview-search-button { width: 30px; height: 30px; }
-  .code-view, .code-editor { min-height: calc(100dvh - 150px); padding: 70px 16px 18px; font-size: 11px; }
+  .code-view, .code-editor { min-height: calc(100lvh - 150px); padding: 70px 16px 18px; font-size: 11px; }
   .sheet-dialog { width: 100vw; max-width: none; max-height: 92dvh; margin: auto 0 0; border-radius: 28px 28px 0 0; }
   .icon-dialog { height: 92dvh; max-height: 92dvh; }
   .icon-editor-content { padding: 16px 14px 6px; }
@@ -874,19 +877,25 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
     padding: 10px 14px;
     border-radius: 13px;
   }
-  body.preview-mode { height: 100dvh; overflow: hidden; }
+  body.preview-mode { height: auto; min-height: 100lvh; overflow: visible; }
+  body.preview-mode .app-shell {
+    height: auto; min-height: 100lvh; overflow-x: clip; overflow-y: visible;
+  }
   body.preview-mode.has-selection .detail {
-    position: fixed; inset: 0; height: 100dvh; min-height: 0;
-    overflow: hidden;
+    position: relative; inset: auto; height: auto; min-height: 100lvh;
+    display: block; overflow: visible;
   }
   body.preview-mode .detail-content {
-    width: 100%; height: 100%; min-height: 0; margin: 0;
+    width: 100%; height: auto; min-height: 0; margin: 0;
     padding: calc(112px + env(safe-area-inset-top)) 0 0;
-    display: flex;
+    display: block; flex: none;
   }
   body.preview-mode .detail-stage,
-  body.preview-mode .preview-shell { width: 100%; min-height: 0; flex: 1; }
-  body.preview-mode .preview-shell { margin: 0; border-top: 0; border-right: 0; border-left: 0; border-radius: 0; }
+  body.preview-mode .detail-stage { width: 100%; min-height: 0; display: block; flex: none; }
+  body.preview-mode .preview-shell {
+    width: 100%; height: auto; min-height: calc(100lvh - 100px); flex: none;
+    margin: 0; border-top: 0; border-right: 0; border-left: 0; border-radius: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

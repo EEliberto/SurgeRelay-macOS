@@ -663,7 +663,7 @@ function previewShell(label, editable) {
   previewSearchIndex = -1;
   previewEditorMirrorDirty = false;
   return `<section class="preview-shell">
-    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button" data-action="copy-preview"><span class="symbol" data-symbol="doc.on.doc"></span>拷贝全部</button>${editable ? `<button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
+    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button copy-button" data-action="copy-preview"><span class="symbol" data-symbol="copy"></span>拷贝全部</button>${editable ? `<button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
     <div class="preview-code-stage">
       <div class="preview-search-wrap">
         <div class="preview-search-field">
