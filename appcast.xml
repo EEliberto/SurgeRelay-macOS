@@ -13,13 +13,19 @@
             <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，全新设计的 20260710 版本已推出！
 
 此次更新我们带来了以下亮点：
+
 1.汇总模块分类：基于部份用户反馈和实际需求，很多模块在多设备端并不互相兼容，例如如果 Mac 安装了腾讯视频去广告模块、百度网盘去广告模块，会导致 Mac 上的 App 无法正常工作 (因为 macOS 端禁止 MitM)，现在 iOS (iPadOS)、macOS、tvOS、visionOS 都支持导出单独的汇总模块，并拥有了全新外观。
+
 2.模块图标支持自定义：即便模块没有设置过图标，也支持从 App Store 或自定义链接添加图标以做区分 (由 @StarYunLee 反馈)。
+
 3.编辑模块功能增强：除了使用 Script Hub 来自定义模块信息，你可以直接在 Surge Relay 的“预览”功能中编辑模块，Surge Relay 会记住你的修改设置，即便上游模块更新也不用担心，你的自定义设置不会丢失。
 
 其他：
+
 1.进行了大量 UI 调整，以确保符合 Apple HIG 设计规范。
+
 2.Web 端拥有了全新的体验，包括设置也来到了 Web 端，你可以使用 Web 接管 Surge Relay 几乎所有操作，以及支持根据设备尺寸自适应布局。
+
 3.上传/同步至 iCloud 云盘/Github 逻辑进行了大量优化，解决了许多可能因同步而造成的问题。
 
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
