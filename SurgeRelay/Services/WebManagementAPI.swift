@@ -573,6 +573,7 @@ enum WebManagementAPI {
         case "js": "text/javascript; charset=utf-8"
         case "svg": "image/svg+xml"
         case "png": "image/png"
+        case "ico": "image/x-icon"
         case "webmanifest": "application/manifest+json; charset=utf-8"
         default: "application/octet-stream"
         }

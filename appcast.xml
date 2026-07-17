@@ -4,9 +4,9 @@
         <title>Surge Relay</title>
         <item>
             <title>270717</title>
-            <pubDate>Fri, 17 Jul 2026 12:40:00 +0800</pubDate>
+            <pubDate>Fri, 17 Jul 2026 12:52:00 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v270717</link>
-            <sparkle:version>27071702</sparkle:version>
+            <sparkle:version>27071703</sparkle:version>
             <sparkle:shortVersionString>270717</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -24,7 +24,7 @@
 
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071702.dmg" length="23629807" type="application/octet-stream" sparkle:edSignature="3kTN5TCE12SslpcT7JpSwbPH35JH+rkl6cQV+h/HMUdHQ1W2pLnORcvQzuqN6GmwaZ7xHpaZoNdKVtuFr0A/Aw=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071703.dmg" length="23837743" type="application/octet-stream" sparkle:edSignature="3haAk03bGJevu06bn9f7m+kimoZwSXvZHh3hZ4n9lFrgRrW+Oc8N6ps0l31/yVOQs7zmOX6QS7JeA33rpDn7Dw=="/>
         </item>
         <item>
             <title>260710</title>
