@@ -1,8 +1,9 @@
 # Surge Relay (macOS)
 
 <p align="center">
-  <img width="160" alt="Surge Relay Icon" src="[https://github.com/user-attachments/assets/3672fe08-3217-41f8-a592-9a4f473b216b]" />
+  <img width="160" alt="Surge Relay Icon" src="https://github.com/user-attachments/assets/938b1de2-2ff7-49b8-b488-3d11ff3345f9" />
 </p>
+
 
 <p align="center">
   一款用于集中管理、转换、编辑和发布 Surge 模块的 macOS 应用程序。
