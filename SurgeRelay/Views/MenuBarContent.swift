@@ -11,6 +11,14 @@ struct MenuBarContent: View {
 
     var body: some View {
         Section("状态") {
+            if model.deviceMode == .client {
+                Text("客户端模式")
+                if let url = model.remoteManagementURL {
+                    Text(url.host ?? url.absoluteString)
+                } else {
+                    Text("尚未设置服务器 Ponte 地址")
+                }
+            }
             if model.isWorking {
                 Text(workingText)
             }
@@ -23,7 +31,7 @@ struct MenuBarContent: View {
         Button("更新全部模块") {
             Task { await model.updateAll() }
         }
-        .disabled(model.modules.isEmpty || model.isWorking)
+        .disabled(model.modules.isEmpty || model.isWorking || (model.deviceMode == .client && !model.hasConfiguredRemoteServer))
 
         if let url = model.combinedRawURL(for: .ios) {
             Button("拷贝总订阅地址") {
@@ -34,27 +42,34 @@ struct MenuBarContent: View {
 
         Divider()
 
-        Toggle("自动同步", isOn: Binding(
-            get: { model.settings.automaticallyPublish },
-            set: { model.settings.automaticallyPublish = $0; model.saveSettings() }
-        ))
-        Toggle("登录时启动", isOn: Binding(
-            get: { model.settings.launchAtLogin },
-            set: { model.setLaunchAtLogin($0) }
-        ))
+        if model.deviceMode == .server {
+            Toggle("自动同步", isOn: Binding(
+                get: { model.settings.automaticallyPublish },
+                set: { model.settings.automaticallyPublish = $0; model.saveSettings() }
+            ))
+            Toggle("登录时启动", isOn: Binding(
+                get: { model.settings.launchAtLogin },
+                set: { model.setLaunchAtLogin($0) }
+            ))
 
-        Divider()
+            Divider()
+        }
 
-        Button("打开 Surge Relay") { activateMainWindow() }
+        Button("打开 Surge Relay") {
+            activateMainWindow()
+        }
         CheckForUpdatesView(updater: updater)
         Button("设置…") {
-            NSApp.setActivationPolicy(.regular)
-            openWindow(id: SurgeRelayWindow.settings)
-            NSApp.activate(ignoringOtherApps: true)
+            activateSettingsWindow()
         }
         Divider()
-
         Button("退出 Surge Relay") { NSApplication.shared.terminate(nil) }
+    }
+
+    private func activateSettingsWindow() {
+        NSApp.setActivationPolicy(.regular)
+        openWindow(id: SurgeRelayWindow.settings)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private var latestUpdateText: String {

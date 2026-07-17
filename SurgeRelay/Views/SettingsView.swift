@@ -73,6 +73,7 @@ struct SettingsView: View {
     @State private var isCheckingUpdate = false
     @State private var isTesting = false
     @State private var connectionResult: ConnectionResult?
+    @State private var ponteServerAddressInput = ""
     @State private var showsWebQRCode = false
     @State private var pendingStorageMode: StorageMode?
     @State private var selectedPane: SettingsPane = .general
@@ -103,6 +104,7 @@ struct SettingsView: View {
     private enum SettingsPane: String, CaseIterable, Identifiable {
         case general
         case web
+        case ponte
         case scriptHub
         case synchronization
         case diagnostics
@@ -114,6 +116,7 @@ struct SettingsView: View {
             switch self {
             case .general: "通用"
             case .web: "Web 管理"
+            case .ponte: "Surge Ponte"
             case .scriptHub: "Script Hub"
             case .synchronization: "同步"
             case .diagnostics: "诊断"
@@ -125,6 +128,7 @@ struct SettingsView: View {
             switch self {
             case .general: "gearshape"
             case .web: "network"
+            case .ponte: "dot.radiowaves.left.and.right"
             case .scriptHub: "arrow.triangle.branch"
             case .synchronization: "arrow.trianglehead.2.clockwise.rotate.90"
             case .diagnostics: "stethoscope"
@@ -175,6 +179,7 @@ struct SettingsView: View {
                 navigate(to: .about)
             }
             loadGitHubDraftIfNeeded()
+            ponteServerAddressInput = model.ponteServerAddress
         }
         .onDisappear(perform: resetNavigation)
         .onReceive(NotificationCenter.default.publisher(for: .showSurgeRelayAbout)) { _ in
@@ -217,6 +222,7 @@ struct SettingsView: View {
         switch pane {
         case .general: generalSettings
         case .web: webSettings
+        case .ponte: ponteSettings
         case .scriptHub: scriptHubSettings
         case .synchronization: synchronizationSettings
         case .diagnostics: diagnosticsSettings
@@ -312,7 +318,7 @@ struct SettingsView: View {
 
             Section("汇总平台") {
                 ForEach(RelayPlatform.allCases) { platform in
-                    Toggle("生成 Surge Relay 汇总 (\(platform.displayName))", isOn: Binding(
+                    Toggle("生成 Surge Relay 汇总 (\(platform.summaryDisplayName))", isOn: Binding(
                         get: { model.settings.platformSettings[platform.rawValue]?.isEnabled ?? false },
                         set: { isEnabled in
                             model.setPlatformEnabled(platform: platform, isEnabled: isEnabled)
@@ -326,37 +332,135 @@ struct SettingsView: View {
 
     private var webSettings: some View {
         Form {
-            Section("本地管理") {
-                Toggle("启用 Web 管理", isOn: Binding(
-                    get: { model.settings.webServerEnabled },
-                    set: {
-                        model.settings.webServerEnabled = $0
-                        model.applyWebServerSettings()
-                    }
-                ))
-                TextField("端口", value: Binding(
-                    get: { model.settings.webServerPort },
-                    set: { model.settings.webServerPort = $0 }
-                ), format: .number.grouping(.never))
-                .onChange(of: model.settings.webServerPort) { _, _ in
-                    if model.settings.webServerEnabled {
-                        model.applyWebServerSettings()
-                    }
+            if model.deviceMode == .client {
+                Section {
+                    Label(
+                        "客户端模式下无法再次开启 Web 服务，请前往 Surge Relay 服务器端进行 Web 管理。",
+                        systemImage: "info.circle"
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                if let url = model.webManagementURL {
-                    LabeledContent("Bonjour 地址") {
-                        Text(url.absoluteString)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
+            } else {
+                Section("本地管理") {
+                    Toggle("启用 Web 管理", isOn: Binding(
+                        get: { model.settings.webServerEnabled },
+                        set: {
+                            model.settings.webServerEnabled = $0
+                            model.applyWebServerSettings()
+                        }
+                    ))
+                    TextField("端口", value: Binding(
+                        get: { model.settings.webServerPort },
+                        set: { model.settings.webServerPort = $0 }
+                    ), format: .number.grouping(.never))
+                    .onChange(of: model.settings.webServerPort) { _, _ in
+                        if model.settings.webServerEnabled {
+                            model.applyWebServerSettings()
+                        }
                     }
-                    HStack {
-                        Button("打开", systemImage: "safari") { NSWorkspace.shared.open(url) }
-                        Button("二维码", systemImage: "qrcode") { showsWebQRCode = true }
+                    if let url = model.webManagementURL {
+                        LabeledContent("Bonjour 地址") {
+                            Text(url.absoluteString)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                        HStack {
+                            Button("打开", systemImage: "safari") { NSWorkspace.shared.open(url) }
+                            Button("二维码", systemImage: "qrcode") { showsWebQRCode = true }
+                        }
                     }
                 }
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var ponteSettings: some View {
+        Form {
+            Section("Surge Ponte") {
+                Picker("此 Mac 用作", selection: Binding(
+                    get: { model.deviceMode },
+                    set: { mode in Task { await model.setDeviceMode(mode) } }
+                )) {
+                    Text("服务器模式").tag(RelayDeviceMode.server)
+                    Text("客户端模式").tag(RelayDeviceMode.client)
+                }
+                .pickerStyle(.segmented)
+
+                if model.deviceMode == .server {
+                    Text("此 Mac 继续使用原有的 iCloud 或 GitHub 同步方式，并接受其他 Mac 通过 Surge Ponte 进行管理。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("你可以使用 Surge Ponte 功能，输入 Ponte 地址以在其他 Mac 上管理 Surge Relay。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if model.deviceMode == .client {
+                Section {
+                    HStack(spacing: 12) {
+                        Text("服务器地址")
+                        TextField("", text: $ponteServerAddressInput, prompt: Text("johnsmac.sgponte"))
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: ponteServerAddressInput) { _, _ in
+                            connectionResult = nil
+                        }
+
+                        Button("测试连接") {
+                            Task {
+                                isTesting = true
+                                defer { isTesting = false }
+                                do {
+                                    try await model.testPonteServer(address: ponteServerAddressInput)
+                                    ponteServerAddressInput = model.ponteServerAddress
+                                    connectionResult = .success("Ponte 服务器连接成功，地址已生效。")
+                                } catch {
+                                    connectionResult = .failure(error.localizedDescription)
+                                }
+                            }
+                        }
+                        .disabled(isTesting || candidatePonteManagementURL == nil)
+                    }
+                    if let result = connectionResult {
+                        Label(
+                            result.message,
+                            systemImage: result.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(result.isError ? .red : .green)
+                    }
+                }
+            } else {
+                Section("服务器状态") {
+                    if model.settings.webServerEnabled, model.webManagementURL != nil {
+                        Label("服务器已就绪", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        LabeledContent("端口") { Text(String(model.settings.webServerPort)) }
+                        Text("其他 Mac 可通过此 Mac 的 Ponte 名称和该端口建立连接。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("需要启用 Web 管理服务", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("请先在“Web 管理”中启用服务，客户端才能通过 Surge Ponte 连接此 Mac。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var candidatePonteManagementURL: URL? {
+        RelayDeviceConfiguration.managementURL(
+            address: ponteServerAddressInput,
+            defaultPort: model.settings.webServerPort
+        )
     }
 
     private var scriptHubSettings: some View {
@@ -374,10 +478,27 @@ struct SettingsView: View {
                     )) ?? "尚未检查")
                         .foregroundStyle(.secondary)
                 }
-                TextField("上游模块", text: stringBinding(\.scriptHubModuleURL))
+                TextField("上游模块", text: Binding(
+                    get: { model.settings.scriptHubModuleURL },
+                    set: {
+                        model.settings.scriptHubModuleURL = $0
+                        if model.isClientMode {
+                            Task { await model.pushRemoteScriptHubSettings() }
+                        } else {
+                            model.saveSettings()
+                        }
+                    }
+                ))
                 Toggle("自动更新", isOn: Binding(
                     get: { model.settings.automaticallyUpdateScriptHub },
-                    set: { model.settings.automaticallyUpdateScriptHub = $0; model.saveSettings() }
+                    set: {
+                        model.settings.automaticallyUpdateScriptHub = $0
+                        if model.isClientMode {
+                            Task { await model.pushRemoteScriptHubSettings() }
+                        } else {
+                            model.saveSettings()
+                        }
+                    }
                 ))
                 HStack(spacing: 8) {
                     Button("检查更新", systemImage: "arrow.clockwise") {
@@ -795,7 +916,11 @@ struct SettingsView: View {
         if model.settings.github.branch.isEmpty { model.settings.github.branch = "main" }
         if model.settings.github.directory.isEmpty { model.settings.github.directory = "modules" }
         model.settings.github.publicBaseURL = githubCloudflareInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        model.saveSettings()
+        if model.isClientMode {
+            Task { await model.pushRemoteSyncSettings() }
+        } else {
+            model.saveSettings()
+        }
         return true
     }
 

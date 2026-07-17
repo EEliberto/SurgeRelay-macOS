@@ -123,6 +123,9 @@ let selectedID = 'combined';
 let selectedPlatform = 'iOS';
 let detailTab = 'info';
 let editingID = null;
+/** @type {{ moduleID: string, arguments: Array<{key: string, defaultValue: string, value: string}>, help: string|null } | null} */
+let moduleArgumentsState = null;
+let moduleArgumentsLoadToken = 0;
 let previewText = '';
 let previewSavedText = '';
 let previewSearchQuery = '';
@@ -422,7 +425,7 @@ function renderSummaryList() {
   setTemplateHTML(ui.summaryList, activePlatforms.map(platform => {
     const isSelected = selectedID === `combined-${platform.id}`;
     return `<button class="summary-row ${isSelected ? 'selected' : ''}" data-platform-id="${platform.id}" type="button">
-      <span class="module-icon summary-icon"><img src="${escapeAttribute(platform.iconURL || '/summary-icon.png?v=1')}" alt=""></span>
+      <span class="module-icon summary-icon"><img src="${escapeAttribute(platform.iconURL || '/summary-icon.png?v=2')}" alt=""></span>
       <span class="module-copy"><strong>Surge Relay 汇总 (${platform.displayName})</strong><small>${platform.enabledModules.length} 个来源</small></span>
       <span class="symbol disclosure" data-symbol="chevron.right"></span>
     </button>`;
@@ -482,7 +485,7 @@ function renderDetail(animate = true) {
     const name = `Surge Relay 汇总 (${currentPlatform.displayName})`;
     ui.mobileTitle.textContent = name;
     if (ui.mobileTitleIcon) {
-      setTemplateHTML(ui.mobileTitleIcon, '<img src="/app-icon.png?v=1" alt="">');
+      setTemplateHTML(ui.mobileTitleIcon, '<img src="/brand-icon.png?v=5" alt="">');
       ui.mobileTitleIcon.style.display = 'block';
     }
     ui.desktopTitle.textContent = name;
@@ -493,7 +496,7 @@ function renderDetail(animate = true) {
     if (module) {
       ui.mobileTitle.textContent = module.name;
       if (ui.mobileTitleIcon) {
-        setTemplateHTML(ui.mobileTitleIcon, '<img src="/app-icon.png?v=1" alt="">');
+        setTemplateHTML(ui.mobileTitleIcon, '<img src="/brand-icon.png?v=5" alt="">');
         ui.mobileTitleIcon.style.display = 'block';
       }
       ui.desktopTitle.textContent = module.name;
@@ -567,7 +570,7 @@ function renderCombinedDetail(animate = true) {
     <section class="form-section-view module-detail-header-section">
       <div class="group-box module-detail-header-card">
         <div class="module-detail-icon-clickable summary-module-icon">
-          <img src="${escapeAttribute(currentPlatform.iconURL || '/summary-icon.png?v=1')}" alt="">
+          <img src="${escapeAttribute(currentPlatform.iconURL || '/summary-icon.png?v=2')}" alt="">
         </div>
         <div class="module-detail-copy">
           <h2>Surge Relay 汇总 (${escapeHTML(currentPlatform.displayName)})</h2>
@@ -628,6 +631,9 @@ function renderModuleDetail(module, animate = true) {
       <span>提示：若要自行修改模块内容，请通过上方“预览”标签页进行编辑。直接修改 iCloud 生成的同步文件将在下一次同步时被覆盖。</span>
     </div>
   </div></section>` : '';
+  const argumentsSlot = moduleArgumentsState?.moduleID === module.id
+    ? argumentsSectionHTML(moduleArgumentsState)
+    : '<div id="module-arguments-slot"></div>';
   setDetailHTML(`${detailToolbar(module)}
     ${headerSection}
     <section class="form-section-view"><h3 class="section-heading">模块信息</h3><div class="group-box">
@@ -635,7 +641,145 @@ function renderModuleDetail(module, animate = true) {
       ${detailRow('doc.text', '来源格式', module.sourceFormatTitle)}
       ${detailRow('clock', '上次更新', formatDate(module.lastUpdatedAt, '从未更新'))}
     </div></section>
-    ${individualOutput}${advanced}${conflict}${published}${error}`, animate);
+    ${argumentsSlot}${individualOutput}${advanced}${conflict}${published}${error}`, animate);
+  if (moduleArgumentsState?.moduleID === module.id) {
+    refreshArgumentActions();
+  } else {
+    loadModuleArguments(module.id);
+  }
+}
+
+function argumentsSectionHTML(payload) {
+  if (!payload?.arguments?.length) return '';
+  const rows = payload.arguments.map(argument => {
+    const key = argument.key;
+    const defaultValue = String(argument.defaultValue ?? '');
+    const value = String(argument.value ?? defaultValue);
+    const isBool = ['true', 'false'].includes(defaultValue.toLowerCase());
+    const control = isBool
+      ? `<label class="module-toggle" aria-label="${escapeAttribute(key)}"><input type="checkbox" data-argument-key="${escapeAttribute(key)}" data-default-value="${escapeAttribute(defaultValue)}" ${value.toLowerCase() === 'true' ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>`
+      : `<input type="text" data-argument-key="${escapeAttribute(key)}" data-default-value="${escapeAttribute(defaultValue)}" value="${escapeAttribute(value)}" placeholder="${escapeAttribute(defaultValue)}" autocomplete="off" spellcheck="false">`;
+    return `<div class="detail-row argument-row"><div class="argument-name" title="默认值：${escapeAttribute(defaultValue)}">${escapeHTML(key)}</div><div class="argument-control">${control}</div></div>`;
+  }).join('');
+  const help = payload.help
+    ? `<details class="parameter-help"><summary><span class="symbol" data-symbol="chevron.right"></span><span>参数说明</span></summary><p>${escapeHTML(payload.help)}</p></details>`
+    : '';
+  return `<section class="form-section-view" id="module-arguments-section"><h3 class="section-heading">模块参数</h3><div class="group-box">
+    ${rows}
+    <div class="arguments-footer argument-buttons-footer">
+      <div class="arguments-actions">
+        <button class="button" data-action="reset-arguments" type="button" disabled>恢复默认值</button>
+        <button class="button primary" data-action="apply-arguments" type="button" disabled>确认</button>
+      </div>
+    </div>
+    ${help}
+  </div></section>`;
+}
+
+async function loadModuleArguments(moduleID) {
+  const token = ++moduleArgumentsLoadToken;
+  try {
+    const payload = await api(`/api/modules/${moduleID}/arguments`);
+    if (token !== moduleArgumentsLoadToken || selectedID !== moduleID || detailTab !== 'info') return;
+    moduleArgumentsState = {
+      moduleID,
+      arguments: Array.isArray(payload.arguments) ? payload.arguments : [],
+      help: payload.help || null
+    };
+    const slot = document.querySelector('#module-arguments-slot');
+    const html = argumentsSectionHTML(moduleArgumentsState);
+    if (slot) {
+      if (!html) {
+        slot.remove();
+      } else {
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        slot.replaceWith(template.content);
+        refreshArgumentActions();
+      }
+    } else if (html && selectedID === moduleID) {
+      renderDetail(false);
+    }
+  } catch (error) {
+    if (token !== moduleArgumentsLoadToken || selectedID !== moduleID) return;
+    const slot = document.querySelector('#module-arguments-slot');
+    if (slot) slot.remove();
+  }
+}
+
+function readArgumentValuesFromDOM() {
+  const values = {};
+  document.querySelectorAll('#module-arguments-section [data-argument-key]').forEach(input => {
+    const key = input.dataset.argumentKey;
+    if (!key) return;
+    if (input.type === 'checkbox') {
+      values[key] = input.checked ? 'true' : 'false';
+    } else {
+      values[key] = input.value.trim();
+    }
+  });
+  return values;
+}
+
+function normalizedArgumentValue(value) {
+  return String(value ?? '').trim();
+}
+
+function refreshArgumentActions() {
+  const section = document.querySelector('#module-arguments-section');
+  if (!section || !moduleArgumentsState?.arguments?.length) return;
+  const values = readArgumentValuesFromDOM();
+  let hasPendingChanges = false;
+  let hasNonDefault = false;
+  for (const argument of moduleArgumentsState.arguments) {
+    const current = normalizedArgumentValue(values[argument.key] ?? argument.defaultValue);
+    const saved = normalizedArgumentValue(argument.value ?? argument.defaultValue);
+    const defaults = normalizedArgumentValue(argument.defaultValue);
+    if (current !== saved) hasPendingChanges = true;
+    if (current !== defaults) hasNonDefault = true;
+  }
+  const resetButton = section.querySelector('[data-action="reset-arguments"]');
+  const applyButton = section.querySelector('[data-action="apply-arguments"]');
+  if (resetButton) resetButton.disabled = !hasNonDefault;
+  if (applyButton) applyButton.disabled = !hasPendingChanges;
+}
+
+async function applyModuleArguments() {
+  if (!moduleArgumentsState?.moduleID || selectedID !== moduleArgumentsState.moduleID) return;
+  const values = readArgumentValuesFromDOM();
+  try {
+    const result = await api(`/api/modules/${moduleArgumentsState.moduleID}/arguments`, {
+      method: 'PUT',
+      json: { values }
+    });
+    showToast(result.message || '模块参数已保存');
+    moduleArgumentsState = {
+      ...moduleArgumentsState,
+      arguments: moduleArgumentsState.arguments.map(argument => ({
+        ...argument,
+        value: values[argument.key] ?? argument.defaultValue
+      }))
+    };
+    refreshArgumentActions();
+    await loadState(false, false);
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function resetModuleArguments() {
+  if (!moduleArgumentsState?.moduleID || selectedID !== moduleArgumentsState.moduleID) return;
+  const section = document.querySelector('#module-arguments-section');
+  if (!section) return;
+  section.querySelectorAll('[data-argument-key]').forEach(input => {
+    const defaultValue = input.dataset.defaultValue ?? '';
+    if (input.type === 'checkbox') {
+      input.checked = defaultValue.toLowerCase() === 'true';
+    } else {
+      input.value = defaultValue;
+    }
+  });
+  refreshArgumentActions();
 }
 
 function detailRow(icon, label, value, raw = false) {
@@ -871,7 +1015,7 @@ async function handleDetailClick(event) {
       name: `Surge Relay 汇总 (${platform.displayName})`,
       iconURL: platform.iconURL,
       customIconURL: platform.customIconURL,
-      defaultIconURL: '/summary-icon.png?v=1',
+      defaultIconURL: '/summary-icon.png?v=2',
       iconTarget: 'platform'
     });
     break;
@@ -886,6 +1030,8 @@ async function handleDetailClick(event) {
   case 'preview-search-next': movePreviewSearch(1); break;
 
   case 'accept-override': if (module) await acceptOverride(module); break;
+  case 'apply-arguments': await applyModuleArguments(); break;
+  case 'reset-arguments': await resetModuleArguments(); break;
   }
 }
 
@@ -1150,6 +1296,10 @@ function selectItem(id, pushHistory = true) {
   }
   const cameFromList = mobileLayout.matches && !ui.body.classList.contains('has-selection');
   if (cameFromList) listScrollY = ui.navigation?.scrollTop || 0;
+  if (moduleArgumentsState?.moduleID !== id) {
+    moduleArgumentsState = null;
+    moduleArgumentsLoadToken += 1;
+  }
   selectedID = id; detailTab = 'info'; ui.body.classList.add('has-selection');
   if (pushHistory) {
     const url = new URL(location.href);
@@ -1464,7 +1614,7 @@ function generalSettingsMarkup(settings) {
       ${settingsSwitchRow('自动同步', 'automaticallyPublish', settings.automaticallyPublish)}
     </div></section>
     <section class="editor-section"><h3>汇总平台</h3><div class="editor-group">
-      ${settingsSwitchRow('生成 Surge Relay 汇总 (iOS)', 'platform-iOS', settings.platforms?.iOS)}
+      ${settingsSwitchRow('生成 Surge Relay 汇总 (iOS 和 iPadOS)', 'platform-iOS', settings.platforms?.iOS)}
       ${settingsSwitchRow('生成 Surge Relay 汇总 (macOS)', 'platform-macOS', settings.platforms?.macOS)}
       ${settingsSwitchRow('生成 Surge Relay 汇总 (tvOS)', 'platform-tvOS', settings.platforms?.tvOS)}
       ${settingsSwitchRow('生成 Surge Relay 汇总 (visionOS)', 'platform-visionOS', settings.platforms?.visionOS)}
@@ -1538,7 +1688,7 @@ function diagnosticsSettingsMarkup(settings) {
 
 function aboutSettingsMarkup(settings) {
   return `
-    <section class="editor-section"><div class="settings-about-hero"><img src="/app-icon.png?v=3" alt=""><strong>Surge Relay</strong><span>版本 ${escapeHTML(settings.appVersion || '—')}</span></div></section>
+    <section class="editor-section"><div class="settings-about-hero"><img src="/brand-icon.png?v=5" alt=""><strong>Surge Relay</strong><span>版本 ${escapeHTML(settings.appVersion || '—')}</span></div></section>
     <section class="editor-section"><h3>项目</h3><div class="editor-group">
       ${settingsLinkRow('/github-icon.png?v=2', 'Surge Relay', 'EEliberto/SurgeRelay-macOS', 'https://github.com/EEliberto/SurgeRelay-macOS')}
       ${settingsLinkRow('/script-hub-icon.png?v=2', 'Script Hub', 'github.com/Script-Hub-Org', 'https://github.com/Script-Hub-Org')}

@@ -71,6 +71,14 @@ enum RelayPlatform: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var displayName: String { rawValue }
 
+    /// User-facing label for summary modules (sidebar, settings, generated #!name).
+    var summaryDisplayName: String {
+        switch self {
+        case .ios: "iOS 和 iPadOS"
+        case .macos, .tvos, .visionos: rawValue
+        }
+    }
+
     var summaryIconAssetName: String {
         switch self {
         case .ios: return "SummaryIOSIcon"
@@ -267,6 +275,54 @@ struct AppSettings: Codable, Equatable, Sendable {
 enum StorageMode: String, Codable, Sendable {
     case local
     case gitHub
+}
+
+/// This is intentionally stored in UserDefaults rather than AppSettings.
+/// AppSettings may live in iCloud, while each Mac must keep its own role.
+enum RelayDeviceMode: String, CaseIterable, Identifiable, Sendable {
+    case server
+    case client
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .server: "服务器"
+        case .client: "客户端"
+        }
+    }
+}
+
+enum RelayDeviceConfiguration {
+    private static let modeKey = "SurgeRelay.deviceMode.v1"
+    private static let ponteAddressKey = "SurgeRelay.ponteServerAddress.v1"
+
+    static var mode: RelayDeviceMode {
+        get {
+            guard let rawValue = UserDefaults.standard.string(forKey: modeKey),
+                  let mode = RelayDeviceMode(rawValue: rawValue) else { return .server }
+            return mode
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: modeKey) }
+    }
+
+    static var ponteServerAddress: String {
+        get { UserDefaults.standard.string(forKey: ponteAddressKey) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: ponteAddressKey) }
+    }
+
+    static func managementURL(address: String, defaultPort: Int) -> URL? {
+        let value = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        let candidate = value.contains("://") ? value : "http://\(value)"
+        guard var components = URLComponents(string: candidate),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = components.host, !host.isEmpty else { return nil }
+        if components.port == nil { components.port = defaultPort }
+        if components.path.isEmpty { components.path = "/" }
+        return components.url
+    }
 }
 
 struct ScriptHubUpstreamState: Codable, Equatable, Sendable {

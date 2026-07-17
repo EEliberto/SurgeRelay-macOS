@@ -137,15 +137,17 @@ struct ModuleEditorView: View {
     }
 
     private func save() {
-        do {
-            if let module {
-                try model.updateModule(id: module.id, from: draft)
-            } else {
-                try model.addModule(from: draft)
+        Task {
+            do {
+                if let module {
+                    try await model.updateModule(id: module.id, from: draft)
+                } else {
+                    try await model.addModule(from: draft)
+                }
+                dismiss()
+            } catch {
+                localError = error.localizedDescription
             }
-            dismiss()
-        } catch {
-            localError = error.localizedDescription
         }
     }
 }

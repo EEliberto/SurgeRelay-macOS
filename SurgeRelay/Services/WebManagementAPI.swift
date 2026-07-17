@@ -63,8 +63,13 @@ enum WebManagementAPI {
                 return .json(ActionPayload(ok: true, message: "已开始更新全部模块。"), status: 202, reason: "Accepted")
             case ("POST", "/api/modules"):
                 let mutation = try request.decodeBody(WebModuleMutation.self)
-                try model.addModule(from: mutation.draft())
+                try await model.addModule(from: mutation.draft())
                 return .json(ActionPayload(ok: true, message: model.statusMessage), status: 201, reason: "Created")
+            case ("POST", "/api/modules/reorder"):
+                let mutation = try request.decodeBody(WebReorderMutation.self)
+                let ids = mutation.ids.compactMap(UUID.init(uuidString:))
+                model.reorderModules(ids: ids)
+                return .json(ActionPayload(ok: true, message: model.statusMessage))
             case ("POST", "/api/source/name"):
                 let payload = try request.decodeBody(WebSourceNameRequest.self)
                 guard let url = URL(string: payload.url),
@@ -294,7 +299,7 @@ enum WebManagementAPI {
             switch request.method {
             case "PUT":
                 let mutation = try request.decodeBody(WebModuleMutation.self)
-                try model.updateModule(id: id, from: mutation.draft(existing: module))
+                try await model.updateModule(id: id, from: mutation.draft(existing: module))
                 return .json(ActionPayload(ok: true, message: model.statusMessage))
             case "DELETE":
                 await model.deleteModule(id: id)
@@ -427,7 +432,7 @@ enum WebManagementAPI {
             let enabledModules = resolvedModules.filter(\.isEnabled).map { $0.id.uuidString.lowercased() }
             return WebPlatformPayload(
                 id: platform.rawValue,
-                displayName: platform.displayName,
+                displayName: platform.summaryDisplayName,
                 isEnabled: settings.isEnabled,
                 fileName: model.platformFileName(for: platform),
                 iconURL: settings.customIconURL ?? defaultPlatformIconURL(for: platform),
@@ -442,7 +447,7 @@ enum WebManagementAPI {
             storageMode: model.settings.storageMode.rawValue,
             settings: settingsPayload(model: model),
             combined: WebCombinedPayload(
-                name: "Surge Relay 汇总 (iOS)",
+                name: "Surge Relay 汇总 (\(RelayPlatform.ios.summaryDisplayName))",
                 fileName: model.platformFileName(for: .ios),
                 sourceCount: model.modules.count,
                 enabledCount: model.settings.modules(for: .ios, globalModules: model.modules).filter(\.isEnabled).count,
@@ -467,6 +472,7 @@ enum WebManagementAPI {
                     lastError: module.lastError,
                     iconURL: iconURL(for: module),
                     customIconURL: module.customIconURL,
+                    customIconSource: module.customIconSource.rawValue,
                     publishedURL: model.rawURL(for: module)?.absoluteString,
                     advancedSummary: module.scriptHubOptions.configuredSummary,
                     hasOverrideConflict: module.hasOverrideConflict,
@@ -477,7 +483,13 @@ enum WebManagementAPI {
                     mitmAdd: module.scriptHubOptions.mitmAdd,
                     mitmRemove: module.scriptHubOptions.mitmRemove,
                     noResolve: module.scriptHubOptions.noResolve,
-                    enableJQ: module.scriptHubOptions.enableJQ
+                    enableJQ: module.scriptHubOptions.enableJQ,
+                    argumentOverrides: module.argumentOverrides,
+                    policyOverrides: module.policyOverrides,
+                    customRules: module.customRules,
+                    customMitM: module.customMitM,
+                    detectedSourceFormat: module.detectedSourceFormat?.rawValue,
+                    contentHash: module.contentHash
                 )
             },
             activity: WebActivityPayload(
@@ -494,13 +506,13 @@ enum WebManagementAPI {
     private static func defaultPlatformIconURL(for platform: RelayPlatform) -> String {
         switch platform {
         case .ios:
-            return "/summary-ios.png?v=1"
+            return "/summary-ios.png?v=2"
         case .macos:
-            return "/summary-macos.png?v=1"
+            return "/summary-macos.png?v=2"
         case .visionos:
-            return "/summary-visionos.png?v=1"
+            return "/summary-visionos.png?v=2"
         case .tvos:
-            return "/summary-tvos.png?v=1"
+            return "/summary-tvos.png?v=2"
         }
     }
 
@@ -639,6 +651,7 @@ private struct WebModulePayload: Encodable {
     let lastError: String?
     let iconURL: String?
     let customIconURL: String?
+    let customIconSource: String
     let publishedURL: String?
     let advancedSummary: String?
     let hasOverrideConflict: Bool
@@ -650,6 +663,16 @@ private struct WebModulePayload: Encodable {
     let mitmRemove: String
     let noResolve: Bool
     let enableJQ: Bool
+    let argumentOverrides: [String: String]
+    let policyOverrides: [String: String]
+    let customRules: [String]
+    let customMitM: [String]
+    let detectedSourceFormat: String?
+    let contentHash: String?
+}
+
+private struct WebReorderMutation: Decodable {
+    let ids: [String]
 }
 
 private struct WebSettingsPayload: Encodable {

@@ -112,7 +112,7 @@ struct SurgeRelayApp: App {
                     Task { await model.updateAll() }
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-                .disabled(model.isWorking)
+                .disabled(model.isWorking || model.deviceMode == .client)
             }
         }
 
@@ -127,7 +127,7 @@ struct SurgeRelayApp: App {
         .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
 
-        MenuBarExtra("Surge Relay", systemImage: "repeat") {
+        MenuBarExtra("Surge Relay", systemImage: "dot.radiowaves.left.and.right") {
             MenuBarContent(updater: updaterController.updater)
                 .environment(model)
                 .environment(\.locale, Locale(identifier: "zh_CN"))

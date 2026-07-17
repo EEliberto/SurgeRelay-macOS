@@ -24,6 +24,8 @@
 		428F3605819F521142B80066 /* ModuleOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532731E293DA280A8A42D96 /* ModuleOrdering.swift */; };
 		4B5E934EB9AC34C451301F50 /* WebManagementAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */; };
 		540136DA3B34EAD959E5B5F7 /* WebManagementServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */; };
+		5A1C9E2F8B4D6A0C3E7F1B20 /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1C9E2F8B4D6A0C3E7F1B21 /* RemoteManagementClient.swift */; };
+		5A1C9E2F8B4D6A0C3E7F1B22 /* AppModel+RemoteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1C9E2F8B4D6A0C3E7F1B23 /* AppModel+RemoteClient.swift */; };
 		6C8F8E71624D2151BFA675ED /* ServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */; };
 		6FD484283175DC8133118FF1 /* ModuleMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */; };
 		709FF80593ADF6216AF25D9D /* RelayModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */; };
@@ -37,6 +39,7 @@
 		93D45771DAD23A3F8AD5473F /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */; };
 		9457731342986CF96B53EA0F /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */; };
 		AA8F7B5F28379ACDB4DDEDB9 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD7A6C8082510469A2FA843 /* RootView.swift */; };
+		7C3E9A1B2D4F6081A9C0E2F5 /* WelcomeWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3E9A1B2D4F6081A9C0E2F4 /* WelcomeWizardView.swift */; };
 		B46911120F2F5BB4C736DCDE /* ModuleIconStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */; };
 		B8555D3D9FEACB351D53EBC9 /* ScriptHubOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */; };
 		C577752A7FA64D5E4749D52B /* DataHash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31722F50C6C17A7F74F3A1BC /* DataHash.swift */; };
@@ -70,6 +73,8 @@
 		280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Surge RelayTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2968E247012225719D2FF9D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2B29AA0AD818A5D7F67A7471 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		5A1C9E2F8B4D6A0C3E7F1B21 /* RemoteManagementClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteManagementClient.swift; sourceTree = "<group>"; };
+		5A1C9E2F8B4D6A0C3E7F1B23 /* AppModel+RemoteClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+RemoteClient.swift"; sourceTree = "<group>"; };
 		31722F50C6C17A7F74F3A1BC /* DataHash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataHash.swift; sourceTree = "<group>"; };
 		33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebManagementServer.swift; sourceTree = "<group>"; };
 		354B1BF761ABD7AADD982A17 /* EngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStore.swift; sourceTree = "<group>"; };
@@ -89,6 +94,7 @@
 		B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		B7DAE6646C847419124DE9BB /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		BDD7A6C8082510469A2FA843 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		7C3E9A1B2D4F6081A9C0E2F4 /* WelcomeWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWizardView.swift; sourceTree = "<group>"; };
 		D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
 		DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMerger.swift; sourceTree = "<group>"; };
 		E07D52108B30F9447A500E3D /* Surge Relay.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "Surge Relay.icon"; sourceTree = "<group>"; };
@@ -121,6 +127,7 @@
 				566BC4E001EE9379DF8EA731 /* Utilities */,
 				25432D20905F79D6AE1E1480 /* Views */,
 				2B29AA0AD818A5D7F67A7471 /* AppModel.swift */,
+				5A1C9E2F8B4D6A0C3E7F1B23 /* AppModel+RemoteClient.swift */,
 				3AE70978C59AAF84436C3194 /* Assets.xcassets */,
 				2968E247012225719D2FF9D5 /* Info.plist */,
 				B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */,
@@ -140,6 +147,7 @@
 				BDD7A6C8082510469A2FA843 /* RootView.swift */,
 				41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */,
 				F53C80368CE81330FB2D723A /* SettingsView.swift */,
+				7C3E9A1B2D4F6081A9C0E2F4 /* WelcomeWizardView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -156,6 +164,7 @@
 				0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */,
 				DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */,
 				D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */,
+				5A1C9E2F8B4D6A0C3E7F1B21 /* RemoteManagementClient.swift */,
 				254A83429BCA625706A87254 /* ScriptHubClient.swift */,
 				098EA18AE40BB22B02102431 /* ScriptHubUpstreamService.swift */,
 				51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */,
@@ -331,7 +340,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				384BEBC6E1F8C9A0A53FB0FC /* AppModel.swift in Sources */,
+				5A1C9E2F8B4D6A0C3E7F1B22 /* AppModel+RemoteClient.swift in Sources */,
 				30817299C54FAD6356760AD8 /* AppSettings.swift in Sources */,
+				5A1C9E2F8B4D6A0C3E7F1B20 /* RemoteManagementClient.swift in Sources */,
 				9457731342986CF96B53EA0F /* CheckForUpdatesView.swift in Sources */,
 				E52CE366B20E07E670D9E6E8 /* Components.swift in Sources */,
 				C577752A7FA64D5E4749D52B /* DataHash.swift in Sources */,
@@ -353,6 +364,7 @@
 				D00571D70301FFF75C0BACFE /* PersistenceStore.swift in Sources */,
 				709FF80593ADF6216AF25D9D /* RelayModule.swift in Sources */,
 				AA8F7B5F28379ACDB4DDEDB9 /* RootView.swift in Sources */,
+				7C3E9A1B2D4F6081A9C0E2F5 /* WelcomeWizardView.swift in Sources */,
 				089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */,
 				3EE4F5BD7D273B859D69002E /* ScriptHubClient.swift in Sources */,
 				B8555D3D9FEACB351D53EBC9 /* ScriptHubOptions.swift in Sources */,
@@ -411,7 +423,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 26071003;
+				CURRENT_PROJECT_VERSION = 27071701;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -509,7 +521,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 26071003;
+				CURRENT_PROJECT_VERSION = 27071701;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

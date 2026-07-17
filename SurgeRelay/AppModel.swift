@@ -21,11 +21,15 @@ final class AppModel {
     var presentsConfigurationWelcome = false
     var configurationWelcomeError: String?
     var configurationWelcomeLoadedExistingConfiguration = false
+    /// When true, the welcome sheet can be dismissed (menu-bar review entry).
+    var configurationWelcomeAllowsDismiss = false
     var synchronizationCompletedCount = 0
     var synchronizationTotalCount = 0
     var synchronizingModuleID: UUID?
     var webServerState: WebServerRuntimeState = .stopped
     var updateHistory: [UpdateHistoryEntry]
+    var deviceMode: RelayDeviceMode
+    var ponteServerAddress: String
 
     @ObservationIgnored private let scriptHubClient = ScriptHubClient()
     @ObservationIgnored private let sourceRevisionService = SourceRevisionService()
@@ -48,6 +52,8 @@ final class AppModel {
     @ObservationIgnored private var localChangeGeneration = 0
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var configurationExistedBeforeLaunch = false
+    @ObservationIgnored var remoteSessionTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingModuleUpdateIDs = Set<UUID>()
 
     private func beginWork() -> UUID? {
         guard activeWorkToken == nil else { return nil }
@@ -104,6 +110,8 @@ final class AppModel {
         upstreamState = PersistenceStore.loadUpstreamState()
         updateHistory = PersistenceStore.loadUpdateHistory()
         githubToken = loadedSettings.githubToken
+        deviceMode = RelayDeviceConfiguration.mode
+        ponteServerAddress = RelayDeviceConfiguration.ponteServerAddress
         selectedModuleID = RelayPlatform.ios.selectionID
         PersistenceStore.saveSettings(loadedSettings)
         try? PersistenceStore.saveModules(loadedModules)
@@ -111,26 +119,51 @@ final class AppModel {
 
     func start() async {
         guard !hasStarted else { return }
-        if !PersistenceStore.hasCompletedInitialSetup {
+
+        let needsWelcome = !PersistenceStore.hasCompletedInitialSetup
+            || (deviceMode == .client && !hasConfiguredRemoteServer)
+
+        if needsWelcome {
             NSApp.activate(ignoringOtherApps: true)
-            PersistenceStore.markInitialSetupPending()
-            if !PersistenceStore.hasSelectedConfigurationDirectory {
-                do {
-                    try prepareDefaultConfigurationDestination()
-                } catch {
-                    configurationWelcomeError = "无法准备 iCloud 云盘中的 Surge Relay 文件夹：\(error.localizedDescription)"
+            configurationWelcomeAllowsDismiss = false
+            configurationWelcomeError = nil
+            if !PersistenceStore.hasCompletedInitialSetup {
+                PersistenceStore.markInitialSetupPending()
+                if !PersistenceStore.hasSelectedConfigurationDirectory {
+                    do {
+                        try prepareDefaultConfigurationDestination()
+                    } catch {
+                        configurationWelcomeError = "无法准备 iCloud 云盘中的 Surge Relay 文件夹：\(error.localizedDescription)"
+                    }
+                } else {
+                    configurationWelcomeLoadedExistingConfiguration = PersistenceStore.initialSetupLoadedExistingConfiguration
                 }
             } else {
-                configurationWelcomeLoadedExistingConfiguration = PersistenceStore.initialSetupLoadedExistingConfiguration
+                configurationWelcomeLoadedExistingConfiguration =
+                    configurationExistedBeforeLaunch
+                    || PersistenceStore.initialSetupLoadedExistingConfiguration
             }
             presentsConfigurationWelcome = true
+            if deviceMode == .client {
+                webServer.stop()
+                webServerState = .stopped
+                modules = []
+            }
+            return
+        }
+
+        if deviceMode == .client {
+            webServer.stop()
+            webServerState = .stopped
+            modules = []
+            startRemoteSessionIfNeeded()
             return
         }
         await startRuntime()
     }
 
     private func startRuntime() async {
-        guard !hasStarted else { return }
+        guard !hasStarted, deviceMode == .server else { return }
         hasStarted = true
         applyWebServerSettings(persist: false)
         restartScheduler()
@@ -199,9 +232,15 @@ final class AppModel {
                 return false
             }
         }
+        if deviceMode != .server {
+            stopRemoteSession()
+            deviceMode = .server
+            RelayDeviceConfiguration.mode = .server
+        }
         settings.storageMode = storageMode
         saveSettings()
         PersistenceStore.markInitialSetupCompleted()
+        configurationWelcomeAllowsDismiss = false
         presentsConfigurationWelcome = false
         await startRuntime()
         if storageMode == .local {
@@ -218,10 +257,38 @@ final class AppModel {
         return true
     }
 
-    func presentConfigurationWelcomeForDebugging() {
+    func completeClientWelcome(ponteAddress: String) async -> Bool {
         configurationWelcomeError = nil
-        configurationWelcomeLoadedExistingConfiguration = true
+        do {
+            try await testPonteServer(address: ponteAddress)
+        } catch {
+            configurationWelcomeError = error.localizedDescription
+            return false
+        }
+        if deviceMode != .client {
+            await setDeviceMode(.client)
+        } else {
+            startRemoteSessionIfNeeded()
+        }
+        PersistenceStore.markInitialSetupCompleted()
+        configurationWelcomeAllowsDismiss = false
+        presentsConfigurationWelcome = false
+        statusMessage = "已切换到客户端模式"
+        return true
+    }
+
+    func presentWelcomeWizard(allowDismiss: Bool = false) {
+        configurationWelcomeError = nil
+        configurationWelcomeAllowsDismiss = allowDismiss
+        configurationWelcomeLoadedExistingConfiguration =
+            configurationExistedBeforeLaunch
+            || PersistenceStore.initialSetupLoadedExistingConfiguration
         presentsConfigurationWelcome = true
+    }
+
+    func presentConfigurationWelcomeForDebugging() {
+        presentWelcomeWizard(allowDismiss: true)
+        configurationWelcomeLoadedExistingConfiguration = true
     }
 
     private func reloadConfigurationFromSelectedDirectory() {
@@ -258,6 +325,10 @@ final class AppModel {
     }
 
     func saveSettings() {
+        if isClientMode {
+            Task { await pushRemoteGeneralSettings() }
+            return
+        }
         settings.githubToken = githubToken.trimmingCharacters(in: .whitespacesAndNewlines)
         if !settings.automaticallyPublish {
             automaticPublishTask?.cancel()
@@ -265,11 +336,55 @@ final class AppModel {
         PersistenceStore.saveSettings(settings)
     }
 
+    func pushRemoteGeneralSettings() async {
+        guard isClientMode else { return }
+        var platforms: [String: Bool] = [:]
+        for platform in RelayPlatform.allCases {
+            platforms[platform.rawValue] = settings.platformSettings[platform.rawValue]?.isEnabled ?? false
+        }
+        await performRemoteMutation { client in
+            try await client.pushGeneralSettings(
+                refreshIntervalMinutes: settings.refreshIntervalMinutes,
+                automaticallyPublish: settings.automaticallyPublish,
+                iconSearchRegion: settings.iconSearchRegion,
+                platforms: platforms
+            )
+        }
+    }
+
     func saveGitHubToken() {
         githubToken = githubToken.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.githubToken = githubToken
+        if isClientMode {
+            Task { await pushRemoteSyncSettings() }
+            statusMessage = githubToken.isEmpty ? "GitHub Token 已清除" : "GitHub Token 已保存到服务器"
+            return
+        }
         PersistenceStore.saveSettings(settings)
         statusMessage = githubToken.isEmpty ? "GitHub Token 已从同步配置移除" : "GitHub Token 已保存到 iCloud 配置"
+    }
+
+    func pushRemoteScriptHubSettings() async {
+        guard isClientMode else { return }
+        await performRemoteMutation { client in
+            try await client.pushScriptHubSettings(
+                moduleURL: settings.scriptHubModuleURL,
+                automaticallyUpdate: settings.automaticallyUpdateScriptHub
+            )
+        }
+    }
+
+    func pushRemoteSyncSettings(includeToken: Bool = true) async {
+        guard isClientMode else { return }
+        let repository = "https://github.com/\(settings.github.owner)/\(settings.github.repository)"
+        await performRemoteMutation { client in
+            try await client.pushSyncSettings(
+                storageMode: settings.storageMode.rawValue,
+                githubRepository: repository,
+                githubToken: includeToken ? githubToken : nil,
+                githubPublicBaseURL: settings.github.publicBaseURL
+            )
+        }
     }
 
     func applyWebServerSettings(persist: Bool = true) {
@@ -280,7 +395,7 @@ final class AppModel {
         }
         if persist { saveSettings() }
         webServer.stop()
-        guard settings.webServerEnabled else {
+        guard deviceMode == .server, settings.webServerEnabled else {
             webServerState = .stopped
             return
         }
@@ -311,6 +426,76 @@ final class AppModel {
         }
     }
 
+    func setDeviceMode(_ mode: RelayDeviceMode) async {
+        guard deviceMode != mode else { return }
+        deviceMode = mode
+        RelayDeviceConfiguration.mode = mode
+        if mode == .client {
+            schedulerTask?.cancel()
+            synchronizationTask?.cancel()
+            combinedRebuildTask?.cancel()
+            automaticUpdateTask?.cancel()
+            automaticPublishTask?.cancel()
+            individualOutputMonitorTask?.cancel()
+            webServer.stop()
+            webServerState = .stopped
+            hasStarted = false
+            activeWorkToken = nil
+            isWorking = false
+            synchronizationCompletedCount = 0
+            synchronizationTotalCount = 0
+            synchronizingModuleID = nil
+            modules = []
+            startRemoteSessionIfNeeded()
+            statusMessage = remoteManagementURL == nil ? "请设置服务器 Ponte 地址" : "已切换到客户端模式"
+        } else {
+            stopRemoteSession()
+            reloadConfigurationFromSelectedDirectory()
+            await start()
+        }
+    }
+
+    func setPonteServerAddress(_ address: String) {
+        ponteServerAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        RelayDeviceConfiguration.ponteServerAddress = ponteServerAddress
+        if isClientMode {
+            startRemoteSessionIfNeeded()
+        }
+        statusMessage = remoteManagementURL == nil ? "请设置有效的服务器 Ponte 地址" : "服务器地址已保存"
+    }
+
+    var remoteManagementURL: URL? {
+        RelayDeviceConfiguration.managementURL(
+            address: ponteServerAddress,
+            defaultPort: settings.webServerPort
+        )
+    }
+
+    func testPonteServer(address: String) async throws {
+        let normalizedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let baseURL = RelayDeviceConfiguration.managementURL(
+            address: normalizedAddress,
+            defaultPort: settings.webServerPort
+        ),
+              let stateURL = URL(string: "api/state", relativeTo: baseURL)?.absoluteURL else {
+            throw RelayError.invalidOutput("请输入有效的 Ponte 地址，例如 johnsmac.sgponte。")
+        }
+        var request = URLRequest(
+            url: stateURL,
+            cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+            timeoutInterval: 15
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              payload["modules"] != nil, payload["settings"] != nil else {
+            throw RelayError.invalidOutput("服务器没有返回有效的 Surge Relay 状态。")
+        }
+        setPonteServerAddress(normalizedAddress)
+        statusMessage = "Ponte 服务器连接成功"
+    }
+
 
     var configurationDirectoryPath: String {
         PersistenceStore.configurationDirectoryURL.path
@@ -327,6 +512,11 @@ final class AppModel {
 
     func setStorageMode(_ mode: StorageMode) async -> Bool {
         guard settings.storageMode != mode else { return true }
+        if isClientMode {
+            settings.storageMode = mode
+            await pushRemoteSyncSettings()
+            return presentedError == nil
+        }
         if mode == .gitHub {
             do {
                 try await validateGitHubDestination()
@@ -364,7 +554,10 @@ final class AppModel {
         do {
             try LaunchAtLoginService.setEnabled(enabled)
             settings.launchAtLogin = enabled
-            saveSettings()
+            if !isClientMode {
+                settings.githubToken = githubToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                PersistenceStore.saveSettings(settings)
+            }
         } catch {
             settings.launchAtLogin = false
             presentedError = "无法更改登录启动设置：\(error.localizedDescription)"
@@ -373,7 +566,7 @@ final class AppModel {
 
     func restartScheduler() {
         schedulerTask?.cancel()
-        guard settings.refreshIntervalMinutes > 0 else { return }
+        guard !isClientMode, settings.refreshIntervalMinutes > 0 else { return }
         let seconds = settings.refreshIntervalMinutes * 60
         schedulerTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -384,7 +577,13 @@ final class AppModel {
         }
     }
 
-    func addModule(from draft: ModuleDraft) throws {
+    func addModule(from draft: ModuleDraft) async throws {
+        if isClientMode {
+            let client = try remoteClient()
+            statusMessage = try await client.addModule(draft)
+            await refreshRemoteState()
+            return
+        }
         if let message = draft.validationMessage { throw RelayError.invalidOutput(message) }
         let source = draft.sourceURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !modules.contains(where: { ModuleSourceIdentity.matches($0.sourceURL, source) }) else {
@@ -403,11 +602,17 @@ final class AppModel {
         modules.append(module)
         selectedModuleID = module.id
         try persistModules()
-        statusMessage = "已添加 \(module.name)，即将自动更新"
-        scheduleAutomaticUpdate()
+        statusMessage = "已添加 \(module.name)，正在后台更新"
+        scheduleModuleUpdate(id: module.id)
     }
 
-    func updateModule(id: UUID, from draft: ModuleDraft) throws {
+    func updateModule(id: UUID, from draft: ModuleDraft) async throws {
+        if isClientMode {
+            let client = try remoteClient()
+            statusMessage = try await client.updateModule(id: id, draft: draft)
+            await refreshRemoteState()
+            return
+        }
         if let message = draft.validationMessage { throw RelayError.invalidOutput(message) }
         guard let index = modules.firstIndex(where: { $0.id == id }) else { return }
         let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -473,9 +678,9 @@ final class AppModel {
                 }
             }
         }
-        statusMessage = "已保存 \(modules[index].name)，即将自动更新"
+        statusMessage = "已保存 \(modules[index].name)，正在后台更新"
         if modules[index].isEnabled {
-            scheduleAutomaticUpdate()
+            scheduleModuleUpdate(id: id)
         } else {
             scheduleCombinedRebuild()
         }
@@ -484,18 +689,33 @@ final class AppModel {
     func setModuleEnabled(id: UUID, enabled: Bool) {
         guard let index = modules.firstIndex(where: { $0.id == id }) else { return }
         guard modules[index].isEnabled != enabled else { return }
+        if isClientMode {
+            modules[index].isEnabled = enabled
+            Task {
+                await performRemoteMutation { client in
+                    try await client.setModuleEnabled(id: id, enabled: enabled)
+                }
+            }
+            return
+        }
         registerLocalChange()
         modules[index].isEnabled = enabled
         try? persistModules()
-        statusMessage = enabled ? "已启用 \(modules[index].name)，即将自动更新" : "已停用 \(modules[index].name)，正在自动合并"
+        statusMessage = enabled ? "已启用 \(modules[index].name)，正在后台更新" : "已停用 \(modules[index].name)，正在自动合并"
         if enabled {
-            scheduleAutomaticUpdate()
+            scheduleModuleUpdate(id: id)
         } else {
             scheduleCombinedRebuild()
         }
     }
 
     func setModuleIndividualICloudExport(id: UUID, enabled: Bool) async {
+        if isClientMode {
+            await performRemoteMutation { client in
+                try await client.setIndividualICloudExport(id: id, enabled: enabled)
+            }
+            return
+        }
         guard settings.storageMode == .local,
               let index = modules.firstIndex(where: { $0.id == id }),
               modules[index].exportsIndividualModuleToICloud != enabled else { return }
@@ -531,8 +751,16 @@ final class AppModel {
     func moveModules(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         let reordered = ModuleOrdering.moving(modules, fromOffsets: offsets, toOffset: destination)
         guard reordered != modules else { return }
-        registerLocalChange()
         modules = reordered
+        if isClientMode {
+            Task {
+                await performRemoteMutation { client in
+                    try await client.reorderModules(ids: reordered.map(\.id))
+                }
+            }
+            return
+        }
+        registerLocalChange()
         do {
             try persistModules()
             statusMessage = "已调整模块优先级，正在重新合并"
@@ -548,8 +776,16 @@ final class AppModel {
         let lookup = Dictionary(uniqueKeysWithValues: modules.map { ($0.id, $0) })
         let reordered = ids.compactMap { lookup[$0] }
         guard reordered != modules else { return }
-        registerLocalChange()
         modules = reordered
+        if isClientMode {
+            Task {
+                await performRemoteMutation { client in
+                    try await client.reorderModules(ids: ids)
+                }
+            }
+            return
+        }
+        registerLocalChange()
         do {
             try persistModules()
             statusMessage = "已调整模块优先级，正在重新合并"
@@ -560,6 +796,12 @@ final class AppModel {
     }
 
     func deleteModule(id: UUID) async {
+        if isClientMode {
+            await performRemoteMutation { client in
+                try await client.deleteModule(id: id)
+            }
+            return
+        }
         guard let index = modules.firstIndex(where: { $0.id == id }) else { return }
         registerLocalChange()
         let module = modules.remove(at: index)
@@ -577,6 +819,28 @@ final class AppModel {
     }
 
     func updateAll() async {
+        if isClientMode {
+            await performRemoteMutation { client in
+                try await client.updateAll()
+            }
+            return
+        }
+        pendingModuleUpdateIDs.removeAll()
+        automaticUpdateTask?.cancel()
+        await runSynchronization(limitingTo: nil)
+    }
+
+    func updateModules(ids: [UUID]) async {
+        let uniqueIDs = Array(Set(ids))
+        guard !uniqueIDs.isEmpty else { return }
+        if isClientMode {
+            await updateAll()
+            return
+        }
+        await runSynchronization(limitingTo: Set(uniqueIDs))
+    }
+
+    private func runSynchronization(limitingTo moduleIDs: Set<UUID>?) async {
         synchronizationTask?.cancel()
         combinedRebuildTask?.cancel()
         automaticPublishTask?.cancel()
@@ -584,21 +848,21 @@ final class AppModel {
         synchronizationRequestID = requestID
         statusMessage = synchronizationInProgressMessage
         let task = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled, let self, self.synchronizationRequestID == requestID else { return }
             while self.isWorking, !Task.isCancelled, self.synchronizationRequestID == requestID {
                 try? await Task.sleep(for: .milliseconds(100))
             }
             guard !Task.isCancelled, self.synchronizationRequestID == requestID else { return }
-            await self.performSynchronization()
+            await self.performSynchronization(limitingTo: moduleIDs)
         }
         synchronizationTask = task
         await task.value
     }
 
-    private func performSynchronization() async {
+    private func performSynchronization(limitingTo moduleIDs: Set<UUID>? = nil) async {
         let synchronizationModules = modules.filter {
-            $0.isEnabled || (settings.storageMode == .local && $0.exportsIndividualModuleToICloud)
+            shouldSynchronizeModule($0) && (moduleIDs?.contains($0.id) ?? true)
         }
         guard let workToken = beginWork() else { return }
         guard !synchronizationModules.isEmpty else {
@@ -847,21 +1111,36 @@ final class AppModel {
         statusMessage = "同步失败，\(punctuated)"
     }
 
-    func update(moduleID _: UUID) async {
-        // 单个来源改变也会影响同一份输出，因此始终安全地重建全部启用来源。
-        await updateAll()
+    func update(moduleID: UUID) async {
+        await updateModules(ids: [moduleID])
     }
 
-    private func scheduleAutomaticUpdate() {
+    /// Queue a background conversion for one module without blocking the UI or
+    /// re-checking every other source. Further edits coalesce into the same pass.
+    private func scheduleModuleUpdate(id: UUID) {
+        pendingModuleUpdateIDs.insert(id)
+        kickPendingModuleUpdates()
+    }
+
+    private func kickPendingModuleUpdates() {
         automaticUpdateTask?.cancel()
         automaticUpdateTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(8))
+            try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled, let self else { return }
             while self.isWorking, !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .milliseconds(100))
             }
             guard !Task.isCancelled else { return }
-            await self.updateAll()
+            let toUpdate = self.pendingModuleUpdateIDs
+            guard !toUpdate.isEmpty else { return }
+            let generationBefore = self.localChangeGeneration
+            await self.updateModules(ids: Array(toUpdate))
+            if self.localChangeGeneration == generationBefore {
+                self.pendingModuleUpdateIDs.subtract(toUpdate)
+            }
+            if !self.pendingModuleUpdateIDs.isEmpty {
+                self.kickPendingModuleUpdates()
+            }
         }
     }
 
@@ -903,6 +1182,12 @@ final class AppModel {
     }
 
     func refreshScriptHub(showProgress: Bool = true) async {
+        if isClientMode {
+            await performRemoteMutation { client in
+                try await client.refreshScriptHub()
+            }
+            return
+        }
         guard !isWorking || !showProgress else { return }
         let workToken = showProgress ? beginWork() : nil
         guard !showProgress || workToken != nil else { return }
@@ -941,6 +1226,18 @@ final class AppModel {
     }
 
     func testGitHub(showProgress: Bool = true) async {
+        if isClientMode {
+            let repository = "https://github.com/\(settings.github.owner)/\(settings.github.repository)"
+            await performRemoteMutation { client in
+                try await client.testSyncSettings(
+                    storageMode: settings.storageMode.rawValue,
+                    githubRepository: repository,
+                    githubToken: githubToken,
+                    githubPublicBaseURL: settings.github.publicBaseURL
+                )
+            }
+            return
+        }
         guard !isWorking || !showProgress else { return }
         let workToken = showProgress ? beginWork() : nil
         guard !showProgress || workToken != nil else { return }
@@ -1304,12 +1601,19 @@ final class AppModel {
         FilenameSanitizer.individualRelayName(from: outputFileName)
     }
 
-    private nonisolated static func surgeRelayCategorizedModuleContent(_ content: String) -> String {
+    nonisolated static func surgeRelayCategorizedModuleContent(_ content: String) -> String {
         let normalized = content.replacingOccurrences(of: "\r\n", with: "\n")
         var lines = normalized.components(separatedBy: "\n")
-        lines.removeAll { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#!category=") }
+        let name = lines.first { $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("#!name=") }
+        let desc = lines.first { $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("#!desc=") }
+        lines.removeAll {
+            let lower = $0.trimmingCharacters(in: .whitespaces).lowercased()
+            return lower.hasPrefix("#!name=") || lower.hasPrefix("#!desc=") || lower.hasPrefix("#!category=")
+        }
         let body = lines.joined(separator: "\n").trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
-        return "#!category=Surge Relay\n" + body + "\n"
+        var header = [name, desc].compactMap { $0 }
+        header.append("#!category=Surge Relay")
+        return (header + [body]).filter { !$0.isEmpty }.joined(separator: "\n") + "\n"
     }
 
     private func removeExportedIndividualFiles(moduleID: UUID, outputFileName: String) async throws {
@@ -1402,7 +1706,7 @@ final class AppModel {
     }
 
     var webManagementURL: URL? {
-        guard settings.webServerEnabled else { return nil }
+        guard deviceMode == .server, settings.webServerEnabled else { return nil }
         var host = ProcessInfo.processInfo.hostName.trimmingCharacters(in: CharacterSet(charactersIn: "."))
         if !host.contains(".") { host += ".local" }
         return URL(string: "http://\(host):\(settings.webServerPort)/")
@@ -1417,6 +1721,9 @@ final class AppModel {
     }
 
     func previewContent(for module: RelayModule) async throws -> String {
+        if isClientMode {
+            return try await remoteClient().previewContent(moduleID: module.id)
+        }
         let content = try await fileStore.readComponent(id: module.id)
         let materialized = await processingWorker.materialize(
             content,
@@ -1429,14 +1736,31 @@ final class AppModel {
     }
 
     func hasPreviewContent(for module: RelayModule) async -> Bool {
-        await fileStore.hasComponent(id: module.id)
+        if isClientMode {
+            return (try? await previewContent(for: module)) != nil
+        }
+        return await fileStore.hasComponent(id: module.id)
     }
 
     func hasCombinedPreviewContent(platform: RelayPlatform) async -> Bool {
-        await fileStore.hasCombined(platform: platform)
+        if isClientMode {
+            return (try? await combinedPreviewContent(platform: platform)) != nil
+        }
+        return await fileStore.hasCombined(platform: platform)
     }
 
     func moduleArgumentInfo(for module: RelayModule) async -> ModuleArgumentInfo {
+        if isClientMode {
+            guard let payload = try? await remoteClient().moduleArguments(moduleID: module.id) else {
+                return ModuleArgumentInfo()
+            }
+            return ModuleArgumentInfo(
+                definitions: payload.arguments.map {
+                    ModuleArgumentDefinition(key: $0.key, defaultValue: $0.defaultValue)
+                },
+                helpText: payload.help
+            )
+        }
         guard let content = try? await fileStore.readConvertedComponent(id: module.id) else {
             return ModuleArgumentInfo()
         }
@@ -1468,8 +1792,16 @@ final class AppModel {
             }
         }
         guard modules[index].argumentOverrides != nextOverrides else { return }
-        registerLocalChange()
         modules[index].argumentOverrides = nextOverrides
+        if isClientMode {
+            Task {
+                await performRemoteMutation { client in
+                    try await client.setModuleArguments(id: moduleID, values: values)
+                }
+            }
+            return
+        }
+        registerLocalChange()
         try? persistModules()
         statusMessage = "已更新 \(modules[index].name) 的模块参数"
         scheduleCombinedRebuild()
@@ -1478,8 +1810,16 @@ final class AppModel {
     func resetModuleArguments(moduleID: UUID) {
         guard let index = modules.firstIndex(where: { $0.id == moduleID }),
               !modules[index].argumentOverrides.isEmpty else { return }
-        registerLocalChange()
         modules[index].argumentOverrides.removeAll()
+        if isClientMode {
+            Task {
+                await performRemoteMutation { client in
+                    try await client.resetModuleArguments(id: moduleID)
+                }
+            }
+            return
+        }
+        registerLocalChange()
         try? persistModules()
         statusMessage = "已恢复 \(modules[index].name) 的默认参数"
         scheduleCombinedRebuild()
@@ -1514,6 +1854,9 @@ final class AppModel {
     }
 
     func combinedPreviewContent(platform: RelayPlatform) async throws -> String {
+        if isClientMode {
+            return try await remoteClient().combinedPreviewContent(platform: platform)
+        }
         let data = try await fileStore.readCombined(platform: platform)
         guard let content = String(data: data, encoding: .utf8) else {
             throw RelayError.invalidOutput("最终模块缓存不是有效的 UTF-8 文本。")
@@ -1525,6 +1868,25 @@ final class AppModel {
 
 
     func setPlatformModuleEnabled(platform: RelayPlatform, moduleID: UUID, enabled: Bool) {
+        if isClientMode {
+            var currentPlatformSettings = settings.platformSettings[platform.rawValue] ?? PlatformSettings()
+            if enabled {
+                currentPlatformSettings.disabledModules.remove(moduleID)
+            } else {
+                currentPlatformSettings.disabledModules.insert(moduleID)
+            }
+            settings.platformSettings[platform.rawValue] = currentPlatformSettings
+            Task {
+                await performRemoteMutation { client in
+                    try await client.setPlatformModuleEnabled(
+                        platform: platform,
+                        moduleID: moduleID,
+                        enabled: enabled
+                    )
+                }
+            }
+            return
+        }
         var currentPlatformSettings = settings.platformSettings[platform.rawValue] ?? PlatformSettings()
         if enabled {
             currentPlatformSettings.disabledModules.remove(moduleID)
@@ -1546,6 +1908,14 @@ final class AppModel {
             currentPlatformSettings.disabledModules = Set(modules.map { $0.id })
         }
         settings.platformSettings[platform.rawValue] = currentPlatformSettings
+        if isClientMode {
+            Task {
+                await performRemoteMutation { client in
+                    try await client.setAllPlatformModulesEnabled(platform: platform, enabled: enabled)
+                }
+            }
+            return
+        }
         saveSettings()
         
         statusMessage = enabled ? "已启用所有平台模块，即将重新合并" : "已停用所有平台模块，正在重新合并"
@@ -1560,11 +1930,14 @@ final class AppModel {
             currentSettings.disabledModules = Set(modules.map { $0.id })
         }
         settings.platformSettings[platform.rawValue] = currentSettings
-        saveSettings()
-        
         if !isEnabled, selectedModuleID == platform.selectionID {
             selectedModuleID = settings.enabledPlatforms.first?.selectionID ?? modules.first?.id
         }
+        if isClientMode {
+            saveSettings()
+            return
+        }
+        saveSettings()
         
         Task {
             await rebuildCombinedFromCache()
@@ -1572,6 +1945,11 @@ final class AppModel {
     }
 
     func savePreviewContent(_ content: String, for module: RelayModule) async throws {
+        if isClientMode {
+            try await remoteClient().savePreviewContent(moduleID: module.id, content: content)
+            await refreshRemoteState()
+            return
+        }
         guard !isWorking else { throw RelayError.invalidOutput("当前正在更新，请稍后再写入。") }
         let namedContent = await processingWorker.applyingDisplayName(module.name, to: content)
         if let current = try? await fileStore.readComponent(id: module.id), current == namedContent {
@@ -1599,6 +1977,11 @@ final class AppModel {
     }
 
     func restorePreviewContent(for module: RelayModule) async throws -> String {
+        if isClientMode {
+            let content = try await remoteClient().restorePreviewContent(moduleID: module.id)
+            await refreshRemoteState()
+            return content
+        }
         guard !isWorking else { throw RelayError.invalidOutput("当前正在更新，请稍后再恢复。") }
         guard let workToken = beginWork() else {
             throw RelayError.invalidOutput("当前正在更新，请稍后再恢复。")
@@ -1626,6 +2009,12 @@ final class AppModel {
     }
 
     func acceptOverrideConflict(moduleID: UUID) async {
+        if isClientMode {
+            await performRemoteMutation { client in
+                try await client.acceptOverrideConflict(id: moduleID)
+            }
+            return
+        }
         guard let index = modules.firstIndex(where: { $0.id == moduleID }),
               let converted = try? await fileStore.readConvertedComponent(id: moduleID) else { return }
         modules[index].overrideBaseHash = Data(converted.utf8).sha256String
@@ -1678,6 +2067,15 @@ final class AppModel {
     }
 
     func clearUpdateHistory() {
+        if isClientMode {
+            updateHistory.removeAll()
+            Task {
+                await performRemoteMutation { client in
+                    try await client.clearDiagnostics()
+                }
+            }
+            return
+        }
         updateHistory.removeAll()
         PersistenceStore.saveUpdateHistory([])
     }
@@ -1779,6 +2177,11 @@ struct IconSearchResult: Codable, Sendable {
 
 extension AppModel {
     func updateModuleCustomIcon(id: UUID, customIconURL: String?, source: CustomIconSource = .manual) async throws {
+        if isClientMode {
+            try await remoteClient().updateModuleCustomIcon(id: id, url: customIconURL)
+            await refreshRemoteState()
+            return
+        }
         guard let index = modules.firstIndex(where: { $0.id == id }) else { return }
         
         registerLocalChange()
@@ -1811,11 +2214,13 @@ extension AppModel {
     }
     
     func searchIcons(query: String, region: String? = nil) async -> [IconSearchResult] {
-        var results: [IconSearchResult] = []
-        
         let cleaned = AppModel.cleanSearchQuery(query)
-        
         let searchRegion = region ?? settings.iconSearchRegion
+        if isClientMode {
+            return (try? await remoteClient().searchIcons(query: cleaned, region: searchRegion)) ?? []
+        }
+
+        var results: [IconSearchResult] = []
         if !cleaned.isEmpty, let encodedQuery = cleaned.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
             let urlStr = "https://itunes.apple.com/search?term=\(encodedQuery)&entity=software&limit=15&country=\(searchRegion)"
             if let url = URL(string: urlStr),

@@ -75,7 +75,7 @@ struct ModulesView: View {
     private var selectedDetailTitle: String? {
         guard let selectionKind else { return nil }
         switch selectionKind {
-        case let .combined(platform): return "Surge Relay 汇总 (\(platform.displayName))"
+        case let .combined(platform): return "Surge Relay 汇总 (\(platform.summaryDisplayName))"
         case let .module(module): return module.name
         }
     }
@@ -534,7 +534,7 @@ private struct CombinedModuleRow: View {
                     .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text("Surge Relay 汇总 (\(platform.displayName))")
+                Text("Surge Relay 汇总 (\(platform.summaryDisplayName))")
                     .fontWeight(.semibold)
                     .lineLimit(1)
                 let platformModules = model.settings.modules(for: platform, globalModules: model.modules)
@@ -577,7 +577,7 @@ private struct CombinedModuleDetailView: View {
                             .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
                     )
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Surge Relay 汇总 (\(platform.displayName))")
+                        Text("Surge Relay 汇总 (\(platform.summaryDisplayName))")
                             .font(.title3.bold())
                     }
                 }
@@ -585,7 +585,7 @@ private struct CombinedModuleDetailView: View {
             }
             
             Section("汇总模块信息") {
-                detailRow("名称", value: "Surge Relay 汇总 (\(platform.displayName))", icon: "square.stack.3d.up.fill")
+                detailRow("名称", value: "Surge Relay 汇总 (\(platform.summaryDisplayName))", icon: "square.stack.3d.up.fill")
                 let platformModules = model.settings.modules(for: platform, globalModules: model.modules)
                 detailRow(
                     "包含来源",
