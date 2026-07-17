@@ -1,7 +1,7 @@
 # Surge Relay (macOS)
 
 <p align="center">
-  <img width="160" alt="Surge Relay Icon" src="https://github.com/user-attachments/assets/3672fe08-3217-41f8-a592-9a4f473b216b" />
+  <img width="160" alt="Surge Relay Icon" src="[https://github.com/user-attachments/assets/3672fe08-3217-41f8-a592-9a4f473b216b]" />
 </p>
 
 <p align="center">
