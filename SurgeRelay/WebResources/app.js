@@ -156,6 +156,36 @@ let stateRecoveryTimer = null;
 let stateRecoveryAttempt = 0;
 const mobileLayout = window.matchMedia('(max-width: 700px)');
 
+function mobilePageScrollTop() {
+  return window.scrollY
+    || document.documentElement.scrollTop
+    || document.body.scrollTop
+    || ui.navigation?.scrollTop
+    || 0;
+}
+
+function resetMobileDetailScroll() {
+  // Mobile uses document scrolling for both list and detail. Resetting only
+  // #detail-content leaves the page stuck at the previous list offset.
+  ui.detail.scrollTop = 0;
+  ui.detailRoot.scrollTop = 0;
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  });
+}
+
+function restoreMobileListScroll(offset) {
+  if (ui.navigation) ui.navigation.scrollTop = offset;
+  window.scrollTo({ top: offset, left: 0, behavior: 'auto' });
+  document.documentElement.scrollTop = offset;
+  document.body.scrollTop = offset;
+}
+
 // Dynamic values embedded in templates must still be escaped before use.
 function setTemplateHTML(element, html) {
   if (!element) return;
@@ -333,7 +363,7 @@ function applyState(next, initial = false, renderCurrentDetail = false) {
       renderSidebar();
       renderActivity();
       renderDetail(false);
-      if (initial && mobileLayout.matches && selectedID) ui.detail.scrollTop = 0;
+      if (initial && mobileLayout.matches && selectedID) resetMobileDetailScroll();
     } else {
       patchLiveState(previous, next);
       renderActivity();
@@ -1295,7 +1325,7 @@ function selectItem(id, pushHistory = true) {
     id = 'combined-' + selectedPlatform;
   }
   const cameFromList = mobileLayout.matches && !ui.body.classList.contains('has-selection');
-  if (cameFromList) listScrollY = ui.navigation?.scrollTop || 0;
+  if (cameFromList) listScrollY = mobilePageScrollTop();
   if (moduleArgumentsState?.moduleID !== id) {
     moduleArgumentsState = null;
     moduleArgumentsLoadToken += 1;
@@ -1309,7 +1339,7 @@ function selectItem(id, pushHistory = true) {
   }
   renderSidebar(); renderDetail(false);
   updateDesktopNavigationButtons();
-  if (mobileLayout.matches) ui.detail.scrollTop = 0;
+  if (mobileLayout.matches) resetMobileDetailScroll();
 }
 
 function initializeHistoryState() {
@@ -1337,7 +1367,7 @@ function showModuleList(replaceHistory = false) {
   renderSidebar();
   renderDetail(false);
   updateDesktopNavigationButtons();
-  if (mobileLayout.matches) requestAnimationFrame(() => { if (ui.navigation) ui.navigation.scrollTop = listScrollY; });
+  if (mobileLayout.matches) requestAnimationFrame(() => restoreMobileListScroll(listScrollY));
 }
 
 function navigateBackToList() {

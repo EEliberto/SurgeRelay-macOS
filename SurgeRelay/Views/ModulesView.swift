@@ -314,7 +314,9 @@ struct ModulesView: View {
                 }
 
                 Section("来源模块") {
-                    if searchText.isEmpty {
+                    if filteredModules.isEmpty {
+                        sourceModulesEmptyState
+                    } else if searchText.isEmpty {
                         ForEach(model.modules) { module in
                             moduleRow(module)
                         }
@@ -334,15 +336,6 @@ struct ModulesView: View {
                         .padding(.horizontal, 16)
                     .padding(.top, 6)
                     .padding(.bottom, 8)
-            }
-            .overlay {
-                if filteredModules.isEmpty {
-                    ContentUnavailableView(
-                        model.modules.isEmpty ? "还没有模块" : "没有搜索结果",
-                        systemImage: "shippingbox",
-                        description: Text(model.modules.isEmpty ? "添加第一个原始地址，Surge Relay 会把所有来源合并成一份总模块。" : "换个关键词试试。")
-                    )
-                }
             }
             .safeAreaBar(edge: .bottom, spacing: 0) { statusCard }
             .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 380)
@@ -481,6 +474,31 @@ struct ModulesView: View {
                 Divider()
                 Button("删除", role: .destructive) { deleteCandidate = module }
             }
+    }
+
+    private var sourceModulesEmptyState: some View {
+        VStack(spacing: 6) {
+            Image(systemName: model.modules.isEmpty ? "shippingbox" : "magnifyingglass")
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(.tertiary)
+            Text(model.modules.isEmpty ? "还没有模块" : "没有搜索结果")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(model.modules.isEmpty
+                 ? "添加第一个原始地址，Surge Relay 会把所有来源合并成一份总模块。"
+                 : "换个关键词试试。")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
+        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .accessibilityElement(children: .combine)
     }
 
     private var sidebarSearchBar: some View {
