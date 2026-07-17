@@ -79,8 +79,6 @@ Surge Relay 提供图形化界面，用于查看和编辑模块内容。
 
 配合 Surge Ponte 功能，即使不在 Mac 旁边，也可以从你的任意一台设备访问 Surge Relay，完成状态查看、调试和编辑等操作。
 
-多台 Mac 还可以在“设置 → Surge Ponte”中分别设置设备角色。服务器 Mac 继续使用原有的 iCloud 或 GitHub 流程转换、同步和发布；客户端 Mac 作为远程管理入口，通过 Ponte 连接服务器，并使用与服务器相同的原生界面进行管理（不再内嵌网页）。客户端选择“客户端模式”后，自行输入服务器的 Ponte 地址（例如 `johnsmac.sgponte`）并验证连接即可。设备角色与 Ponte 地址只保存在当前 Mac，不会随 iCloud 配置同步到其他设备。客户端模式下无法再次开启本机 Web 服务，请前往服务器端进行 Web 管理。
-
 <p align="center">
   <img width="62%" alt="image" src="https://github.com/user-attachments/assets/294ea6e5-4791-48bb-9e78-b0a2527eee32" />
   <img width="24%" alt="image" src="https://github.com/user-attachments/assets/b0e782bb-984d-43ec-9af3-6820f4308b21" />

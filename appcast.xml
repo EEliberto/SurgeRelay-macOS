@@ -3,30 +3,6 @@
     <channel>
         <title>Surge Relay</title>
         <item>
-            <title>270717</title>
-            <pubDate>Fri, 17 Jul 2026 12:30:00 +0800</pubDate>
-            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v270717</link>
-            <sparkle:version>27071701</sparkle:version>
-            <sparkle:shortVersionString>270717</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，全新设计的 20260717 版本已推出！
-
-此次更新我们带来了以下亮点：
-
-1.带来了全新的图标和新设计，并支持一台 Mac 作为服务器，另外的 Mac 作为客户端。也就是其他 Mac 如果想访问 Surge Relay 则无需通过 Web 了。只需要在 Surge Relay 的设置 > Surge Ponte 中选择“客户端模式”，并输入 Surge Ponte 地址即可。
-
-2.修复单独输出模块的模块名称和信息丢失问题 (由 @Ymshub 反馈)。
-
-3.修复 Web 端无法进行模块参数设置的问题。
-
-4.对上传/同步至 iCloud 云盘/Github 逻辑进行了大量优化，解决了许多可能因同步而造成的问题。
-
-Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
-]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071701.dmg" length="23682204" type="application/octet-stream" sparkle:edSignature="al+rmY6humSWi9pLXHXb2rT4LIssfEBZWDTCGEAPr/tWbui4etI2ZKO5lB/U5L1wfKQPBvBDQ2hnuqk066zyDw=="/>
-        </item>
-        <item>
             <title>260710</title>
             <pubDate>Fri, 10 Jul 2026 22:14:00 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260710</link>

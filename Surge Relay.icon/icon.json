@@ -1,76 +1,27 @@
 {
   "fill" : {
-    "linear-gradient" : [
-      "display-p3:0.93354,0.94174,1.00000,1.00000",
-      "display-p3:0.90001,0.92500,1.00000,1.00000"
-    ],
-    "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 1
-      },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.3
-      }
-    }
+    "automatic-gradient" : "extended-gray:1.00000,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "blend-mode" : "plus-lighter",
-          "fill" : {
-            "solid" : "extended-gray:1.00000,1.00000"
-          },
-          "image-name" : "dot.radiowaves.left.and.right.png",
-          "name" : "dot.radiowaves.left.and.right",
-          "position" : {
-            "scale" : 0.57,
-            "translation-in-points" : [
-              0,
-              -91.15468749999997
-            ]
-          }
-        },
-        {
-          "fill" : {
-            "solid" : "display-p3:0.08302,0.09136,0.96783,1.00000"
-          },
-          "image-name" : "triangle.fill.png",
-          "name" : "triangle.fill",
-          "position" : {
-            "scale" : 0.54,
-            "translation-in-points" : [
-              0,
-              227.91031249999992
-            ]
-          }
-        },
-        {
+          "blend-mode" : "normal",
           "fill" : {
             "linear-gradient" : [
-              "display-p3:0.00000,0.54030,1.00000,1.00000",
-              "display-p3:0.10595,0.71031,0.96783,1.00000"
-            ],
-            "orientation" : {
-              "start" : {
-                "x" : 0.5,
-                "y" : 0
-              },
-              "stop" : {
-                "x" : 0.5,
-                "y" : 0.7
-              }
-            }
+              "display-p3:0.24219,0.21863,0.96875,1.00000",
+              "display-p3:0.39526,0.74268,0.97217,1.00000"
+            ]
           },
-          "image-name" : "circle.fill.png",
-          "name" : "circle.fill",
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "repeat 2.png",
+          "name" : "repeat 2",
           "position" : {
             "scale" : 1,
             "translation-in-points" : [
               0,
-              -90.93968749999999
+              7.5
             ]
           }
         }
