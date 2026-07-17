@@ -19,6 +19,8 @@ enum WebManagementAPI {
             switch (request.method, request.path) {
             case ("GET", "/api/state"):
                 return .json(statePayload(model: model))
+            case ("GET", "/api/activity"):
+                return .json(activityPayload(model: model))
             case ("GET", "/api/settings"):
                 return .json(settingsPayload(model: model))
             case ("PUT", "/api/settings/general"):
@@ -419,14 +421,6 @@ enum WebManagementAPI {
 
     private static func statePayload(model: AppModel) -> WebStatePayload {
         let newestUpdate = model.modules.compactMap(\.lastUpdatedAt).max()
-        let progress: Double? = if model.synchronizationTotalCount > 0 {
-            min(
-                max(Double(model.synchronizationCompletedCount) / Double(model.synchronizationTotalCount), 0),
-                1
-            )
-        } else {
-            nil
-        }
         let platforms = RelayPlatform.allCases.map { platform in
             let settings = model.settings.platformSettings[platform.rawValue] ?? PlatformSettings()
             let resolvedModules = model.settings.modules(for: platform, globalModules: model.modules)
@@ -493,14 +487,27 @@ enum WebManagementAPI {
                     contentHash: module.contentHash
                 )
             },
-            activity: WebActivityPayload(
-                isWorking: model.isWorking,
-                status: model.statusMessage,
-                progress: progress,
-                currentModuleID: model.synchronizingModuleID?.uuidString.lowercased(),
-                error: model.presentedError
-            ),
+            activity: activityPayload(model: model),
             platforms: platforms
+        )
+    }
+
+    private static func activityPayload(model: AppModel) -> WebActivityPayload {
+        let totalCount = model.isWorking ? model.synchronizationTotalCount : 0
+        let completedCount = model.isWorking ? model.synchronizationCompletedCount : 0
+        let progress: Double? = if totalCount > 0 {
+            min(max(Double(completedCount) / Double(totalCount), 0), 1)
+        } else {
+            nil
+        }
+        return WebActivityPayload(
+            isWorking: model.isWorking,
+            status: model.statusMessage,
+            progress: progress,
+            completedCount: completedCount,
+            totalCount: totalCount,
+            currentModuleID: model.synchronizingModuleID?.uuidString.lowercased(),
+            error: model.presentedError
         )
     }
 
@@ -730,6 +737,8 @@ private struct WebActivityPayload: Encodable {
     let isWorking: Bool
     let status: String
     let progress: Double?
+    let completedCount: Int
+    let totalCount: Int
     let currentModuleID: String?
     let error: String?
 }

@@ -44,7 +44,7 @@ extension AppModel {
                 break
             }
         }
-        if isClientMode, hasConfiguredRemoteServer, !remoteConnectionState.isOperational {
+        if isClientMode, hasConfiguredRemoteServer, remoteSessionTask == nil {
             startRemoteSessionIfNeeded()
         }
     }
@@ -55,6 +55,9 @@ extension AppModel {
         switch state {
         case .running:
             beginWebServerActivity()
+            // A successful bind cancels any pending recovery loop.
+            webServerRestartTask?.cancel()
+            webServerRestartTask = nil
         case .failed:
             endWebServerActivity()
             if webServerShouldRun {
@@ -62,9 +65,10 @@ extension AppModel {
             }
         case .stopped:
             endWebServerActivity()
-            if webServerShouldRun, case .running = previous {
-                scheduleWebServerRestart()
-            }
+            // Do not restart on `.stopped`: `startWebServerListener` always
+            // calls `stop()` first. Treating that as a crash caused a 1s
+            // restart loop that dropped every SSE client.
+            _ = previous
         case .starting, .restarting:
             break
         }

@@ -11,8 +11,17 @@ struct RemoteManagementClient: Sendable {
         return URLSession(configuration: configuration)
     }()
 
-    static let sseRequestTimeout: TimeInterval = 90
-    static let sseStallTimeout: TimeInterval = 45
+    /// Dedicated session for long-lived SSE; resource timeout must not kill the stream.
+    static let streamingSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 86400
+        configuration.timeoutIntervalForResource = 0
+        configuration.waitsForConnectivity = true
+        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        return URLSession(configuration: configuration)
+    }()
+
+    static let sseStallTimeout: TimeInterval = 60
 
     let baseURL: URL
 
@@ -31,6 +40,10 @@ struct RemoteManagementClient: Sendable {
 
     func fetchState() async throws -> RemoteStatePayload {
         try await get("api/state")
+    }
+
+    func fetchActivity() async throws -> RemoteActivityPayload {
+        try await get("api/activity")
     }
 
     func updateAll() async throws {
@@ -238,9 +251,9 @@ struct RemoteManagementClient: Sendable {
         }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = Self.sseRequestTimeout
+        request.timeoutInterval = 86400
 
-        let (bytes, response) = try await Self.session.bytes(for: request)
+        let (bytes, response) = try await Self.streamingSession.bytes(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw RelayError.invalidOutput("无法建立实时同步连接。")
         }
@@ -265,9 +278,13 @@ struct RemoteManagementClient: Sendable {
                             }
                         }
                     }
+                } catch is CancellationError {
+                    throw CancellationError()
                 } catch {
+                    if Task.isCancelled { throw CancellationError() }
                     throw error
                 }
+                if Task.isCancelled { throw CancellationError() }
                 throw RelayError.invalidOutput("与服务器的实时同步连接已断开。")
             }
             group.addTask {
@@ -280,7 +297,16 @@ struct RemoteManagementClient: Sendable {
                 }
             }
 
-            _ = try await group.next()
+            do {
+                _ = try await group.next()
+            } catch is CancellationError {
+                group.cancelAll()
+                throw CancellationError()
+            } catch {
+                group.cancelAll()
+                if Task.isCancelled { throw CancellationError() }
+                throw error
+            }
             group.cancelAll()
         }
     }
@@ -474,6 +500,9 @@ struct RemoteActivityPayload: Codable, Sendable {
     var isWorking: Bool
     var status: String
     var progress: Double?
+    /// Optional for compatibility with servers from before activity polling.
+    var completedCount: Int?
+    var totalCount: Int?
     var currentModuleID: String?
     var error: String?
 }

@@ -29,7 +29,7 @@ struct RootView: View {
                     Text(unavailableDescription)
                 } actions: {
                     Button("重新连接") {
-                        model.startRemoteSessionIfNeeded()
+                        model.startRemoteSessionIfNeeded(force: true)
                     }
                     .buttonStyle(.glassProminent)
                     Button("设置") {

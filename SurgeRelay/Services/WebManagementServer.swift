@@ -244,7 +244,9 @@ final class WebManagementServer: @unchecked Sendable {
                         heartbeat = 0
                     } else {
                         heartbeat += 1
-                        if heartbeat >= 15 {
+                        // Comment heartbeat every ~10s so clients don't treat idle
+                        // Ponte links as stalled.
+                        if heartbeat >= 10 {
                             try await sendStreamData(Data(": keep-alive\n\n".utf8), over: connection)
                             heartbeat = 0
                         }

@@ -825,9 +825,7 @@ final class AppModel {
 
     func updateAll() async {
         if isClientMode {
-            await performRemoteMutation { client in
-                try await client.updateAll()
-            }
+            await runRemoteUpdateAll()
             return
         }
         pendingModuleUpdateIDs.removeAll()

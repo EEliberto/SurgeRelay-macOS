@@ -4,11 +4,16 @@ enum RemoteConnectionState: Equatable, Sendable {
     case idle
     case connecting
     case connected
+    /// Live sync dropped; UI keeps the last good projection while reconnecting.
+    case reconnecting
     case unavailable(String)
 
+    /// Client UI may show modules and accept mutations.
     var isOperational: Bool {
-        if case .connected = self { return true }
-        return false
+        switch self {
+        case .connected, .reconnecting: true
+        case .idle, .connecting, .unavailable: false
+        }
     }
 
     var isUnavailable: Bool {
@@ -25,7 +30,7 @@ enum RemoteConnectionState: Equatable, Sendable {
     var shouldDimMenuBarIcon: Bool {
         switch self {
         case .connected: false
-        case .idle, .connecting, .unavailable: true
+        case .idle, .connecting, .reconnecting, .unavailable: true
         }
     }
 }

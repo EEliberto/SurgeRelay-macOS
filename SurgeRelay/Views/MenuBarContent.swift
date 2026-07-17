@@ -20,6 +20,8 @@ struct MenuBarContent: View {
                 }
                 if model.remoteConnectionState.isUnavailable {
                     Text("服务器无响应")
+                } else if case .reconnecting = model.remoteConnectionState {
+                    Text("正在重新连接服务器…")
                 } else if !model.remoteConnectionState.isOperational, model.hasConfiguredRemoteServer {
                     Text("正在连接服务器…")
                 }

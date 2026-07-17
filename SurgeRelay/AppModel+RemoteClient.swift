@@ -9,12 +9,12 @@ extension AppModel {
         isClientMode && remoteConnectionState.isOperational
     }
 
-    func startRemoteSessionIfNeeded() {
+    func startRemoteSessionIfNeeded(force: Bool = false) {
         guard isClientMode else { return }
-        remoteSessionTask?.cancel()
-        remoteSessionTask = nil
 
         guard let baseURL = remoteManagementURL else {
+            remoteSessionTask?.cancel()
+            remoteSessionTask = nil
             remoteConnectionState = .idle
             clearRemoteProjection()
             isWorking = false
@@ -23,8 +23,21 @@ extension AppModel {
             return
         }
 
-        remoteConnectionState = .connecting
-        statusMessage = "正在连接服务器…"
+        // An existing session loop already retries with backoff. Restarting it
+        // on every path flap clears the UI once per second.
+        if !force, remoteSessionTask != nil {
+            return
+        }
+
+        remoteSessionTask?.cancel()
+        remoteSessionTask = nil
+
+        if case .unavailable = remoteConnectionState {
+            remoteConnectionState = .connecting
+        } else if remoteConnectionState != .connected, remoteConnectionState != .reconnecting {
+            remoteConnectionState = .connecting
+        }
+        statusMessage = remoteConnectionState == .reconnecting ? "正在重新连接服务器…" : "正在连接服务器…"
         presentedError = nil
         let client = RemoteManagementClient(baseURL: baseURL)
         remoteSessionTask = Task { [weak self] in
@@ -40,47 +53,72 @@ extension AppModel {
 
     func refreshRemoteState() async {
         guard isClientMode, let baseURL = remoteManagementURL else { return }
-        remoteConnectionState = .connecting
-        statusMessage = "正在连接服务器…"
         do {
             let state = try await RemoteManagementClient(baseURL: baseURL).fetchState()
             applyRemoteState(state, baseURL: baseURL)
             remoteConnectionState = .connected
         } catch {
-            markRemoteUnavailable(error.localizedDescription)
+            if Task.isCancelled || error is CancellationError { return }
+            // Keep the current projection on a one-shot refresh failure; the
+            // session loop decides when to surface a full unavailable page.
+            if remoteConnectionState.isOperational {
+                remoteConnectionState = .reconnecting
+                statusMessage = "正在重新连接服务器…"
+            } else {
+                markRemoteUnavailable(error.localizedDescription)
+            }
         }
     }
 
     private func runRemoteSession(client: RemoteManagementClient) async {
-        var retryDelay: TimeInterval = 1
+        var retryDelay: TimeInterval = 2
         let maxDelay: TimeInterval = 30
+        var hadSuccessfulSync = false
 
         while !Task.isCancelled, isClientMode {
-            remoteConnectionState = .connecting
-            statusMessage = "正在连接服务器…"
+            if hadSuccessfulSync {
+                remoteConnectionState = .reconnecting
+                statusMessage = "正在重新连接服务器…"
+            } else if !remoteConnectionState.isOperational {
+                remoteConnectionState = .connecting
+                statusMessage = "正在连接服务器…"
+            }
             presentedError = nil
 
             do {
                 let state = try await client.fetchState()
                 applyRemoteState(state, baseURL: client.baseURL)
                 remoteConnectionState = .connected
-                retryDelay = 1
+                hadSuccessfulSync = true
+                retryDelay = 2
 
-                try await client.listenForStateEvents { [weak self] state in
-                    self?.applyRemoteState(state, baseURL: client.baseURL)
-                    self?.remoteConnectionState = .connected
+                do {
+                    try await client.listenForStateEvents { [weak self] state in
+                        self?.applyRemoteState(state, baseURL: client.baseURL)
+                        self?.remoteConnectionState = .connected
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    if Task.isCancelled { return }
+                    // SSE drops are common on Ponte / sleep / path changes.
+                    // Keep modules on screen and retry without a full-page error.
+                    remoteConnectionState = .reconnecting
+                    statusMessage = "实时同步中断，正在重连…"
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 if Task.isCancelled { return }
-                if error is CancellationError { return }
                 markRemoteUnavailable(error.localizedDescription)
+                hadSuccessfulSync = false
             }
 
             guard !Task.isCancelled, isClientMode else { return }
 
-            let jitter = Double.random(in: 0...0.3) * retryDelay
+            let jitter = Double.random(in: 0...0.25) * retryDelay
             try? await Task.sleep(for: .seconds(retryDelay + jitter))
-            retryDelay = min(maxDelay, max(1, retryDelay * 2))
+            retryDelay = min(maxDelay, max(2, retryDelay * 2))
         }
     }
 
@@ -89,6 +127,72 @@ extension AppModel {
         clearRemoteProjection()
         statusMessage = "无法连接服务器"
         presentedError = nil
+    }
+
+    func runRemoteUpdateAll() async {
+        guard remoteConnectionState.isOperational else {
+            presentedError = "服务器无响应，无法执行此操作。"
+            return
+        }
+
+        do {
+            let client = try remoteClient()
+            isWorking = true
+            statusMessage = "正在请求服务器更新…"
+            presentedError = nil
+            synchronizationCompletedCount = 0
+            synchronizationTotalCount = 0
+            synchronizingModuleID = nil
+
+            try await client.updateAll()
+            try await monitorRemoteUpdate(using: client)
+
+            // Refresh the complete projection once after completion. During
+            // execution only the lightweight activity endpoint is polled.
+            let state = try await client.fetchState()
+            applyRemoteState(state, baseURL: client.baseURL)
+            remoteConnectionState = .connected
+        } catch is CancellationError {
+            return
+        } catch {
+            isWorking = false
+            presentedError = error.localizedDescription
+            if case .connected = remoteConnectionState {
+                remoteConnectionState = .reconnecting
+            }
+            startRemoteSessionIfNeeded()
+        }
+    }
+
+    private func monitorRemoteUpdate(using client: RemoteManagementClient) async throws {
+        var observedRunning = false
+        var initialIdleSamples = 0
+
+        while !Task.isCancelled {
+            let activity = try await client.fetchActivity()
+
+            if activity.isWorking {
+                applyRemoteActivity(activity)
+                observedRunning = true
+                initialIdleSamples = 0
+            } else if observedRunning {
+                applyRemoteActivity(activity)
+                return
+            } else {
+                // The server schedules update-all asynchronously. Allow up to
+                // two seconds for the work token to become active; a no-op
+                // update will remain idle and then finish here. Keep the local
+                // pending indicator visible instead of briefly flashing idle.
+                initialIdleSamples += 1
+                if initialIdleSamples >= 5 {
+                    applyRemoteActivity(activity)
+                    return
+                }
+            }
+
+            try await Task.sleep(for: .milliseconds(400))
+        }
+        throw CancellationError()
     }
 
     func clearRemoteProjection() {
@@ -111,21 +215,7 @@ extension AppModel {
         upstreamState.lastCheckedAt = state.settings.scriptHubLastCheckedAt
         upstreamState.lastError = state.settings.scriptHubLastError
 
-        isWorking = state.activity.isWorking
-        statusMessage = state.activity.status
-        presentedError = state.activity.error
-        if let current = state.activity.currentModuleID, let uuid = UUID(uuidString: current) {
-            synchronizingModuleID = uuid
-        } else {
-            synchronizingModuleID = nil
-        }
-        if let progress = state.activity.progress, progress.isFinite {
-            synchronizationTotalCount = 100
-            synchronizationCompletedCount = Int((progress * 100).rounded())
-        } else {
-            synchronizationTotalCount = 0
-            synchronizationCompletedCount = 0
-        }
+        applyRemoteActivity(state.activity)
 
         if let previousSelection,
            modules.contains(where: { $0.id == previousSelection })
@@ -136,6 +226,35 @@ extension AppModel {
                 || (selectedModuleID.map { RelayPlatform.from(selectionID: $0) != nil } ?? false)
         ) {
             selectedModuleID = RelayPlatform.ios.selectionID
+        }
+    }
+
+    private func applyRemoteActivity(_ activity: RemoteActivityPayload) {
+        isWorking = activity.isWorking
+        statusMessage = activity.status
+        presentedError = activity.error
+
+        if let current = activity.currentModuleID, let uuid = UUID(uuidString: current) {
+            synchronizingModuleID = uuid
+        } else {
+            synchronizingModuleID = nil
+        }
+
+        if activity.isWorking,
+           let total = activity.totalCount,
+           let completed = activity.completedCount,
+           total > 0 {
+            synchronizationTotalCount = total
+            synchronizationCompletedCount = min(max(completed, 0), total)
+        } else if activity.isWorking,
+                  let progress = activity.progress,
+                  progress.isFinite {
+            // Compatibility fallback for an older server.
+            synchronizationTotalCount = 100
+            synchronizationCompletedCount = Int((progress * 100).rounded())
+        } else {
+            synchronizationTotalCount = 0
+            synchronizationCompletedCount = 0
         }
     }
 
@@ -199,7 +318,11 @@ extension AppModel {
         } catch {
             presentedError = error.localizedDescription
             if isClientMode {
-                markRemoteUnavailable(error.localizedDescription)
+                // Don't wipe the whole UI for a single failed action; the
+                // background session loop will reconnect if the server is down.
+                if case .connected = remoteConnectionState {
+                    remoteConnectionState = .reconnecting
+                }
                 startRemoteSessionIfNeeded()
             }
         }
