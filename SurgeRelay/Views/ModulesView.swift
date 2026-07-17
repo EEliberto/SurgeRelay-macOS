@@ -484,13 +484,12 @@ struct ModulesView: View {
             Text(model.modules.isEmpty ? "还没有模块" : "没有搜索结果")
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(.secondary)
-            Text(model.modules.isEmpty
-                 ? "添加第一个原始地址，Surge Relay 会把所有来源合并成一份总模块。"
-                 : "换个关键词试试。")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            if !model.modules.isEmpty {
+                Text("换个关键词试试。")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
