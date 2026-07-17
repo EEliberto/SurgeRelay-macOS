@@ -74,11 +74,14 @@ extension AppModel {
         var retryDelay: TimeInterval = 2
         let maxDelay: TimeInterval = 30
         var hadSuccessfulSync = false
+        var softDisconnect = false
 
         while !Task.isCancelled, isClientMode {
             if hadSuccessfulSync {
                 remoteConnectionState = .reconnecting
-                statusMessage = "正在重新连接服务器…"
+                if !isWorking {
+                    statusMessage = "正在重新连接服务器…"
+                }
             } else if !remoteConnectionState.isOperational {
                 remoteConnectionState = .connecting
                 statusMessage = "正在连接服务器…"
@@ -90,21 +93,41 @@ extension AppModel {
                 applyRemoteState(state, baseURL: client.baseURL)
                 remoteConnectionState = .connected
                 hadSuccessfulSync = true
+                softDisconnect = false
                 retryDelay = 2
 
+                // SSE alone is not enough over Ponte: the stream can stall while
+                // the server keeps working/finishes. Poll /api/activity in parallel
+                // so progress never freezes at a mid-update percentage.
                 do {
-                    try await client.listenForStateEvents { [weak self] state in
-                        self?.applyRemoteState(state, baseURL: client.baseURL)
-                        self?.remoteConnectionState = .connected
+                    try await withThrowingTaskGroup(of: Void.self) { group in
+                        group.addTask {
+                            try await client.listenForStateEvents { [weak self] state in
+                                self?.applyRemoteState(state, baseURL: client.baseURL)
+                                self?.remoteConnectionState = .connected
+                            }
+                        }
+                        group.addTask { [weak self] in
+                            guard let self else { return }
+                            try await self.pollRemoteActivity(using: client)
+                        }
+                        _ = try await group.next()
+                        group.cancelAll()
                     }
                 } catch is CancellationError {
                     return
                 } catch {
                     if Task.isCancelled { return }
-                    // SSE drops are common on Ponte / sleep / path changes.
-                    // Keep modules on screen and retry without a full-page error.
+                    softDisconnect = true
                     remoteConnectionState = .reconnecting
-                    statusMessage = "实时同步中断，正在重连…"
+                    // Reconcile immediately so a finished update can't leave the
+                    // sidebar stuck on e.g. 47% after the SSE socket dies.
+                    if let activity = try? await client.fetchActivity() {
+                        applyRemoteActivity(activity)
+                    }
+                    if !isWorking {
+                        statusMessage = "实时同步中断，正在重连…"
+                    }
                 }
             } catch is CancellationError {
                 return
@@ -112,14 +135,43 @@ extension AppModel {
                 if Task.isCancelled { return }
                 markRemoteUnavailable(error.localizedDescription)
                 hadSuccessfulSync = false
+                softDisconnect = false
             }
 
             guard !Task.isCancelled, isClientMode else { return }
 
-            let jitter = Double.random(in: 0...0.25) * retryDelay
-            try? await Task.sleep(for: .seconds(retryDelay + jitter))
-            retryDelay = min(maxDelay, max(2, retryDelay * 2))
+            let delay = softDisconnect && hadSuccessfulSync ? 0.5 : retryDelay
+            let jitter = Double.random(in: 0...0.25) * delay
+            try? await Task.sleep(for: .seconds(delay + jitter))
+            if !softDisconnect {
+                retryDelay = min(maxDelay, max(2, retryDelay * 2))
+            }
         }
+    }
+
+    /// Keeps progress/status truthful even when the SSE stream is wedged.
+    private func pollRemoteActivity(using client: RemoteManagementClient) async throws {
+        var workingTicks = 0
+        while !Task.isCancelled {
+            let activity = try await client.fetchActivity()
+            applyRemoteActivity(activity)
+            remoteConnectionState = .connected
+
+            if activity.isWorking {
+                workingTicks += 1
+                // While the server is busy, also refresh the full projection so
+                // module rows move past "updating" even if SSE events are delayed.
+                if workingTicks % 5 == 0 {
+                    let state = try await client.fetchState()
+                    applyRemoteState(state, baseURL: client.baseURL)
+                }
+                try await Task.sleep(for: .milliseconds(400))
+            } else {
+                workingTicks = 0
+                try await Task.sleep(for: .seconds(1.5))
+            }
+        }
+        throw CancellationError()
     }
 
     func markRemoteUnavailable(_ message: String) {

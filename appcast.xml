@@ -4,9 +4,9 @@
         <title>Surge Relay</title>
         <item>
             <title>270717</title>
-            <pubDate>Fri, 17 Jul 2026 17:35:00 +0800</pubDate>
+            <pubDate>Fri, 17 Jul 2026 17:45:00 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v270717</link>
-            <sparkle:version>27071708</sparkle:version>
+            <sparkle:version>27071709</sparkle:version>
             <sparkle:shortVersionString>270717</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -32,9 +32,11 @@
 
 9.进一步优化客户端实时同步：点击“更新全部”后，服务器端的更新进度会实时、准确地回传到客户端，实时同步中断时也不再频繁弹出“服务器无响应”。
 
+10.修复客户端进度条卡在中间百分比的问题：即使由服务器端发起更新，或 SSE 中途断开，客户端也会通过独立进度通道持续校正，完成后立即恢复空闲状态。
+
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071708.dmg" length="23934574" type="application/octet-stream" sparkle:edSignature="LdQi5NQEbHY86XbfkVRvY/FIXVQpkLQt6tySy8NgC/9QHDe6PRCPWHw2SeihCmN9K12ilcNdgHyeWzW+tmddBg=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071709.dmg" length="23968843" type="application/octet-stream" sparkle:edSignature="rDFkylu1IwtiRlfi3KwXqpZMpH3Sk1F68x1MUppbYXcfNyueDmBZWZKUjthxKl7X3L1LYfr2uGq5iw+33fA+DA=="/>
         </item>
         <item>
             <title>260710</title>

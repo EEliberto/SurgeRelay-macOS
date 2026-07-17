@@ -74,6 +74,9 @@ final class AppModel {
         guard activeWorkToken == token else { return }
         activeWorkToken = nil
         isWorking = false
+        synchronizingModuleID = nil
+        synchronizationTotalCount = 0
+        synchronizationCompletedCount = 0
     }
 
     init() {

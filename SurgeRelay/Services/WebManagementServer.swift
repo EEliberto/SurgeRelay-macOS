@@ -251,7 +251,10 @@ final class WebManagementServer: @unchecked Sendable {
                             heartbeat = 0
                         }
                     }
-                    try await Task.sleep(for: .seconds(1))
+                    // Poll faster while the encoded payload is changing frequently
+                    // (sync in progress); idle streams can breathe at 1s.
+                    let busy = payload.contains("\"isWorking\":true") || payload.contains("\"isWorking\": true")
+                    try await Task.sleep(for: .milliseconds(busy ? 400 : 1000))
                 }
             } catch {
                 // Closing a browser tab or changing networks naturally ends the stream.
