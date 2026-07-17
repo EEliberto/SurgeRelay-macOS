@@ -227,9 +227,16 @@ struct AppSettings: Codable, Equatable, Sendable {
     }
 
     static var defaultSurgeDirectory: String {
+        #if os(macOS)
         FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Mobile Documents/iCloud~com~nssurge~inc/Documents", directoryHint: .isDirectory)
             .path
+        #else
+        // iOS client never writes into Surge's container; keep a stable placeholder path.
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appending(path: "Surge", directoryHint: .isDirectory)
+            .path
+        #endif
     }
 
     static var defaultConfigurationDirectory: String {

@@ -30,6 +30,7 @@ final class AppModel {
     var updateHistory: [UpdateHistoryEntry]
     var deviceMode: RelayDeviceMode
     var ponteServerAddress: String
+    var remoteConnectionState: RemoteConnectionState = .idle
 
     @ObservationIgnored private let scriptHubClient = ScriptHubClient()
     @ObservationIgnored private let sourceRevisionService = SourceRevisionService()
@@ -39,7 +40,7 @@ final class AppModel {
     @ObservationIgnored private let fileStore = ModuleFileStore()
     @ObservationIgnored private let iconStore = ModuleIconStore()
     @ObservationIgnored private let processingWorker = ModuleProcessingWorker()
-    @ObservationIgnored private let webServer = WebManagementServer()
+    @ObservationIgnored let webServer = WebManagementServer()
     @ObservationIgnored private var schedulerTask: Task<Void, Never>?
     @ObservationIgnored private var synchronizationTask: Task<Void, Never>?
     @ObservationIgnored private var synchronizationRequestID = UUID()
@@ -53,6 +54,12 @@ final class AppModel {
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var configurationExistedBeforeLaunch = false
     @ObservationIgnored var remoteSessionTask: Task<Void, Never>?
+    @ObservationIgnored var webServerShouldRun = false
+    @ObservationIgnored var webServerRestartTask: Task<Void, Never>?
+    @ObservationIgnored var webServerActivityToken: NSObjectProtocol?
+    @ObservationIgnored var networkPathMonitor: NetworkPathMonitor?
+    @ObservationIgnored var appActiveObserver: NSObjectProtocol?
+    @ObservationIgnored var wakeObserver: NSObjectProtocol?
     @ObservationIgnored private var pendingModuleUpdateIDs = Set<UUID>()
 
     private func beginWork() -> UUID? {
@@ -153,18 +160,23 @@ final class AppModel {
         }
 
         if deviceMode == .client {
+            hasStarted = true
             webServer.stop()
             webServerState = .stopped
+            webServerShouldRun = false
+            endWebServerActivity()
             modules = []
+            beginNetworkRecoveryMonitoring()
             startRemoteSessionIfNeeded()
             return
         }
+        hasStarted = true
+        beginNetworkRecoveryMonitoring()
         await startRuntime()
     }
 
     private func startRuntime() async {
-        guard !hasStarted, deviceMode == .server else { return }
-        hasStarted = true
+        guard deviceMode == .server else { return }
         applyWebServerSettings(persist: false)
         restartScheduler()
         if settings.storageMode == .gitHub {
@@ -242,6 +254,8 @@ final class AppModel {
         PersistenceStore.markInitialSetupCompleted()
         configurationWelcomeAllowsDismiss = false
         presentsConfigurationWelcome = false
+        hasStarted = true
+        beginNetworkRecoveryMonitoring()
         await startRuntime()
         if storageMode == .local {
             await rebuildCombinedFromCache()
@@ -273,6 +287,8 @@ final class AppModel {
         PersistenceStore.markInitialSetupCompleted()
         configurationWelcomeAllowsDismiss = false
         presentsConfigurationWelcome = false
+        hasStarted = true
+        beginNetworkRecoveryMonitoring()
         statusMessage = "已切换到客户端模式"
         return true
     }
@@ -394,36 +410,21 @@ final class AppModel {
             return
         }
         if persist { saveSettings() }
-        webServer.stop()
-        guard deviceMode == .server, settings.webServerEnabled else {
+
+        webServerRestartTask?.cancel()
+        webServerRestartTask = nil
+
+        let shouldRun = deviceMode == .server && settings.webServerEnabled
+        webServerShouldRun = shouldRun
+
+        if !shouldRun {
+            endWebServerActivity()
+            webServer.stop()
             webServerState = .stopped
             return
         }
 
-        let configuration = WebServerConfiguration(port: port)
-        do {
-            try webServer.start(
-                configuration: configuration,
-                stateHandler: { [weak self] state in
-                    Task { @MainActor [weak self] in self?.webServerState = state }
-                },
-                eventHandler: { [weak self] in
-                    guard let self else { return "{}" }
-                    return await WebManagementAPI.eventPayload(model: self)
-                },
-                requestHandler: { [weak self] request in
-                    if !request.path.hasPrefix("/api/") {
-                        return WebManagementAPI.assetResponse(for: request.path)
-                    }
-                    guard let self else {
-                        return .error(status: 500, message: "Surge Relay 已停止。")
-                    }
-                    return await WebManagementAPI.response(for: request, model: self)
-                }
-            )
-        } catch {
-            webServerState = .failed(error.localizedDescription)
-        }
+        startWebServerListener(port: port)
     }
 
     func setDeviceMode(_ mode: RelayDeviceMode) async {
@@ -439,7 +440,11 @@ final class AppModel {
             individualOutputMonitorTask?.cancel()
             webServer.stop()
             webServerState = .stopped
+            webServerShouldRun = false
+            endWebServerActivity()
+            webServerRestartTask?.cancel()
             hasStarted = false
+            remoteConnectionState = .idle
             activeWorkToken = nil
             isWorking = false
             synchronizationCompletedCount = 0
@@ -2167,12 +2172,6 @@ final class AppModel {
             return module
         }
     }
-}
-
-struct IconSearchResult: Codable, Sendable {
-    let name: String
-    let url: String
-    let source: String
 }
 
 extension AppModel {

@@ -5,20 +5,27 @@ extension AppModel {
 
     var hasConfiguredRemoteServer: Bool { remoteManagementURL != nil }
 
+    var isRemoteServerOperational: Bool {
+        isClientMode && remoteConnectionState.isOperational
+    }
+
     func startRemoteSessionIfNeeded() {
         guard isClientMode else { return }
         remoteSessionTask?.cancel()
         remoteSessionTask = nil
 
         guard let baseURL = remoteManagementURL else {
-            modules = []
+            remoteConnectionState = .idle
+            clearRemoteProjection()
             isWorking = false
             statusMessage = "请设置服务器 Ponte 地址"
             presentedError = nil
             return
         }
 
+        remoteConnectionState = .connecting
         statusMessage = "正在连接服务器…"
+        presentedError = nil
         let client = RemoteManagementClient(baseURL: baseURL)
         remoteSessionTask = Task { [weak self] in
             await self?.runRemoteSession(client: client)
@@ -28,38 +35,69 @@ extension AppModel {
     func stopRemoteSession() {
         remoteSessionTask?.cancel()
         remoteSessionTask = nil
+        remoteConnectionState = .idle
     }
 
     func refreshRemoteState() async {
         guard isClientMode, let baseURL = remoteManagementURL else { return }
+        remoteConnectionState = .connecting
+        statusMessage = "正在连接服务器…"
         do {
             let state = try await RemoteManagementClient(baseURL: baseURL).fetchState()
             applyRemoteState(state, baseURL: baseURL)
+            remoteConnectionState = .connected
         } catch {
-            presentedError = error.localizedDescription
-            statusMessage = "无法连接服务器"
+            markRemoteUnavailable(error.localizedDescription)
         }
     }
 
     private func runRemoteSession(client: RemoteManagementClient) async {
+        var retryDelay: TimeInterval = 1
+        let maxDelay: TimeInterval = 30
+
         while !Task.isCancelled, isClientMode {
+            remoteConnectionState = .connecting
+            statusMessage = "正在连接服务器…"
+            presentedError = nil
+
             do {
                 let state = try await client.fetchState()
                 applyRemoteState(state, baseURL: client.baseURL)
-            } catch {
-                if !Task.isCancelled {
-                    presentedError = error.localizedDescription
-                    statusMessage = "无法连接服务器"
-                }
-            }
+                remoteConnectionState = .connected
+                retryDelay = 1
 
-            await client.listenForStateEvents { [weak self] state in
-                self?.applyRemoteState(state, baseURL: client.baseURL)
+                try await client.listenForStateEvents { [weak self] state in
+                    self?.applyRemoteState(state, baseURL: client.baseURL)
+                    self?.remoteConnectionState = .connected
+                }
+            } catch {
+                if Task.isCancelled { return }
+                if error is CancellationError { return }
+                markRemoteUnavailable(error.localizedDescription)
             }
 
             guard !Task.isCancelled, isClientMode else { return }
-            try? await Task.sleep(for: .seconds(2))
+
+            let jitter = Double.random(in: 0...0.3) * retryDelay
+            try? await Task.sleep(for: .seconds(retryDelay + jitter))
+            retryDelay = min(maxDelay, max(1, retryDelay * 2))
         }
+    }
+
+    func markRemoteUnavailable(_ message: String) {
+        remoteConnectionState = .unavailable(message)
+        clearRemoteProjection()
+        statusMessage = "无法连接服务器"
+        presentedError = nil
+    }
+
+    func clearRemoteProjection() {
+        modules = []
+        selectedModuleID = RelayPlatform.ios.selectionID
+        isWorking = false
+        synchronizingModuleID = nil
+        synchronizationTotalCount = 0
+        synchronizationCompletedCount = 0
     }
 
     func applyRemoteState(_ state: RemoteStatePayload, baseURL: URL) {
@@ -138,7 +176,6 @@ extension AppModel {
         }
         next.platformSettings = platformSettings
         settings = next
-        // Keep a non-secret marker so the Sync pane can show whether a token exists.
         if remote.githubTokenConfigured, githubToken.isEmpty {
             githubToken = settings.githubToken
         }
@@ -152,11 +189,19 @@ extension AppModel {
     }
 
     func performRemoteMutation(_ work: (RemoteManagementClient) async throws -> Void) async {
+        guard remoteConnectionState.isOperational else {
+            presentedError = "服务器无响应，无法执行此操作。"
+            return
+        }
         do {
             try await work(try remoteClient())
             await refreshRemoteState()
         } catch {
             presentedError = error.localizedDescription
+            if isClientMode {
+                markRemoteUnavailable(error.localizedDescription)
+                startRemoteSessionIfNeeded()
+            }
         }
     }
 

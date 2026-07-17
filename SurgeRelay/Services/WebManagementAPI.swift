@@ -168,6 +168,7 @@ enum WebManagementAPI {
         switch state {
         case .stopped: "已停止"
         case .starting: "正在启动"
+        case .restarting: "正在恢复"
         case .running: "运行中"
         case .failed(let message): "失败：\(message)"
         }
@@ -802,10 +803,6 @@ private struct WebModuleMutation: Decodable {
         if let enableJQ { draft.scriptHubOptions.enableJQ = enableJQ }
         return draft
     }
-}
-
-struct WebURLRequestPayload: Codable {
-    let url: String?
 }
 
 private enum WebAPIError: LocalizedError {

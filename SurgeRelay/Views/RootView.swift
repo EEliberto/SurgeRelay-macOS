@@ -22,6 +22,34 @@ struct RootView: View {
                     }
                     .buttonStyle(.glassProminent)
                 }
+            } else if model.deviceMode == .client, model.remoteConnectionState.isUnavailable {
+                ContentUnavailableView {
+                    Label("服务器无响应", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(unavailableDescription)
+                } actions: {
+                    Button("重新连接") {
+                        model.startRemoteSessionIfNeeded()
+                    }
+                    .buttonStyle(.glassProminent)
+                    Button("设置") {
+                        openWindow(id: SurgeRelayWindow.settings)
+                    }
+                }
+            } else if model.deviceMode == .client, !model.remoteConnectionState.isOperational {
+                ContentUnavailableView {
+                    Label("正在连接服务器", systemImage: "network")
+                } description: {
+                    Text("正在通过 Surge Ponte 连接服务器 Mac…")
+                } actions: {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Button("设置") {
+                            openWindow(id: SurgeRelayWindow.settings)
+                        }
+                    }
+                }
             } else {
                 ModulesView()
             }
@@ -31,5 +59,12 @@ struct RootView: View {
             WelcomeWizardView()
                 .environment(model)
         }
+    }
+
+    private var unavailableDescription: String {
+        if let message = model.remoteConnectionState.unavailableMessage, !message.isEmpty {
+            return "\(message)\n\n请确认服务器 Mac 上的 Surge Relay 正在运行，且已在设置中启用 Web 管理。"
+        }
+        return "无法连接 Ponte 服务器。请确认服务器 Mac 上的 Surge Relay 正在运行，且已在设置中启用 Web 管理。"
     }
 }

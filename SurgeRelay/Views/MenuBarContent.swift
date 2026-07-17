@@ -18,6 +18,13 @@ struct MenuBarContent: View {
                 } else {
                     Text("尚未设置服务器 Ponte 地址")
                 }
+                if model.remoteConnectionState.isUnavailable {
+                    Text("服务器无响应")
+                } else if !model.remoteConnectionState.isOperational, model.hasConfiguredRemoteServer {
+                    Text("正在连接服务器…")
+                }
+            } else if model.settings.webServerEnabled {
+                Text(webServerStatusText)
             }
             if model.isWorking {
                 Text(workingText)
@@ -31,7 +38,11 @@ struct MenuBarContent: View {
         Button("更新全部模块") {
             Task { await model.updateAll() }
         }
-        .disabled(model.modules.isEmpty || model.isWorking || (model.deviceMode == .client && !model.hasConfiguredRemoteServer))
+        .disabled(
+            model.modules.isEmpty
+                || model.isWorking
+                || (model.deviceMode == .client && !model.isRemoteServerOperational)
+        )
 
         if let url = model.combinedRawURL(for: .ios) {
             Button("拷贝总订阅地址") {
@@ -70,6 +81,16 @@ struct MenuBarContent: View {
         NSApp.setActivationPolicy(.regular)
         openWindow(id: SurgeRelayWindow.settings)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private var webServerStatusText: String {
+        switch model.webServerState {
+        case .running: "Web 管理：运行中"
+        case .starting: "Web 管理：正在启动"
+        case .restarting: "Web 管理：正在恢复"
+        case .stopped: "Web 管理：已停止"
+        case .failed: "Web 管理：失败"
+        }
     }
 
     private var latestUpdateText: String {

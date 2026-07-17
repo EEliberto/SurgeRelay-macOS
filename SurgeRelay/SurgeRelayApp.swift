@@ -75,6 +75,19 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// Starts AppModel runtime at process scope so menu-bar-only mode keeps serving clients.
+private struct SurgeRelayRuntimeHost<Content: View>: View {
+    let model: AppModel
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .task {
+                await model.start()
+            }
+    }
+}
+
 @main
 struct SurgeRelayApp: App {
     @NSApplicationDelegateAdaptor(SurgeRelayAppDelegate.self) private var appDelegate
@@ -89,13 +102,19 @@ struct SurgeRelayApp: App {
         )
     }
 
+    private var menuBarIconOpacity: Double {
+        guard model.deviceMode == .client else { return 1 }
+        return model.remoteConnectionState.shouldDimMenuBarIcon ? 0.35 : 1
+    }
+
     var body: some Scene {
         Window("Surge Relay", id: SurgeRelayWindow.main) {
-            RootView()
-                .environment(model)
-                .environment(\.locale, Locale(identifier: "zh_CN"))
-                .task { await model.start() }
-                .frame(minWidth: 920, minHeight: 640)
+            SurgeRelayRuntimeHost(model: model) {
+                RootView()
+                    .environment(model)
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+            }
+            .frame(minWidth: 920, minHeight: 640)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -127,10 +146,19 @@ struct SurgeRelayApp: App {
         .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
 
-        MenuBarExtra("Surge Relay", systemImage: "dot.radiowaves.left.and.right") {
-            MenuBarContent(updater: updaterController.updater)
-                .environment(model)
-                .environment(\.locale, Locale(identifier: "zh_CN"))
+        MenuBarExtra {
+            SurgeRelayRuntimeHost(model: model) {
+                MenuBarContent(updater: updaterController.updater)
+                    .environment(model)
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+            }
+        } label: {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .symbolRenderingMode(.monochrome)
+                // Template menu-bar icons can't use semantic colors reliably;
+                // opacity is the system-native way to show a lighter disconnected state.
+                .opacity(menuBarIconOpacity)
+                .accessibilityLabel("Surge Relay")
         }
         .menuBarExtraStyle(.menu)
     }

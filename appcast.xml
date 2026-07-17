@@ -6,7 +6,7 @@
             <title>270717</title>
             <pubDate>Fri, 17 Jul 2026 14:10:00 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v270717</link>
-            <sparkle:version>27071705</sparkle:version>
+            <sparkle:version>27071706</sparkle:version>
             <sparkle:shortVersionString>270717</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -26,9 +26,13 @@
 
 6.优化桌面端侧边栏空状态提示。
 
+7.大幅提升客户端与服务器（Surge Ponte）的同步稳定性：即使服务器只保留菜单栏运行，连接也能持续、自动重连并从断网/唤醒中恢复，不再出现卡住或数据丢失。
+
+8.服务器无响应时，客户端会整页提示“服务器无响应”并提供重新连接与设置入口，断连时菜单栏图标会变为浅色，状态一目了然。
+
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071705.dmg" length="23883722" type="application/octet-stream" sparkle:edSignature="ohU7WlOUSXkWMlgCY+ztstesBOpgmijsGZ/8lyKxWEfirsPeT4lDrjKNvnJFhhXHZdkp7tm32s1os/RLHWOzBQ=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v270717/Surge-Relay-270717-build-27071706.dmg" length="23086414" type="application/octet-stream" sparkle:edSignature="xGiZBfGgynH8UVJc7c9dLPKMvpneiCbsRJVyT2k4QogBxnYakmnBeSeUjqJLrnjkmSXi0A1IWHnn2sLromuxBQ=="/>
         </item>
         <item>
             <title>260710</title>

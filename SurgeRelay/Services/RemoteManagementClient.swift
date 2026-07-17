@@ -3,6 +3,17 @@ import Foundation
 /// HTTP client used by client-mode Macs to drive the server's management API
 /// through Surge Ponte, so the native UI can mirror the server app.
 struct RemoteManagementClient: Sendable {
+    static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 90
+        configuration.waitsForConnectivity = true
+        return URLSession(configuration: configuration)
+    }()
+
+    static let sseRequestTimeout: TimeInterval = 90
+    static let sseStallTimeout: TimeInterval = 45
+
     let baseURL: URL
 
     private var decoder: JSONDecoder {
@@ -220,36 +231,57 @@ struct RemoteManagementClient: Sendable {
     }
 
     /// Long-lived SSE consumer for `/api/events`. Calls `onState` whenever the
-    /// server emits a state payload. Cancelling the surrounding task ends the stream.
-    func listenForStateEvents(onState: @escaping @MainActor (RemoteStatePayload) -> Void) async {
-        guard let url = URL(string: "api/events", relativeTo: baseURL)?.absoluteURL else { return }
+    /// server emits a state payload. Throws when the stream ends or stalls.
+    func listenForStateEvents(onState: @escaping @MainActor (RemoteStatePayload) -> Void) async throws {
+        guard let url = URL(string: "api/events", relativeTo: baseURL)?.absoluteURL else {
+            throw RelayError.invalidOutput("无效的服务器地址。")
+        }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 3600
+        request.timeoutInterval = Self.sseRequestTimeout
 
-        do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                return
+        let (bytes, response) = try await Self.session.bytes(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw RelayError.invalidOutput("无法建立实时同步连接。")
+        }
+
+        let monitor = SSEStallMonitor()
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                var dataLines: [String] = []
+                do {
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { throw CancellationError() }
+                        await monitor.touch()
+                        if line.hasPrefix("data:") {
+                            let value = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                            dataLines.append(String(value))
+                        } else if line.isEmpty, !dataLines.isEmpty {
+                            let payload = dataLines.joined(separator: "\n")
+                            dataLines.removeAll(keepingCapacity: true)
+                            if let data = payload.data(using: .utf8),
+                               let state = try? self.decoder.decode(RemoteStatePayload.self, from: data) {
+                                await onState(state)
+                            }
+                        }
+                    }
+                } catch {
+                    throw error
+                }
+                throw RelayError.invalidOutput("与服务器的实时同步连接已断开。")
             }
-
-            var dataLines: [String] = []
-            for try await line in bytes.lines {
-                if Task.isCancelled { break }
-                if line.hasPrefix("data:") {
-                    let value = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                    dataLines.append(String(value))
-                } else if line.isEmpty, !dataLines.isEmpty {
-                    let payload = dataLines.joined(separator: "\n")
-                    dataLines.removeAll(keepingCapacity: true)
-                    if let data = payload.data(using: .utf8),
-                       let state = try? decoder.decode(RemoteStatePayload.self, from: data) {
-                        await onState(state)
+            group.addTask {
+                let stall = Duration.seconds(Self.sseStallTimeout)
+                while !Task.isCancelled {
+                    try await Task.sleep(for: .seconds(5))
+                    if await monitor.elapsed() > stall {
+                        throw RelayError.invalidOutput("服务器连接已超时。")
                     }
                 }
             }
-        } catch {
-            // Connection drops are expected when the server restarts or Ponte flickers.
+
+            _ = try await group.next()
+            group.cancelAll()
         }
     }
 
@@ -319,7 +351,7 @@ struct RemoteManagementClient: Sendable {
         }
         request.httpBody = body
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await Self.session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw RelayError.invalidOutput("服务器没有返回有效响应。")
         }
@@ -333,6 +365,18 @@ struct RemoteManagementClient: Sendable {
             throw RelayError.invalidOutput("服务器返回错误（\(http.statusCode)）。")
         }
         return data
+    }
+}
+
+private actor SSEStallMonitor {
+    private var lastActivity = ContinuousClock.now
+
+    func touch() {
+        lastActivity = ContinuousClock.now
+    }
+
+    func elapsed() -> Duration {
+        lastActivity.duration(to: ContinuousClock.now)
     }
 }
 

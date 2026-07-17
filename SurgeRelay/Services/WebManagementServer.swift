@@ -8,6 +8,7 @@ struct WebServerConfiguration: Sendable {
 enum WebServerRuntimeState: Equatable, Sendable {
     case stopped
     case starting
+    case restarting
     case running
     case failed(String)
 }

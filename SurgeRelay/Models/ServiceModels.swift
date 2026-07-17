@@ -95,6 +95,16 @@ struct UpstreamUpdateResult: Sendable {
     var scripts: [String: Data]
 }
 
+struct IconSearchResult: Codable, Sendable {
+    let name: String
+    let url: String
+    let source: String
+}
+
+struct WebURLRequestPayload: Codable, Sendable {
+    var url: String?
+}
+
 enum RelayError: LocalizedError, Sendable {
     case invalidSourceURL
     case invalidServiceURL
