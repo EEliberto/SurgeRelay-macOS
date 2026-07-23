@@ -105,82 +105,17 @@ struct ModulesView: View {
     }
 
     private var detailTabSwitcher: some View {
-        DetailTabSegmentedControl(selection: $detailTab)
-            .frame(width: 160, height: 32)
-    }
-
-    private struct DetailTabSegmentedControl: NSViewRepresentable {
-        @Binding var selection: DetailTab
-
-        func makeCoordinator() -> Coordinator {
-            Coordinator(selection: $selection)
+        Picker("显示内容", selection: $detailTab) {
+            Label("详情", systemImage: "info.circle")
+                .tag(DetailTab.info)
+            Label("预览", systemImage: "curlybraces")
+                .tag(DetailTab.preview)
         }
-
-        func makeNSView(context: Context) -> NSSegmentedControl {
-            let control = NSSegmentedControl(
-                labels: ["详情", "预览"],
-                trackingMode: .selectOne,
-                target: context.coordinator,
-                action: #selector(Coordinator.selectionChanged(_:))
-            )
-            control.segmentStyle = .rounded
-            control.controlSize = .regular
-            configure(control)
-            control.selectedSegment = segmentIndex(for: selection)
-            return control
-        }
-
-        func updateNSView(_ control: NSSegmentedControl, context: Context) {
-            context.coordinator.selection = $selection
-            configure(control)
-            control.selectedSegment = segmentIndex(for: selection)
-        }
-
-        private func configure(_ control: NSSegmentedControl) {
-            control.segmentCount = 2
-
-            control.setLabel("详情", forSegment: 0)
-            control.setImage(
-                NSImage(systemSymbolName: "info.circle", accessibilityDescription: "详情"),
-                forSegment: 0
-            )
-            control.setImageScaling(.scaleProportionallyDown, forSegment: 0)
-            control.setWidth(80, forSegment: 0)
-
-            control.setLabel("预览", forSegment: 1)
-            control.setImage(
-                NSImage(systemSymbolName: "curlybraces", accessibilityDescription: "预览"),
-                forSegment: 1
-            )
-            control.setImageScaling(.scaleProportionallyDown, forSegment: 1)
-            control.setWidth(80, forSegment: 1)
-        }
-
-        private func segmentIndex(for tab: DetailTab) -> Int {
-            switch tab {
-            case .info: return 0
-            case .preview: return 1
-            }
-        }
-
-        final class Coordinator: NSObject {
-            var selection: Binding<DetailTab>
-
-            init(selection: Binding<DetailTab>) {
-                self.selection = selection
-            }
-
-            @MainActor @objc func selectionChanged(_ sender: NSSegmentedControl) {
-                switch sender.selectedSegment {
-                case 0:
-                    selection.wrappedValue = .info
-                case 1:
-                    selection.wrappedValue = .preview
-                default:
-                    break
-                }
-            }
-        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .labelStyle(.titleAndIcon)
+        .controlSize(.regular)
+        .fixedSize()
     }
 
     private var contentIndexToken: String {
@@ -390,6 +325,17 @@ struct ModulesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaPadding(.vertical, 1)
             .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                    } label: {
+                        Label(
+                            columnVisibility == .detailOnly ? "显示边栏" : "隐藏边栏",
+                            systemImage: "sidebar.left"
+                        )
+                    }
+                    .help(columnVisibility == .detailOnly ? "显示边栏" : "隐藏边栏")
+                }
                 if selectionKind != nil {
                     ToolbarItem(placement: .navigation) {
                         ModuleNavigationButtons(
@@ -409,6 +355,7 @@ struct ModulesView: View {
                 }
             }
         }
+        .toolbar(removing: .sidebarToggle)
         .onChange(of: model.selectedModuleID) { oldValue, newValue in
             detailTab = .info
             guard oldValue != newValue else { return }

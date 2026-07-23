@@ -6,7 +6,7 @@
             <title>260723</title>
             <pubDate>Thu, 23 Jul 2026 16:15:36 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260723</link>
-            <sparkle:version>27072301</sparkle:version>
+            <sparkle:version>27072302</sparkle:version>
             <sparkle:shortVersionString>260723</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -32,9 +32,11 @@
 
 9. 配置文件现在会自动优化重复信息，不规范格式的重复信息也能在规范格式后自动合并。
 
+10. 修复 macOS 27 中详情/预览切换控件错位，以及展开或收起边栏时工具栏溢出按钮短暂闪现。
+
 如果你使用 Surge Relay 遇到任何问题，请在 GitHub 提交你的 Issue！
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260723/Surge-Relay-260723-build-27072301.dmg" length="24064300" type="application/octet-stream" sparkle:edSignature="YlPR6AYGGMhigzRae4CDArNTqH3ftVjFnItSEE7S7ObtUz/Fl/jv3KOMWsMdMVQmZ1Fnu6MKhlM2HmdsSp1bCA=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260723/Surge-Relay-260723-build-27072302.dmg" length="24084901" type="application/octet-stream" sparkle:edSignature="n40XyXxXTW+uLffCFq70iuK68A1+FAj0ReE71hYuCT18ItMAUyLvTmRVOBVru1Nk6B7es3psmkdCzbJXiepEBQ=="/>
         </item>
         <item>
             <title>270717</title>
