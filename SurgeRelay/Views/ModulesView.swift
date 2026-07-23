@@ -213,7 +213,7 @@ struct ModulesView: View {
                         .textSelection(.enabled)
                     Spacer(minLength: 4)
                     Button {
-                        model.presentedError = nil
+                        model.dismissPresentedError()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.tertiary)

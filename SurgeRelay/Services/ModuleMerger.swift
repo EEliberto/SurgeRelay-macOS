@@ -124,7 +124,8 @@ enum ModuleMerger {
                 return !trimmed.isEmpty && !isCommentOnly(trimmed)
             }
             guard !useful.isEmpty else { continue }
-            for line in useful where seen.insert(line).inserted {
+            for line in useful
+            where seen.insert(duplicateIdentity(for: line, sectionName: sectionName)).inserted {
                 output.append(line)
             }
         }
@@ -146,7 +147,11 @@ enum ModuleMerger {
                 let normalized = key.lowercased()
                 if values[normalized] == nil { order.append(normalized) }
                 if let existing = values[normalized],
-                   let combined = combineDirective(existing.value, value) {
+                   let combined = combineDirective(
+                    existing.value,
+                    value,
+                    caseInsensitiveItems: normalized == "hostname"
+                   ) {
                     values[normalized] = (existing.key, combined)
                 } else if values[normalized] == nil {
                     // 组件数组与模块列表顺序相同；同名配置由更靠上的模块优先决定。
@@ -157,7 +162,11 @@ enum ModuleMerger {
         return order.compactMap { values[$0].map { "\($0.key) = \($0.value)" } }
     }
 
-    private static func combineDirective(_ lhs: String, _ rhs: String) -> String? {
+    private static func combineDirective(
+        _ lhs: String,
+        _ rhs: String,
+        caseInsensitiveItems: Bool
+    ) -> String? {
         let directives = ["%APPEND%", "%INSERT%"]
         guard let leftDirective = directives.first(where: lhs.hasPrefix),
               let rightDirective = directives.first(where: rhs.hasPrefix) else { return nil }
@@ -165,10 +174,88 @@ enum ModuleMerger {
         let right = rhs.dropFirst(rightDirective.count).trimmingCharacters(in: .whitespaces)
         var seen = Set<String>()
         let items = (left + "," + right).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && seen.insert($0).inserted }
+            .filter {
+                guard !$0.isEmpty else { return false }
+                let identity = caseInsensitiveItems ? $0.lowercased() : $0
+                return seen.insert(identity).inserted
+            }
         // A merged module has one directive per key. Keep the highest-priority
         // module's placement semantics while retaining every module's values.
         return leftDirective + " " + items.joined(separator: ", ")
+    }
+
+    private static func duplicateIdentity(for line: String, sectionName: String) -> String {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if sectionName.caseInsensitiveCompare("Rule") == .orderedSame {
+            return canonicalCommaWhitespace(in: trimmed)
+        }
+
+        let assignmentSections = ["Script", "Host", "Map Local"]
+        guard assignmentSections.contains(where: {
+            $0.caseInsensitiveCompare(sectionName) == .orderedSame
+        }) else {
+            return trimmed
+        }
+
+        let pieces = trimmed.split(
+            separator: "=",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        )
+        guard pieces.count == 2 else { return trimmed }
+        let name = pieces[0].trimmingCharacters(in: .whitespaces)
+        let value = pieces[1].trimmingCharacters(in: .whitespaces)
+        return "\(name)=\(canonicalCommaWhitespace(in: value))"
+    }
+
+    /// Removes only syntax whitespace around unescaped commas. Quoted and
+    /// escaped commas remain byte-for-byte unchanged so arguments and regexes
+    /// cannot be accidentally rewritten.
+    private static func canonicalCommaWhitespace(in value: String) -> String {
+        var result = ""
+        var quote: Character?
+        var isEscaped = false
+        var skipsWhitespaceAfterComma = false
+
+        for character in value {
+            if isEscaped {
+                result.append(character)
+                isEscaped = false
+                skipsWhitespaceAfterComma = false
+                continue
+            }
+            if character == "\\" {
+                result.append(character)
+                isEscaped = true
+                skipsWhitespaceAfterComma = false
+                continue
+            }
+            if character == "\"" || character == "'" {
+                if quote == character {
+                    quote = nil
+                } else if quote == nil {
+                    quote = character
+                }
+                result.append(character)
+                skipsWhitespaceAfterComma = false
+                continue
+            }
+            if character == ",", quote == nil {
+                while result.last?.isWhitespace == true {
+                    result.removeLast()
+                }
+                result.append(character)
+                skipsWhitespaceAfterComma = true
+                continue
+            }
+            if skipsWhitespaceAfterComma, character.isWhitespace {
+                continue
+            }
+            skipsWhitespaceAfterComma = false
+            result.append(character)
+        }
+        return result
     }
 
     // 仅供预览器在内存中识别模块来源；该标识不会写入最终 sgmodule。

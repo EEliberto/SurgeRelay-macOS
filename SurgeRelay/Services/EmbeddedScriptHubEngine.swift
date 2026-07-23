@@ -175,6 +175,7 @@ actor EmbeddedScriptHubEngine {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = request.timeoutInterval
         let session = URLSession(configuration: configuration)
+        defer { session.finishTasksAndInvalidate() }
         let result = BlockingResponse()
         let semaphore = DispatchSemaphore(value: 0)
         let task = session.downloadTask(with: request) { temporaryURL, response, error in
@@ -189,6 +190,7 @@ actor EmbeddedScriptHubEngine {
         task.resume()
         guard semaphore.wait(timeout: .now() + request.timeoutInterval + 2) == .success else {
             task.cancel()
+            session.invalidateAndCancel()
             throw URLError(.timedOut)
         }
         let (data, response, error) = result.get()

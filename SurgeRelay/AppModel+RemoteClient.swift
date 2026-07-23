@@ -96,9 +96,9 @@ extension AppModel {
                 softDisconnect = false
                 retryDelay = 2
 
-                // SSE alone is not enough over Ponte: the stream can stall while
-                // the server keeps working/finishes. Poll /api/activity in parallel
-                // so progress never freezes at a mid-update percentage.
+                // Keep a low-frequency activity fallback beside SSE. The idle
+                // interval is intentionally conservative for Cloudflare Workers
+                // Free; active updates temporarily poll faster for useful progress.
                 do {
                     try await withThrowingTaskGroup(of: Void.self) { group in
                         group.addTask {
@@ -165,10 +165,10 @@ extension AppModel {
                     let state = try await client.fetchState()
                     applyRemoteState(state, baseURL: client.baseURL)
                 }
-                try await Task.sleep(for: .milliseconds(400))
+                try await Task.sleep(for: .seconds(1))
             } else {
                 workingTicks = 0
-                try await Task.sleep(for: .seconds(1.5))
+                try await Task.sleep(for: .seconds(15))
             }
         }
         throw CancellationError()

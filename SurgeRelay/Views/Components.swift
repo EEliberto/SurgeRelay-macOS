@@ -2,6 +2,13 @@ import AppKit
 import SwiftUI
 
 struct ModuleIconView: View {
+    private static let imageCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 96
+        cache.totalCostLimit = 32 * 1024 * 1024
+        return cache
+    }()
+
     let module: RelayModule
     var size: CGFloat = 28
 
@@ -46,8 +53,15 @@ struct ModuleIconView: View {
     }
 
     private var cachedImage: NSImage? {
-        guard let data = try? Data(contentsOf: ModuleIconStore.cachedURL(for: module.id)) else { return nil }
-        return NSImage(data: data)
+        let url = ModuleIconStore.cachedURL(for: module.id)
+        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]),
+              let modifiedAt = values.contentModificationDate,
+              let data = try? Data(contentsOf: url) else { return nil }
+        let key = "\(module.id.uuidString)-\(modifiedAt.timeIntervalSince1970)" as NSString
+        if let cached = Self.imageCache.object(forKey: key) { return cached }
+        guard let image = NSImage(data: data) else { return nil }
+        Self.imageCache.setObject(image, forKey: key, cost: values.fileSize ?? data.count)
+        return image
     }
 
     private func moduleImage(_ image: Image) -> some View {

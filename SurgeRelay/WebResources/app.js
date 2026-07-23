@@ -154,6 +154,8 @@ let manualNameEdited = false;
 let listScrollY = 0;
 let stateRecoveryTimer = null;
 let stateRecoveryAttempt = 0;
+let stateEvents = null;
+let statePollTimer = null;
 const mobileLayout = window.matchMedia('(max-width: 700px)');
 
 function mobilePageScrollTop() {
@@ -258,6 +260,8 @@ ui.settingsContent?.addEventListener('input', handleSettingsInput);
 ui.settingsContent?.addEventListener('change', handleSettingsChange);
 ui.mobileActions.addEventListener('click', handleDetailClick);
 window.addEventListener('popstate', handleHistoryNavigation);
+window.addEventListener('pageshow', handlePageShow);
+window.addEventListener('pagehide', handlePageHide);
 
 // Custom Icon event bindings
 document.getElementById('save-custom-icon-button').addEventListener('click', () => {
@@ -390,18 +394,21 @@ function updateDesktopNavigationButtons() {
 
 function startStateEvents() {
   if (!('EventSource' in window)) {
-    setInterval(() => { if (!document.hidden) loadState(false, false); }, 5000);
+    if (!statePollTimer) {
+      statePollTimer = setInterval(() => { if (!document.hidden) loadState(false, false); }, 5000);
+    }
     return;
   }
-  const events = new EventSource('/api/events');
-  events.addEventListener('state', event => {
+  stateEvents?.close();
+  stateEvents = new EventSource('/api/events');
+  stateEvents.addEventListener('state', event => {
     clearTimeout(stateRecoveryTimer);
     stateRecoveryTimer = null;
     stateRecoveryAttempt = 0;
     try { applyState(JSON.parse(event.data), false, false); }
     catch (_) { /* The next event contains a complete state snapshot. */ }
   });
-  events.onerror = () => {
+  stateEvents.onerror = () => {
     if (document.hidden || stateRecoveryTimer) return;
     startStateRecovery();
   };
@@ -1376,15 +1383,56 @@ function navigateBackToList() {
   else showModuleList(true);
 }
 
-function handleHistoryNavigation(event) {
+function handleHistoryNavigation() {
+  withoutHistoryTransition(applyHistoryLocation);
+}
+
+function applyHistoryLocation() {
   const module = new URL(location.href).searchParams.get('module');
-  if (!module || event.state?.view === 'list') {
+  if (!module) {
     showModuleList(false);
     updateDesktopNavigationButtons();
     return;
   }
   selectItem(module || 'combined', false);
   updateDesktopNavigationButtons();
+}
+
+function withoutHistoryTransition(update) {
+  ui.body.classList.add('history-navigation');
+  update();
+  // Force Safari to commit the final list/detail visibility before it captures
+  // the browser-level back animation. Otherwise both panes can be caught in
+  // the middle of their opacity/transform transitions.
+  void ui.body.offsetHeight;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ui.body.classList.remove('history-navigation');
+  }));
+  setTimeout(() => ui.body.classList.remove('history-navigation'), 180);
+}
+
+function handlePageShow(event) {
+  if (!event.persisted) return;
+  withoutHistoryTransition(applyHistoryLocation);
+  // Safari's back-forward cache restores the DOM and JavaScript heap but the
+  // event stream may have closed while the page was away. Reconcile a complete
+  // snapshot and render the current URL instead of leaving cached empty panes.
+  loadState(!state, true).then(loaded => {
+    if (loaded) withoutHistoryTransition(applyHistoryLocation);
+  });
+  startStateEvents();
+}
+
+function handlePageHide(event) {
+  if (!event.persisted) return;
+  stateEvents?.close();
+  stateEvents = null;
+  if (statePollTimer) {
+    clearInterval(statePollTimer);
+    statePollTimer = null;
+  }
+  clearTimeout(stateRecoveryTimer);
+  stateRecoveryTimer = null;
 }
 
 function cleanSearchQuery(query) {

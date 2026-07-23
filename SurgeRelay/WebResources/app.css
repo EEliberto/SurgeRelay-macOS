@@ -788,6 +788,13 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
     transition: transform 280ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease;
   }
   body.has-selection .module-navigation { transform: translateX(-18%); opacity: 0; }
+  body.history-navigation .module-navigation,
+  body.history-navigation .detail,
+  body.history-navigation .activity-shell,
+  body.history-navigation .detail-stage {
+    transition: none !important;
+    animation: none !important;
+  }
   .activity-shell {
     left: 14px; right: 14px; width: auto;
     bottom: max(14px, env(safe-area-inset-bottom));

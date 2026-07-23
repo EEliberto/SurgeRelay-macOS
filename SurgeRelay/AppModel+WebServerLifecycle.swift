@@ -24,18 +24,34 @@ extension AppModel {
             }
         }
 
+        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleSystemWillSleep()
+            }
+        }
+
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.handleNetworkRecovery()
+                self?.handleSystemDidWake()
             }
         }
     }
 
     func handleNetworkRecovery() {
+        guard !isSystemSleeping else { return }
+        if deviceMode == .server, settings.storageMode == .local {
+            Task { @MainActor [weak self] in
+                await self?.reconcileIndividualICloudOutputs()
+            }
+        }
         if deviceMode == .server, webServerShouldRun {
             switch webServerState {
             case .failed, .stopped:
@@ -47,6 +63,27 @@ extension AppModel {
         if isClientMode, hasConfiguredRemoteServer, remoteSessionTask == nil {
             startRemoteSessionIfNeeded()
         }
+    }
+
+    func handleSystemWillSleep() {
+        guard !isSystemSleeping else { return }
+        isSystemSleeping = true
+        webServerRestartTask?.cancel()
+        webServerRestartTask = nil
+        RemoteManagementClient.cancelStreamingTasks()
+
+        if isClientMode {
+            stopRemoteSession()
+        }
+        if deviceMode == .server, webServerShouldRun {
+            webServer.stop()
+            endWebServerActivity()
+        }
+    }
+
+    func handleSystemDidWake() {
+        isSystemSleeping = false
+        handleNetworkRecovery()
     }
 
     func handleWebServerStateChange(_ state: WebServerRuntimeState) {
@@ -108,6 +145,7 @@ extension AppModel {
     }
 
     func scheduleWebServerRestart(immediate: Bool = false) {
+        guard !isSystemSleeping else { return }
         webServerRestartTask?.cancel()
         webServerRestartTask = Task { [weak self] in
             var delay = immediate ? 0.0 : 1.0

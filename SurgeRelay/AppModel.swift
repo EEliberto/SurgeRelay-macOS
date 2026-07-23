@@ -59,8 +59,11 @@ final class AppModel {
     @ObservationIgnored var webServerActivityToken: NSObjectProtocol?
     @ObservationIgnored var networkPathMonitor: NetworkPathMonitor?
     @ObservationIgnored var appActiveObserver: NSObjectProtocol?
+    @ObservationIgnored var sleepObserver: NSObjectProtocol?
     @ObservationIgnored var wakeObserver: NSObjectProtocol?
+    @ObservationIgnored var isSystemSleeping = false
     @ObservationIgnored private var pendingModuleUpdateIDs = Set<UUID>()
+    @ObservationIgnored private let automaticPublishDebounce: Duration = .seconds(15)
 
     private func beginWork() -> UUID? {
         guard activeWorkToken == nil else { return nil }
@@ -88,21 +91,35 @@ final class AppModel {
             FileManager.default.fileExists(atPath: defaultConfiguration.appending(path: name).path)
         }
         var loadedSettings = PersistenceStore.loadSettings()
-        if loadedSettings.github.owner.isEmpty { loadedSettings.github.owner = "EEliberto" }
-        if loadedSettings.github.repository.isEmpty { loadedSettings.github.repository = "Surge-Relay" }
-        if loadedSettings.github.branch.isEmpty { loadedSettings.github.branch = "main" }
-        if loadedSettings.github.directory.isEmpty { loadedSettings.github.directory = "modules" }
+        var migrated = false
+        if loadedSettings.github.owner.isEmpty {
+            loadedSettings.github.owner = "EEliberto"
+            migrated = true
+        }
+        if loadedSettings.github.repository.isEmpty {
+            loadedSettings.github.repository = "Surge-Relay"
+            migrated = true
+        }
+        if loadedSettings.github.branch.isEmpty {
+            loadedSettings.github.branch = "main"
+            migrated = true
+        }
+        if loadedSettings.github.directory.isEmpty {
+            loadedSettings.github.directory = "modules"
+            migrated = true
+        }
+        let previousLocalModuleDirectory = loadedSettings.localModuleDirectory
         loadedSettings.localModuleDirectory = AppSettings.surgeDirectory(
             forSelectedDirectory: URL(
                 filePath: loadedSettings.localModuleDirectory,
                 directoryHint: .isDirectory
             )
         ).path
+        migrated = migrated || previousLocalModuleDirectory != loadedSettings.localModuleDirectory
         var loadedModules = Self.normalizedModuleNaming(
             PersistenceStore.loadModules(),
             combinedFileName: loadedSettings.combinedModuleFileName
         )
-        var migrated = false
         for i in 0..<loadedModules.count {
             if !loadedModules[i].isEnabled {
                 let id = loadedModules[i].id
@@ -123,12 +140,23 @@ final class AppModel {
         deviceMode = RelayDeviceConfiguration.mode
         ponteServerAddress = RelayDeviceConfiguration.ponteServerAddress
         selectedModuleID = RelayPlatform.ios.selectionID
-        PersistenceStore.saveSettings(loadedSettings)
-        try? PersistenceStore.saveModules(loadedModules)
+        if migrated, !PersistenceStore.configurationFilesNeedDownload {
+            PersistenceStore.saveSettings(loadedSettings)
+            try? PersistenceStore.saveModules(loadedModules)
+        }
     }
 
     func start() async {
         guard !hasStarted else { return }
+
+        if PersistenceStore.configurationFilesNeedDownload {
+            statusMessage = "正在等待 iCloud 配置下载…"
+            guard await PersistenceStore.waitForConfigurationFiles() else {
+                presentedError = "iCloud 配置尚未下载完成。App 已暂停写入，将在网络恢复或下次打开时重试。"
+                return
+            }
+            reloadConfigurationFromSelectedDirectory()
+        }
 
         let needsWelcome = !PersistenceStore.hasCompletedInitialSetup
             || (deviceMode == .client && !hasConfiguredRemoteServer)
@@ -464,10 +492,11 @@ final class AppModel {
     }
 
     func setPonteServerAddress(_ address: String) {
+        let previousAddress = ponteServerAddress
         ponteServerAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         RelayDeviceConfiguration.ponteServerAddress = ponteServerAddress
         if isClientMode {
-            startRemoteSessionIfNeeded()
+            startRemoteSessionIfNeeded(force: previousAddress != ponteServerAddress)
         }
         statusMessage = remoteManagementURL == nil ? "请设置有效的服务器 Ponte 地址" : "服务器地址已保存"
     }
@@ -877,20 +906,23 @@ final class AppModel {
             return
         }
         automaticPublishTask?.cancel()
-        let updateGeneration = localChangeGeneration
+        presentedError = nil
         synchronizationCompletedCount = 0
         synchronizationTotalCount = synchronizationModules.count
         synchronizingModuleID = nil
         defer {
             synchronizingModuleID = nil
             endWork(workToken)
+            if !pendingModuleUpdateIDs.isEmpty {
+                kickPendingModuleUpdates()
+            }
         }
 
         let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
         if settings.automaticallyUpdateScriptHub || missingEngine {
             await refreshScriptHubInternal(updatesStatus: false)
         }
-        guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
+        guard !Task.isCancelled else {
             return
         }
 
@@ -958,18 +990,22 @@ final class AppModel {
                     module: module,
                     github: settings.github.isConfigured ? settings.github : nil
                 )
-                guard updateGeneration == localChangeGeneration, !Task.isCancelled,
-                      let currentIndex = modules.firstIndex(where: { $0.id == module.id }),
-                      shouldSynchronizeModule(modules[currentIndex]) else {
-                    return
+                guard !Task.isCancelled else { return }
+                guard isCurrentSynchronizationSource(moduleValue) else {
+                    pendingModuleUpdateIDs.insert(module.id)
+                    synchronizationCompletedCount += 1
+                    continue
                 }
                 try await fileStore.replaceAssets(result.assets, id: module.id)
                 try await fileStore.writeComponent(result.content, id: module.id)
                 let effectiveContent = try await fileStore.readComponent(id: module.id)
-                guard updateGeneration == localChangeGeneration, !Task.isCancelled,
+                guard !Task.isCancelled,
+                      isCurrentSynchronizationSource(moduleValue),
                       let latestIndex = modules.firstIndex(where: { $0.id == module.id }),
                       shouldSynchronizeModule(modules[latestIndex]) else {
-                    return
+                    pendingModuleUpdateIDs.insert(module.id)
+                    synchronizationCompletedCount += 1
+                    continue
                 }
                 module = modules[latestIndex]
                 if let revisionSnapshot {
@@ -1018,6 +1054,11 @@ final class AppModel {
                 module.lastUpdatedAt = .now
                 module.state = .current
                 module.lastError = nil
+                guard isCurrentSynchronizationSource(moduleValue) else {
+                    pendingModuleUpdateIDs.insert(module.id)
+                    synchronizationCompletedCount += 1
+                    continue
+                }
                 replace(module)
                 newHistory.append(UpdateHistoryEntry(
                     moduleID: module.id,
@@ -1035,8 +1076,11 @@ final class AppModel {
                     components.append((module, materialized))
                 }
             } catch {
-                guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-                    return
+                guard !Task.isCancelled else { return }
+                guard isCurrentSynchronizationSource(moduleValue) else {
+                    pendingModuleUpdateIDs.insert(module.id)
+                    synchronizationCompletedCount += 1
+                    continue
                 }
                 failures += 1
                 synchronizationErrors.append("\(module.name)：\(error.localizedDescription)")
@@ -1077,9 +1121,7 @@ final class AppModel {
         recordHistory(newHistory)
         try? persistModules()
 
-        guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-            return
-        }
+        guard !Task.isCancelled else { return }
 
         guard missingCache.isEmpty else {
             setSynchronizationFailure("\(missingCache.joined(separator: "、")) 尚无可用缓存")
@@ -1089,10 +1131,9 @@ final class AppModel {
 
         do {
             let success = await rebuildCombinedFromCache()
-            guard updateGeneration == localChangeGeneration, !Task.isCancelled else {
-                return
-            }
-            if success, settings.storageMode == .gitHub {
+            guard !Task.isCancelled else { return }
+            if success, settings.storageMode == .gitHub, moduleIDs == nil {
+                automaticPublishTask?.cancel()
                 _ = try await publishAllInternal()
             }
             if failures == 0 {
@@ -1100,6 +1141,21 @@ final class AppModel {
             } else {
                 setSynchronizationFailure(synchronizationErrors.first ?? "\(failures) 个来源更新错误")
             }
+        } catch RelayError.githubRateLimited(let retryAt) {
+            let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+            statusMessage = "GitHub 请求受限，已暂停上传，将自动重试。"
+            presentedError = nil
+            scheduleAutomaticPublish(after: .seconds(retryDelay), requiresAutomaticPublishing: false)
+        } catch RelayError.githubRepositoryBusy(let retryAt) {
+            let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+            statusMessage = "GitHub 分支有并发更新，已重新排队。"
+            presentedError = nil
+            scheduleAutomaticPublish(after: .seconds(retryDelay), requiresAutomaticPublishing: false)
+        } catch RelayError.cloudflarePropagationPending(let retryAt) {
+            let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+            statusMessage = "GitHub 已发布，Cloudflare 正在刷新，将自动复查。"
+            presentedError = nil
+            scheduleAutomaticPublish(after: .seconds(retryDelay), requiresAutomaticPublishing: false)
         } catch {
             guard !Task.isCancelled else { return }
             setSynchronizationFailure(error.localizedDescription)
@@ -1150,22 +1206,34 @@ final class AppModel {
         }
     }
 
-    private func scheduleAutomaticPublish() {
-        guard settings.storageMode == .gitHub, settings.automaticallyPublish, settings.github.isConfigured, !githubToken.isEmpty else { return }
+    private func scheduleAutomaticPublish(
+        after delay: Duration? = nil,
+        requiresAutomaticPublishing: Bool = true
+    ) {
+        guard settings.storageMode == .gitHub,
+              (!requiresAutomaticPublishing || settings.automaticallyPublish),
+              settings.github.isConfigured,
+              !githubToken.isEmpty else { return }
         automaticPublishTask?.cancel()
         automaticPublishTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(1_200))
-            guard !Task.isCancelled, let self else { return }
+            guard let self else { return }
+            do {
+                try await Task.sleep(for: delay ?? self.automaticPublishDebounce)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             while self.isWorking, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(250))
             }
             guard !Task.isCancelled,
                   self.settings.storageMode == .gitHub,
-                  self.settings.automaticallyPublish,
+                  (!requiresAutomaticPublishing || self.settings.automaticallyPublish),
                   self.settings.github.isConfigured,
                   !self.githubToken.isEmpty else { return }
             guard let workToken = self.beginWork() else { return }
             self.statusMessage = "正在同步到 Github…"
+            self.presentedError = nil
             defer { self.endWork(workToken) }
             do {
                 let report = try await self.publishAllInternal()
@@ -1178,6 +1246,36 @@ final class AppModel {
                         duration: 0,
                         message: "原子提交 \(commit.prefix(8))"
                     )])
+                }
+            } catch RelayError.githubRateLimited(let retryAt) {
+                guard !Task.isCancelled else { return }
+                let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+                self.statusMessage = "GitHub 请求受限，已暂停上传，将自动重试。"
+                Task { @MainActor [weak self] in
+                    self?.scheduleAutomaticPublish(
+                        after: .seconds(retryDelay),
+                        requiresAutomaticPublishing: requiresAutomaticPublishing
+                    )
+                }
+            } catch RelayError.githubRepositoryBusy(let retryAt) {
+                guard !Task.isCancelled else { return }
+                let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+                self.statusMessage = "GitHub 分支有并发更新，已重新排队。"
+                Task { @MainActor [weak self] in
+                    self?.scheduleAutomaticPublish(
+                        after: .seconds(retryDelay),
+                        requiresAutomaticPublishing: requiresAutomaticPublishing
+                    )
+                }
+            } catch RelayError.cloudflarePropagationPending(let retryAt) {
+                guard !Task.isCancelled else { return }
+                let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+                self.statusMessage = "GitHub 已发布，Cloudflare 正在刷新，将自动复查。"
+                Task { @MainActor [weak self] in
+                    self?.scheduleAutomaticPublish(
+                        after: .seconds(retryDelay),
+                        requiresAutomaticPublishing: requiresAutomaticPublishing
+                    )
                 }
             } catch {
                 guard !Task.isCancelled else { return }
@@ -1294,15 +1392,31 @@ final class AppModel {
             throw RelayError.cloudflareNotConfigured
         }
 
-        for attempt in 0..<4 {
-            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 20)
+        let retryDelays: [Duration] = [.zero, .seconds(2), .seconds(5), .seconds(10)]
+        for delay in retryDelays {
+            if delay > .zero { try await Task.sleep(for: delay) }
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            if var queryItems = components?.queryItems {
+                queryItems.append(URLQueryItem(name: "surge-relay-check", value: expected.sha256String))
+                components?.queryItems = queryItems
+            } else {
+                components?.queryItems = [
+                    URLQueryItem(name: "surge-relay-check", value: expected.sha256String)
+                ]
+            }
+            var request = URLRequest(
+                url: components?.url ?? url,
+                cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+                timeoutInterval: 20
+            )
             request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
             let (data, response) = try await URLSession.shared.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if (200..<300).contains(status), data == expected { return }
-            if attempt < 3 { try await Task.sleep(for: .seconds(1)) }
         }
-        throw RelayError.invalidOutput("Cloudflare 尚未返回刚发布的 \(platform.rawValue) 汇总模块，本地文件已保留。")
+        throw RelayError.cloudflarePropagationPending(
+            retryAt: Date.now.addingTimeInterval(60 + Double.random(in: 0...15))
+        )
     }
 
     func publishAll() async {
@@ -1314,6 +1428,21 @@ final class AppModel {
         do {
             _ = try await publishAllInternal()
             statusMessage = "已是最新。"
+        } catch RelayError.githubRateLimited(let retryAt) {
+            let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+            statusMessage = "GitHub 请求受限，已暂停上传，将自动重试。"
+            presentedError = nil
+            scheduleAutomaticPublish(after: .seconds(retryDelay), requiresAutomaticPublishing: false)
+        } catch RelayError.githubRepositoryBusy(let retryAt) {
+            let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+            statusMessage = "GitHub 分支有并发更新，已重新排队。"
+            presentedError = nil
+            scheduleAutomaticPublish(after: .seconds(retryDelay), requiresAutomaticPublishing: false)
+        } catch RelayError.cloudflarePropagationPending(let retryAt) {
+            let retryDelay = max(retryAt.timeIntervalSinceNow, 1)
+            statusMessage = "GitHub 已发布，Cloudflare 正在刷新，将自动复查。"
+            presentedError = nil
+            scheduleAutomaticPublish(after: .seconds(retryDelay), requiresAutomaticPublishing: false)
         } catch {
             setSynchronizationFailure(error.localizedDescription)
             presentedError = error.localizedDescription
@@ -1355,8 +1484,12 @@ final class AppModel {
             ))
         }
         let assets = try await fileStore.generatedAssetFiles()
+        let obsoletePlatformFiles = RelayPlatform.allCases
+            .filter { !enabledPlats.contains($0) }
+            .map { platformFileName(for: $0) }
         let report = try await githubClient.publish(
             files: files + assets,
+            obsoleteFileNames: obsoletePlatformFiles,
             settings: settings.github,
             token: githubToken
         )
@@ -1371,7 +1504,6 @@ final class AppModel {
     }
 
     private func scheduleCombinedRebuild() {
-        synchronizationTask?.cancel()
         combinedRebuildTask?.cancel()
         automaticPublishTask?.cancel()
         let willSynchronize = settings.storageMode == .local || settings.automaticallyPublish
@@ -1561,17 +1693,22 @@ final class AppModel {
             let module = modules[index]
             if module.exportsIndividualModuleToICloud {
                 guard await fileStore.hasComponent(id: module.id) else { continue }
-                let exists = await fileStore.hasExportedIndividual(
+                let targetPresence = await fileStore.exportedIndividualPresence(
                     inDirectory: settings.localModuleDirectory,
                     fileName: individualICloudFileName(for: module.outputFileName),
                     moduleID: module.id
                 )
-                let hasLegacyOutput = await fileStore.hasExportedIndividual(
+                let legacyPresence = await fileStore.exportedIndividualPresence(
                     inDirectory: settings.localModuleDirectory,
                     fileName: FilenameSanitizer.sgmoduleName(from: module.outputFileName),
                     moduleID: module.id
                 )
-                guard exists || hasLegacyOutput || individualOutputMutationsInProgress.contains(module.id) else {
+                if targetPresence == .unavailable || legacyPresence == .unavailable {
+                    continue
+                }
+                guard targetPresence == .present
+                        || legacyPresence == .present
+                        || individualOutputMutationsInProgress.contains(module.id) else {
                     modules[index].exportsIndividualModuleToICloud = false
                     disabledMissingOutputs = true
                     continue
@@ -1644,33 +1781,34 @@ final class AppModel {
         guard settings.storageMode == .local else { return }
         individualOutputMonitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, let self else { return }
                 await self.reconcileIndividualICloudOutputs()
             }
         }
     }
 
-    private func reconcileIndividualICloudOutputs() async {
+    func reconcileIndividualICloudOutputs() async {
         guard settings.storageMode == .local else { return }
         var removedNames: [String] = []
         for index in modules.indices
         where modules[index].exportsIndividualModuleToICloud
             && !individualOutputMutationsInProgress.contains(modules[index].id) {
             let module = modules[index]
-            let targetExists = await fileStore.hasExportedIndividual(
+            let targetPresence = await fileStore.exportedIndividualPresence(
                 inDirectory: settings.localModuleDirectory,
                 fileName: individualICloudFileName(for: module.outputFileName),
                 moduleID: module.id
             )
-            if targetExists { continue }
+            if targetPresence == .present || targetPresence == .unavailable { continue }
 
-            let legacyExists = await fileStore.hasExportedIndividual(
+            let legacyPresence = await fileStore.exportedIndividualPresence(
                 inDirectory: settings.localModuleDirectory,
                 fileName: module.outputFileName,
                 moduleID: module.id
             )
-            if legacyExists, await fileStore.hasComponent(id: module.id) {
+            if legacyPresence == .unavailable { continue }
+            if legacyPresence == .present, await fileStore.hasComponent(id: module.id) {
                 do {
                     try await exportIndividualICloudModule(module)
                     continue
@@ -1956,14 +2094,14 @@ final class AppModel {
             await refreshRemoteState()
             return
         }
-        guard !isWorking else { throw RelayError.invalidOutput("当前正在更新，请稍后再写入。") }
+        guard synchronizingModuleID != module.id else {
+            throw RelayError.invalidOutput("该模块正在更新，请稍后再写入；其他模块仍可编辑。")
+        }
         let namedContent = await processingWorker.applyingDisplayName(module.name, to: content)
         if let current = try? await fileStore.readComponent(id: module.id), current == namedContent {
             statusMessage = "内容没有变化"
             return
         }
-        guard let workToken = beginWork() else { return }
-        defer { endWork(workToken) }
         registerLocalChange()
         try await fileStore.writeComponentOverride(namedContent, id: module.id)
         if let index = modules.firstIndex(where: { $0.id == module.id }) {
@@ -1988,11 +2126,9 @@ final class AppModel {
             await refreshRemoteState()
             return content
         }
-        guard !isWorking else { throw RelayError.invalidOutput("当前正在更新，请稍后再恢复。") }
-        guard let workToken = beginWork() else {
-            throw RelayError.invalidOutput("当前正在更新，请稍后再恢复。")
+        guard synchronizingModuleID != module.id else {
+            throw RelayError.invalidOutput("该模块正在更新，请稍后再恢复；其他模块仍可编辑。")
         }
-        defer { endWork(workToken) }
         registerLocalChange()
         let content = try await fileStore.restoreComponent(id: module.id)
         if let index = modules.firstIndex(where: { $0.id == module.id }) {
@@ -2110,6 +2246,21 @@ final class AppModel {
     private func registerLocalChange() {
         localChangeGeneration &+= 1
         automaticPublishTask?.cancel()
+    }
+
+    private func isCurrentSynchronizationSource(_ snapshot: RelayModule) -> Bool {
+        guard let current = modules.first(where: { $0.id == snapshot.id }) else { return false }
+        return current.sourceURL == snapshot.sourceURL
+            && current.sourceFormat == snapshot.sourceFormat
+            && current.scriptHubOptions == snapshot.scriptHubOptions
+    }
+
+    func dismissPresentedError() {
+        presentedError = nil
+        guard isClientMode else { return }
+        Task {
+            try? await remoteClient().dismissActivityError()
+        }
     }
 
     private func recordHistory(_ entries: [UpdateHistoryEntry]) {

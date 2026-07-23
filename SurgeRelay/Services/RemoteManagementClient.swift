@@ -4,26 +4,38 @@ import Foundation
 /// through Surge Ponte, so the native UI can mirror the server app.
 struct RemoteManagementClient: Sendable {
     static let session: URLSession = {
-        let configuration = URLSessionConfiguration.default
+        let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 90
         configuration.waitsForConnectivity = true
+        configuration.urlCache = URLCache(
+            memoryCapacity: 4 * 1_024 * 1_024,
+            diskCapacity: 0
+        )
         return URLSession(configuration: configuration)
     }()
 
     /// Dedicated session for long-lived SSE; resource timeout must not kill the stream.
     static let streamingSession: URLSession = {
-        let configuration = URLSessionConfiguration.default
+        let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 86400
         configuration.timeoutIntervalForResource = 0
         configuration.waitsForConnectivity = true
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        configuration.urlCache = nil
         return URLSession(configuration: configuration)
     }()
 
     static let sseStallTimeout: TimeInterval = 60
+    static let maximumSSEEventBytes = 2 * 1_024 * 1_024
 
     let baseURL: URL
+
+    static func cancelStreamingTasks() {
+        streamingSession.getAllTasks { tasks in
+            tasks.forEach { $0.cancel() }
+        }
+    }
 
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
@@ -235,6 +247,10 @@ struct RemoteManagementClient: Sendable {
         _ = try await send("api/settings/diagnostics/clear", method: "POST")
     }
 
+    func dismissActivityError() async throws {
+        _ = try await send("api/activity/error/dismiss", method: "POST")
+    }
+
     func searchIcons(query: String, region: String?) async throws -> [IconSearchResult] {
         var path = "api/appstore/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
         if let region, !region.isEmpty {
@@ -262,16 +278,23 @@ struct RemoteManagementClient: Sendable {
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
                 var dataLines: [String] = []
+                var eventBytes = 0
                 do {
                     for try await line in bytes.lines {
                         if Task.isCancelled { throw CancellationError() }
                         await monitor.touch()
                         if line.hasPrefix("data:") {
                             let value = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                            dataLines.append(String(value))
+                            let lineValue = String(value)
+                            eventBytes += lineValue.utf8.count
+                            guard eventBytes <= Self.maximumSSEEventBytes else {
+                                throw RelayError.invalidOutput("服务器推送的数据过大，已重新建立连接。")
+                            }
+                            dataLines.append(lineValue)
                         } else if line.isEmpty, !dataLines.isEmpty {
                             let payload = dataLines.joined(separator: "\n")
-                            dataLines.removeAll(keepingCapacity: true)
+                            dataLines.removeAll(keepingCapacity: false)
+                            eventBytes = 0
                             if let data = payload.data(using: .utf8),
                                let state = try? self.decoder.decode(RemoteStatePayload.self, from: data) {
                                 await onState(state)

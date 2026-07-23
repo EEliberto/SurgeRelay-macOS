@@ -1,6 +1,10 @@
 import Foundation
 
 enum PersistenceStore {
+    private final class CoordinationOutcome: @unchecked Sendable {
+        var result: Result<Void, Error>?
+    }
+
     private static let configurationDirectoryKey = "SurgeRelay.configurationDirectory.v1"
     private static let initialSetupCompletedKey = "SurgeRelay.initialSetupCompleted.v1"
     private static let initialSetupLoadedExistingKey = "SurgeRelay.initialSetupLoadedExisting.v1"
@@ -70,6 +74,33 @@ enum PersistenceStore {
         configurationDirectoryURL.appending(path: "update-history.json")
     }
 
+    private static var managedConfigurationURLs: [URL] {
+        [settingsURL, registryURL, upstreamStateURL, updateHistoryURL]
+    }
+
+    static var configurationFilesNeedDownload: Bool {
+        managedConfigurationURLs.contains {
+            FileManager.default.fileExists(atPath: $0.path) && !isUbiquitousItemReady(at: $0)
+        }
+    }
+
+    static func waitForConfigurationFiles(timeout: Duration = .seconds(30)) async -> Bool {
+        let existing = managedConfigurationURLs.filter {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+        for url in existing where FileManager.default.isUbiquitousItem(at: url) {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+        }
+
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while existing.contains(where: { !isUbiquitousItemReady(at: $0) }) {
+            guard clock.now < deadline, !Task.isCancelled else { return false }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return true
+    }
+
     static func loadModules() -> [RelayModule] {
         if let modules: [RelayModule] = decodeFile(at: registryURL) {
             return modules
@@ -104,6 +135,10 @@ enum PersistenceStore {
 
     static func saveSettings(_ settings: AppSettings) {
         if FileManager.default.fileExists(atPath: settingsURL.path) {
+            guard isUbiquitousItemReady(at: settingsURL) else {
+                requestUbiquitousDownloadIfNeeded(at: settingsURL)
+                return
+            }
             try? FileManager.default.removeItem(at: settingsBackupURL)
             try? FileManager.default.copyItem(at: settingsURL, to: settingsBackupURL)
         }
@@ -182,6 +217,8 @@ enum PersistenceStore {
     }
 
     private static func decodeFile<Value: Decodable>(at url: URL) -> Value? {
+        requestUbiquitousDownloadIfNeeded(at: url)
+        guard isUbiquitousItemReady(at: url) else { return nil }
         if let data = try? Data(contentsOf: url),
            let value = try? decoder.decode(Value.self, from: data) {
             return value
@@ -203,11 +240,32 @@ enum PersistenceStore {
     static func writeProtectedData(_ data: Data, to url: URL) throws {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let existing = try? Data(contentsOf: url) {
-            guard existing != data else { return }
-            try createBackup(of: url, data: existing)
+        requestUbiquitousDownloadIfNeeded(at: url)
+        guard isUbiquitousItemReady(at: url) else {
+            throw RelayError.invalidOutput("iCloud 文件尚未下载完成，已暂停写入以保护云端配置。")
         }
-        try data.write(to: url, options: .atomic)
+
+        let outcome = CoordinationOutcome()
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        coordinator.coordinate(
+            writingItemAt: url,
+            options: .forReplacing,
+            error: &coordinationError
+        ) { coordinatedURL in
+            outcome.result = Result {
+                if let existing = try? Data(contentsOf: coordinatedURL) {
+                    guard existing != data else { return }
+                    try createBackup(of: coordinatedURL, data: existing)
+                }
+                try data.write(to: coordinatedURL, options: .atomic)
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result = outcome.result else {
+            throw RelayError.invalidOutput("iCloud 未能完成配置文件写入协调。")
+        }
+        try result.get()
     }
 
     private static func createBackup(of url: URL, data: Data) throws {
@@ -215,13 +273,32 @@ enum PersistenceStore {
             .appending(path: "Backups", directoryHint: .isDirectory)
             .appending(path: url.lastPathComponent, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if let latest = backupFiles(for: url).first,
+           let modifiedAt = try? latest.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+           Date.now.timeIntervalSince(modifiedAt) < 300 {
+            return
+        }
         let stamp = ISO8601DateFormatter().string(from: .now).replacingOccurrences(of: ":", with: "-")
         let destination = directory.appending(path: "\(stamp)-\(UUID().uuidString.prefix(6)).backup")
         try data.write(to: destination, options: .atomic)
         let files = backupFiles(for: url)
-        for expired in files.dropFirst(20) {
+        for expired in files.dropFirst(8) {
             try? FileManager.default.removeItem(at: expired)
         }
+    }
+
+    private static func requestUbiquitousDownloadIfNeeded(at url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path),
+              FileManager.default.isUbiquitousItem(at: url) else { return }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+    }
+
+    private static func isUbiquitousItemReady(at url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path),
+              FileManager.default.isUbiquitousItem(at: url) else { return true }
+        let keys: Set<URLResourceKey> = [.ubiquitousItemDownloadingStatusKey]
+        guard let values = try? url.resourceValues(forKeys: keys) else { return false }
+        return values.ubiquitousItemDownloadingStatus == .current
     }
 
     private static func backupFiles(for url: URL) -> [URL] {

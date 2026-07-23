@@ -1,5 +1,11 @@
 import Foundation
 
+enum ManagedFilePresence: Equatable, Sendable {
+    case present
+    case missing
+    case unavailable
+}
+
 actor ModuleFileStore {
     private final class CoordinationOutcome<Value>: @unchecked Sendable {
         var result: Result<Value, Error>?
@@ -142,6 +148,7 @@ actor ModuleFileStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let destination = directory.appending(path: fileName)
         let data = Data(content.utf8)
+        Self.requestUbiquitousDownloadIfNeeded(at: destination)
         let outcome = CoordinationOutcome<Bool>()
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
@@ -186,6 +193,7 @@ actor ModuleFileStore {
         let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
             .appending(path: fileName)
         guard FileManager.default.fileExists(atPath: url.path) else { return }
+        Self.requestUbiquitousDownloadIfNeeded(at: url)
 
         let outcome = CoordinationOutcome<Void>()
         let coordinator = NSFileCoordinator(filePresenter: nil)
@@ -223,6 +231,7 @@ actor ModuleFileStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let destination = directory.appending(path: FilenameSanitizer.sgmoduleName(from: fileName))
         let data = Self.managedIndividualData(content, moduleID: moduleID)
+        Self.requestUbiquitousDownloadIfNeeded(at: destination)
         let outcome = CoordinationOutcome<Bool>()
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
@@ -267,6 +276,7 @@ actor ModuleFileStore {
         let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
             .appending(path: FilenameSanitizer.sgmoduleName(from: fileName))
         guard FileManager.default.fileExists(atPath: url.path) else { return }
+        Self.requestUbiquitousDownloadIfNeeded(at: url)
 
         let outcome = CoordinationOutcome<Void>()
         let coordinator = NSFileCoordinator(filePresenter: nil)
@@ -296,10 +306,25 @@ actor ModuleFileStore {
         fileName: String,
         moduleID: UUID
     ) -> Bool {
+        exportedIndividualPresence(
+            inDirectory: directoryPath,
+            fileName: fileName,
+            moduleID: moduleID
+        ) == .present
+    }
+
+    func exportedIndividualPresence(
+        inDirectory directoryPath: String,
+        fileName: String,
+        moduleID: UUID
+    ) -> ManagedFilePresence {
         let url = URL(filePath: directoryPath, directoryHint: .isDirectory)
             .appending(path: FilenameSanitizer.sgmoduleName(from: fileName))
-        guard let data = try? Data(contentsOf: url) else { return false }
-        return Self.isManagedIndividualModule(data, moduleID: moduleID)
+        guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
+        Self.requestUbiquitousDownloadIfNeeded(at: url)
+        guard Self.isUbiquitousItemReady(at: url),
+              let data = try? Data(contentsOf: url) else { return .unavailable }
+        return Self.isManagedIndividualModule(data, moduleID: moduleID) ? .present : .missing
     }
 
     func writeCombinedOverride(_ content: String, platform: RelayPlatform) throws {
@@ -462,5 +487,18 @@ actor ModuleFileStore {
         guard !versions.isEmpty else { return }
         for version in versions { version.isResolved = true }
         try NSFileVersion.removeOtherVersionsOfItem(at: url)
+    }
+
+    private nonisolated static func requestUbiquitousDownloadIfNeeded(at url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path),
+              FileManager.default.isUbiquitousItem(at: url) else { return }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+    }
+
+    private nonisolated static func isUbiquitousItemReady(at url: URL) -> Bool {
+        guard FileManager.default.isUbiquitousItem(at: url) else { return true }
+        let keys: Set<URLResourceKey> = [.ubiquitousItemDownloadingStatusKey]
+        guard let values = try? url.resourceValues(forKeys: keys) else { return false }
+        return values.ubiquitousItemDownloadingStatus == .current
     }
 }

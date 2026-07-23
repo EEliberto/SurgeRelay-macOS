@@ -103,6 +103,7 @@ final class WebManagementServer: @unchecked Sendable {
     private var eventHandler: EventHandler?
     private var stateHandler: StateHandler?
     private var eventTasks: [UUID: Task<Void, Never>] = [:]
+    private var eventConnections: [UUID: NWConnection] = [:]
     private let maximumRequestSize = 4 * 1024 * 1024
 
     func start(
@@ -128,6 +129,7 @@ final class WebManagementServer: @unchecked Sendable {
 
         listener.stateUpdateHandler = { [weak self, weak listener] state in
             guard let self, let listener else { return }
+            guard self.lock.withLock({ self.listener === listener }) else { return }
             switch state {
             case .setup, .waiting:
                 self.notify(.starting)
@@ -137,7 +139,7 @@ final class WebManagementServer: @unchecked Sendable {
                 self.notify(.failed(error.localizedDescription))
                 listener.cancel()
             case .cancelled:
-                self.notify(.stopped)
+                break
             @unknown default:
                 break
             }
@@ -150,7 +152,8 @@ final class WebManagementServer: @unchecked Sendable {
     }
 
     func stop() {
-        let (listener, tasks) = lock.withLock { () -> (NWListener?, [Task<Void, Never>]) in
+        let (listener, tasks, connections, handler) = lock.withLock {
+            () -> (NWListener?, [Task<Void, Never>], [NWConnection], StateHandler?) in
             defer {
                 self.listener = nil
                 self.configuration = nil
@@ -158,11 +161,19 @@ final class WebManagementServer: @unchecked Sendable {
                 self.eventHandler = nil
                 self.stateHandler = nil
                 self.eventTasks.removeAll()
+                self.eventConnections.removeAll()
             }
-            return (self.listener, Array(self.eventTasks.values))
+            return (
+                self.listener,
+                Array(self.eventTasks.values),
+                Array(self.eventConnections.values),
+                self.stateHandler
+            )
         }
         tasks.forEach { $0.cancel() }
+        connections.forEach { $0.cancel() }
         listener?.cancel()
+        handler?(.stopped)
     }
 
     private func accept(_ connection: NWConnection) {
@@ -222,6 +233,13 @@ final class WebManagementServer: @unchecked Sendable {
         let identifier = UUID()
         let task = Task { [weak self] in
             guard let self else { return }
+            defer {
+                connection.cancel()
+                lock.withLock {
+                    self.eventTasks.removeValue(forKey: identifier)
+                    self.eventConnections.removeValue(forKey: identifier)
+                }
+            }
             let head = """
             HTTP/1.1 200 OK\r
             Content-Type: text/event-stream; charset=utf-8\r
@@ -259,10 +277,11 @@ final class WebManagementServer: @unchecked Sendable {
             } catch {
                 // Closing a browser tab or changing networks naturally ends the stream.
             }
-            connection.cancel()
-            _ = lock.withLock { self.eventTasks.removeValue(forKey: identifier) }
         }
-        lock.withLock { eventTasks[identifier] = task }
+        lock.withLock {
+            eventConnections[identifier] = connection
+            eventTasks[identifier] = task
+        }
     }
 
     private func sendStreamData(_ data: Data, over connection: NWConnection) async throws {

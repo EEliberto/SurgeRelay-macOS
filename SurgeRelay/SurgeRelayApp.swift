@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import Sparkle
 import SwiftUI
 
@@ -56,8 +57,26 @@ private struct SurgeRelaySettingsCommands: Commands {
 }
 
 final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
+    private var launchedAsLoginItem = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        launchedAsLoginItem = Self.currentLaunchIsLoginItem
+        NSApp.setActivationPolicy(launchedAsLoginItem ? .accessory : .regular)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        launchedAsLoginItem = launchedAsLoginItem || Self.currentLaunchIsLoginItem
+        guard launchedAsLoginItem else {
+            NSApp.setActivationPolicy(.regular)
+            return
+        }
+
+        NSApp.setActivationPolicy(.accessory)
+        DispatchQueue.main.async {
+            NSApp.windows
+                .filter { $0.level == .normal }
+                .forEach { $0.orderOut(nil) }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -72,6 +91,12 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
         window?.deminiaturize(nil)
         window?.makeKeyAndOrderFront(nil)
         return true
+    }
+
+    private static var currentLaunchIsLoginItem: Bool {
+        NSAppleEventManager.shared()
+            .currentAppleEvent?
+            .paramDescriptor(forKeyword: AEKeyword(keyAELaunchedAsLogInItem)) != nil
     }
 }
 
@@ -106,6 +131,16 @@ struct SurgeRelayApp: App {
         guard model.deviceMode == .client else { return 1 }
         return model.remoteConnectionState.shouldDimMenuBarIcon ? 0.35 : 1
     }
+
+    private static let menuBarIcon: NSImage = {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        let image = NSImage(
+            systemSymbolName: "dot.radiowaves.left.and.right",
+            accessibilityDescription: "Surge Relay"
+        )?.withSymbolConfiguration(configuration) ?? NSImage()
+        image.isTemplate = true
+        return image
+    }()
 
     var body: some Scene {
         Window("Surge Relay", id: SurgeRelayWindow.main) {
@@ -153,8 +188,7 @@ struct SurgeRelayApp: App {
                     .environment(\.locale, Locale(identifier: "zh_CN"))
             }
         } label: {
-            Image(systemName: "dot.radiowaves.left.and.right")
-                .symbolRenderingMode(.monochrome)
+            Image(nsImage: Self.menuBarIcon)
                 // Template menu-bar icons can't use semantic colors reliably;
                 // opacity is the system-native way to show a lighter disconnected state.
                 .opacity(menuBarIconOpacity)

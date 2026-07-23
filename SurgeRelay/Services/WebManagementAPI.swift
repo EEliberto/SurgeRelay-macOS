@@ -21,6 +21,9 @@ enum WebManagementAPI {
                 return .json(statePayload(model: model))
             case ("GET", "/api/activity"):
                 return .json(activityPayload(model: model))
+            case ("POST", "/api/activity/error/dismiss"):
+                model.presentedError = nil
+                return .json(ActionPayload(ok: true, message: "错误提示已清除。"))
             case ("GET", "/api/settings"):
                 return .json(settingsPayload(model: model))
             case ("PUT", "/api/settings/general"):

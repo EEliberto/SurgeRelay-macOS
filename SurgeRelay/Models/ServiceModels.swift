@@ -111,6 +111,9 @@ enum RelayError: LocalizedError, Sendable {
     case duplicateSourceURL
     case invalidOutput(String)
     case httpFailure(status: Int, message: String)
+    case githubRateLimited(retryAt: Date)
+    case githubRepositoryBusy(retryAt: Date)
+    case cloudflarePropagationPending(retryAt: Date)
     case githubNotConfigured
     case githubTokenMissing
     case githubRepositoryMustBePrivate
@@ -120,6 +123,12 @@ enum RelayError: LocalizedError, Sendable {
     var diagnosticDescription: String {
         switch self {
         case .httpFailure(let status, let message): "网络请求失败（\(status)）：\(message)"
+        case .githubRateLimited(let retryAt):
+            "GitHub 请求受限，将于 \(retryAt.formatted(date: .omitted, time: .shortened)) 后自动重试"
+        case .githubRepositoryBusy(let retryAt):
+            "GitHub 分支正在被其他设备更新，将于 \(retryAt.formatted(date: .omitted, time: .shortened)) 后自动重试"
+        case .cloudflarePropagationPending(let retryAt):
+            "Cloudflare 正在刷新内容，将于 \(retryAt.formatted(date: .omitted, time: .shortened)) 后自动复查"
         default: errorDescription ?? "未知错误"
         }
     }
@@ -130,7 +139,13 @@ enum RelayError: LocalizedError, Sendable {
         case .invalidServiceURL: "Script Hub 服务地址无效。"
         case .duplicateSourceURL: "该模块已经添加，不能重复添加。"
         case .invalidOutput(let message): "转换结果无效：\(message)"
-        case .httpFailure(let status, _): "网络请求失败（\(status)）"
+        case .httpFailure(let status, let message): "网络请求失败（\(status)）：\(message)"
+        case .githubRateLimited(let retryAt):
+            "GitHub 请求过于频繁，已暂停上传，将于 \(retryAt.formatted(date: .omitted, time: .shortened)) 后自动重试。"
+        case .githubRepositoryBusy(let retryAt):
+            "GitHub 分支正在被其他设备更新，已重新排队，将于 \(retryAt.formatted(date: .omitted, time: .shortened)) 后自动重试。"
+        case .cloudflarePropagationPending(let retryAt):
+            "GitHub 已发布，Cloudflare 正在刷新内容，将于 \(retryAt.formatted(date: .omitted, time: .shortened)) 后自动复查。"
         case .githubNotConfigured: "请先填写 GitHub 仓库信息。"
         case .githubTokenMissing: "请先保存 GitHub Token。"
         case .githubRepositoryMustBePrivate: "请使用私有 GitHub 仓库搭配 Cloudflare 使用，或使用本地存储。"
