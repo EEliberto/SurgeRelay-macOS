@@ -54,10 +54,23 @@ struct RootView: View {
                 ModulesView()
             }
         }
-        .background(MainWindowCloseBehavior())
+        .background(MainWindowCloseBehavior(deviceMode: model.deviceMode))
         .sheet(isPresented: $model.presentsConfigurationWelcome) {
             WelcomeWizardView()
                 .environment(model)
+        }
+        .alert(item: $model.remoteVersionMismatch) { mismatch in
+            Alert(
+                title: Text("版本不一致"),
+                message: Text("客户端：\(mismatch.clientVersion)\n服务器：\(mismatch.serverVersion)"),
+                primaryButton: .default(Text("检查更新")) {
+                    model.ignoreRemoteVersionMismatch()
+                    NotificationCenter.default.post(name: .checkForSurgeRelayUpdates, object: nil)
+                },
+                secondaryButton: .cancel(Text("忽略")) {
+                    model.ignoreRemoteVersionMismatch()
+                }
+            )
         }
     }
 

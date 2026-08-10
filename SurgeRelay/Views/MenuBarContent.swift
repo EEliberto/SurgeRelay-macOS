@@ -76,7 +76,9 @@ struct MenuBarContent: View {
             activateSettingsWindow()
         }
         Divider()
-        Button("退出 Surge Relay") { NSApplication.shared.terminate(nil) }
+        Button("退出 Surge Relay") {
+            SurgeRelayTerminationCoordinator.terminateCompletely()
+        }
     }
 
     private func activateSettingsWindow() {

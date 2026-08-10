@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
+		0AEAD1701B3D76B37D6C6023 /* AppModel+AirportSubscriptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */; };
 		151D10C88D70BA93DD14C7FB /* MainWindowCloseBehavior.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */; };
 		18F9C44DFE83F37483900625 /* RemoteConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */; };
 		1AECEBD32D966A1910B3A007 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53C80368CE81330FB2D723A /* SettingsView.swift */; };
@@ -15,17 +16,21 @@
 		280C7E38DAD9F18ED8090287 /* ModuleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */; };
 		2AD845464760705F3E0982BE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3AE70978C59AAF84436C3194 /* Assets.xcassets */; };
 		2ADF1ADFE70E63FE334C1B5C /* SurgeRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A632A09F875AFE2F6ADC7A42 /* SurgeRelayTests.swift */; };
+		2C0D2BE2BB1618A76902635E /* AirportSubscriptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */; };
 		2DE2729D489CC5CF5737F164 /* ModulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02309DE998787F453FD1166 /* ModulesView.swift */; };
 		307EBCC9173DAEC6727856BD /* ModuleMetadataParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEEA07D7884F801CEDBF10E /* ModuleMetadataParser.swift */; };
 		30817299C54FAD6356760AD8 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */; };
 		3090A8DBE685329420EF4F22 /* WelcomeWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB516C20A3C981278B9C7766 /* WelcomeWizardView.swift */; };
+		37663EE9F9B7ADDBC0A7F484 /* AirportSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */; };
 		384BEBC6E1F8C9A0A53FB0FC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B29AA0AD818A5D7F67A7471 /* AppModel.swift */; };
+		3C9657629989C8164E64BD6D /* MenuBarStatusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D9950B64DCDB2C88D8980C /* MenuBarStatusController.swift */; };
 		3EE4F5BD7D273B859D69002E /* ScriptHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254A83429BCA625706A87254 /* ScriptHubClient.swift */; };
 		401D479CF6D06ED825897F88 /* Surge Relay.icon in Resources */ = {isa = PBXBuildFile; fileRef = E07D52108B30F9447A500E3D /* Surge Relay.icon */; };
 		407E672ECAD57CD270BB44B7 /* FilenameSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */; };
 		428F3605819F521142B80066 /* ModuleOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532731E293DA280A8A42D96 /* ModuleOrdering.swift */; };
 		4B5E934EB9AC34C451301F50 /* WebManagementAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */; };
 		540136DA3B34EAD959E5B5F7 /* WebManagementServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */; };
+		6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */; };
 		6C8F8E71624D2151BFA675ED /* ServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */; };
 		6FD484283175DC8133118FF1 /* ModuleMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */; };
 		709FF80593ADF6216AF25D9D /* RelayModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */; };
@@ -39,11 +44,13 @@
 		91BF72296DEE134A528EDF1B /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00FF1B0D1608D65FBA6451BE /* LaunchAtLoginService.swift */; };
 		93D45771DAD23A3F8AD5473F /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */; };
 		9457731342986CF96B53EA0F /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */; };
+		96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */; };
 		AA8F7B5F28379ACDB4DDEDB9 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD7A6C8082510469A2FA843 /* RootView.swift */; };
 		AFF297E85AC53B6A6291EE70 /* AppModel+RemoteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */; };
 		B46911120F2F5BB4C736DCDE /* ModuleIconStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */; };
 		B8555D3D9FEACB351D53EBC9 /* ScriptHubOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */; };
 		C577752A7FA64D5E4749D52B /* DataHash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31722F50C6C17A7F74F3A1BC /* DataHash.swift */; };
+		C8840CD5E15DB62F96AFA533 /* AirportSubscriptionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */; };
 		CA5FB083B1568EEEEA50DBAF /* GitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */; };
 		D00571D70301FFF75C0BACFE /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */; };
 		D596D087CB06F13BD28D7510 /* SurgeRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */; };
@@ -71,14 +78,17 @@
 		0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleIconStore.swift; sourceTree = "<group>"; };
 		0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayModule.swift; sourceTree = "<group>"; };
 		13871D2C902AAF75BBD033C6 /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+AirportSubscriptions.swift"; sourceTree = "<group>"; };
 		1BEEA07D7884F801CEDBF10E /* ModuleMetadataParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMetadataParser.swift; sourceTree = "<group>"; };
 		1F700D434F8EB4A3091FD216 /* WebResources */ = {isa = PBXFileReference; lastKnownFileType = folder; name = WebResources; path = SurgeRelay/WebResources; sourceTree = SOURCE_ROOT; };
 		254A83429BCA625706A87254 /* ScriptHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubClient.swift; sourceTree = "<group>"; };
 		280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Surge RelayTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2968E247012225719D2FF9D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2B29AA0AD818A5D7F67A7471 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscription.swift; sourceTree = "<group>"; };
 		31722F50C6C17A7F74F3A1BC /* DataHash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataHash.swift; sourceTree = "<group>"; };
 		33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebManagementServer.swift; sourceTree = "<group>"; };
+		35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionStore.swift; sourceTree = "<group>"; };
 		354B1BF761ABD7AADD982A17 /* EngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStore.swift; sourceTree = "<group>"; };
 		3AE70978C59AAF84436C3194 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowCloseBehavior.swift; sourceTree = "<group>"; };
@@ -89,12 +99,15 @@
 		6B63578065A9F7B8CC166FF2 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubClient.swift; sourceTree = "<group>"; };
 		8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
+		87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionsView.swift; sourceTree = "<group>"; };
 		A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceModels.swift; sourceTree = "<group>"; };
 		A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteManagementClient.swift; sourceTree = "<group>"; };
 		A532731E293DA280A8A42D96 /* ModuleOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleOrdering.swift; sourceTree = "<group>"; };
 		A632A09F875AFE2F6ADC7A42 /* SurgeRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeRelayTests.swift; sourceTree = "<group>"; };
 		A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilenameSanitizer.swift; sourceTree = "<group>"; };
+		AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParser.swift; sourceTree = "<group>"; };
 		AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedScriptHubEngine.swift; sourceTree = "<group>"; };
+		B3D9950B64DCDB2C88D8980C /* MenuBarStatusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusController.swift; sourceTree = "<group>"; };
 		B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeRelayApp.swift; sourceTree = "<group>"; };
 		B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		B7DAE6646C847419124DE9BB /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -104,6 +117,7 @@
 		E07D52108B30F9447A500E3D /* Surge Relay.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "Surge Relay.icon"; sourceTree = "<group>"; };
 		E1070DB686AADF6D51CF6CDB /* ModuleFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleFileStore.swift; sourceTree = "<group>"; };
 		E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleEditorView.swift; sourceTree = "<group>"; };
+		E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParserTests.swift; sourceTree = "<group>"; };
 		EB516C20A3C981278B9C7766 /* WelcomeWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWizardView.swift; sourceTree = "<group>"; };
 		EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WebServerLifecycle.swift"; sourceTree = "<group>"; };
 		EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -133,6 +147,7 @@
 				566BC4E001EE9379DF8EA731 /* Utilities */,
 				25432D20905F79D6AE1E1480 /* Views */,
 				2B29AA0AD818A5D7F67A7471 /* AppModel.swift */,
+				188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */,
 				48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */,
 				EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */,
 				3AE70978C59AAF84436C3194 /* Assets.xcassets */,
@@ -145,10 +160,12 @@
 		25432D20905F79D6AE1E1480 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */,
 				8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */,
 				B7DAE6646C847419124DE9BB /* Components.swift */,
 				3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */,
 				B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */,
+				B3D9950B64DCDB2C88D8980C /* MenuBarStatusController.swift */,
 				E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */,
 				F02309DE998787F453FD1166 /* ModulesView.swift */,
 				BDD7A6C8082510469A2FA843 /* RootView.swift */,
@@ -162,6 +179,8 @@
 		25F381528CBA8FEE25E4A139 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */,
+				35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */,
 				AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */,
 				354B1BF761ABD7AADD982A17 /* EngineStore.swift */,
 				6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */,
@@ -184,6 +203,7 @@
 		34A9D55DA8369A1C9187A35C /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */,
 				EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */,
 				0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */,
 				005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */,
@@ -207,6 +227,7 @@
 		992FBA5B9AB9596787D9E76C /* SurgeRelayTests */ = {
 			isa = PBXGroup;
 			children = (
+				E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */,
 				A632A09F875AFE2F6ADC7A42 /* SurgeRelayTests.swift */,
 			);
 			path = SurgeRelayTests;
@@ -340,6 +361,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C8840CD5E15DB62F96AFA533 /* AirportSubscriptionParserTests.swift in Sources */,
 				2ADF1ADFE70E63FE334C1B5C /* SurgeRelayTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -348,6 +370,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				37663EE9F9B7ADDBC0A7F484 /* AirportSubscription.swift in Sources */,
+				96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */,
+				6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */,
+				2C0D2BE2BB1618A76902635E /* AirportSubscriptionsView.swift in Sources */,
+				0AEAD1701B3D76B37D6C6023 /* AppModel+AirportSubscriptions.swift in Sources */,
 				AFF297E85AC53B6A6291EE70 /* AppModel+RemoteClient.swift in Sources */,
 				E80FCFFEF9B58FC6A20F81FB /* AppModel+WebServerLifecycle.swift in Sources */,
 				384BEBC6E1F8C9A0A53FB0FC /* AppModel.swift in Sources */,
@@ -363,6 +390,7 @@
 				91BF72296DEE134A528EDF1B /* LaunchAtLoginService.swift in Sources */,
 				151D10C88D70BA93DD14C7FB /* MainWindowCloseBehavior.swift in Sources */,
 				93D45771DAD23A3F8AD5473F /* MenuBarContent.swift in Sources */,
+				3C9657629989C8164E64BD6D /* MenuBarStatusController.swift in Sources */,
 				280C7E38DAD9F18ED8090287 /* ModuleEditorView.swift in Sources */,
 				72BFC19A86A6433A42A41F75 /* ModuleFileStore.swift in Sources */,
 				B46911120F2F5BB4C736DCDE /* ModuleIconStore.swift in Sources */,
@@ -435,7 +463,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27072301;
+				CURRENT_PROJECT_VERSION = 27072302;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -449,7 +477,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 260723;
+				MARKETING_VERSION = 260810;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -533,7 +561,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27072301;
+				CURRENT_PROJECT_VERSION = 27072302;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -553,7 +581,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 260723;
+				MARKETING_VERSION = 260810;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

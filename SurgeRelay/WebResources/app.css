@@ -239,6 +239,106 @@ button { color: inherit; }
 [data-symbol="arrow.trianglehead.2.clockwise.rotate.90"] { --symbol: url("/symbols/arrow.trianglehead.2.clockwise.rotate.90.svg?v=1"); }
 [data-symbol="arrow.trianglehead.branch"] { --symbol: url("/symbols/arrow.trianglehead.branch.svg?v=1"); }
 [data-symbol="stethoscope"] { --symbol: url("/symbols/stethoscope.svg?v=1"); }
+[data-symbol="airplane"] { --symbol: url("/symbols/airplane.svg?v=1"); }
+
+.airport-summary-icon {
+  background: transparent;
+}
+.airport-summary-icon img { object-fit: contain; }
+.airport-list, .configuration-list { padding: 0; }
+.airport-row, .configuration-row {
+  min-height: 76px;
+  margin: 0 16px;
+  padding: 12px 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  border-top: 1px solid var(--separator);
+}
+.airport-row:first-child, .configuration-row:first-child { border-top: 0; }
+.airport-row .module-icon { width: 44px; height: 44px; border-radius: 12px; }
+.airport-row .module-icon {
+  overflow: visible;
+  background: transparent;
+}
+.airport-row .module-icon img { object-fit: contain; border-radius: 0; }
+.airport-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.airport-copy strong, .airport-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.airport-copy small { color: var(--secondary-label); font-size: 12px; }
+.airport-copy .airport-error { color: var(--red); }
+.airport-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.airport-actions .icon-button { width: 34px; height: 34px; background: var(--fill); }
+.airport-actions .icon-button .symbol { width: 16px; height: 16px; }
+.destructive-icon { color: var(--red); }
+.configuration-row { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.configuration-file-icon { width: 22px; height: 22px; color: var(--secondary-label); }
+.airport-section-actions {
+  min-height: 58px;
+  margin: 0 16px;
+  padding: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--separator);
+}
+.airport-empty { min-height: 150px; padding: 24px; display: grid; place-items: center; align-content: center; gap: 10px; color: var(--secondary-label); }
+.airport-empty > .symbol { width: 30px; height: 30px; }
+.airport-configuration-preview pre, .airport-preview-content pre {
+  margin: 0;
+  padding: 18px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  tab-size: 2;
+}
+.airport-configuration-preview pre { min-height: 300px; max-height: 520px; }
+.compact-dialog { width: min(680px, calc(100vw - 32px)); }
+.airport-preview-dialog { width: min(980px, calc(100vw - 32px)); height: min(760px, calc(100dvh - 32px)); display: flex; flex-direction: column; }
+.airport-preview-dialog:not([open]) { display: none; }
+.airport-preview-content { min-height: 0; flex: 1; overflow: hidden; background: var(--surface-solid); }
+.airport-preview-content pre { width: 100%; height: 100%; box-sizing: border-box; white-space: pre-wrap; }
+.is-spinning .symbol { animation: spin 780ms linear infinite; }
+
+@media (max-width: 760px) {
+  .airport-row, .configuration-row { grid-template-columns: 40px minmax(0, 1fr); align-items: start; }
+  .airport-row .module-icon { width: 40px; height: 40px; }
+  .airport-actions { grid-column: 1 / -1; justify-content: flex-end; flex-wrap: wrap; }
+  .configuration-row { grid-template-columns: 24px minmax(0, 1fr); }
+  .airport-configuration-preview pre { min-height: 380px; max-height: none; }
+}
+
+@media (max-width: 700px) {
+  body.airport-page .mobile-header {
+    height: calc(63px + env(safe-area-inset-top));
+  }
+  body.airport-page .mobile-detail-actions {
+    position: absolute;
+    left: auto;
+    right: 14px;
+    top: calc(8px + env(safe-area-inset-top));
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    display: block;
+  }
+  body.airport-page .mobile-detail-actions .airport-add-button {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
+    font-size: 0;
+  }
+  body.airport-page .mobile-detail-actions .airport-add-button .symbol { width: 18px; height: 18px; }
+  body.airport-page .detail-content {
+    padding-top: calc(78px + env(safe-area-inset-top));
+  }
+}
 
 .search-field {
   height: 38px; margin-top: 16px; padding: 0 12px;
@@ -751,6 +851,10 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
   bottom: max(18px, env(safe-area-inset-bottom));
 }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 2px; }
+body.initializing *, body.initializing *::before, body.initializing *::after {
+  animation: none !important;
+  transition: none !important;
+}
 
 @media (max-width: 950px) {
   :root { --sidebar-width: 330px; }

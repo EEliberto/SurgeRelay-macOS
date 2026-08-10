@@ -74,8 +74,23 @@ enum PersistenceStore {
         configurationDirectoryURL.appending(path: "update-history.json")
     }
 
+    static var airportSubscriptionsURL: URL {
+        configurationDirectoryURL.appending(path: "airport-subscriptions.json")
+    }
+
+    static var surgeConfigurationTargetsURL: URL {
+        configurationDirectoryURL.appending(path: "surge-configuration-targets.json")
+    }
+
     private static var managedConfigurationURLs: [URL] {
-        [settingsURL, registryURL, upstreamStateURL, updateHistoryURL]
+        [
+            settingsURL,
+            registryURL,
+            upstreamStateURL,
+            updateHistoryURL,
+            airportSubscriptionsURL,
+            surgeConfigurationTargetsURL,
+        ]
     }
 
     static var configurationFilesNeedDownload: Bool {
@@ -167,6 +182,27 @@ enum PersistenceStore {
 
     static func saveUpdateHistory(_ entries: [UpdateHistoryEntry]) {
         try? write(Array(entries.prefix(200)), to: updateHistoryURL)
+    }
+
+    static func loadAirportSubscriptions() -> [AirportSubscription] {
+        decodeFile(at: airportSubscriptionsURL) ?? []
+    }
+
+    static func saveAirportSubscriptions(_ subscriptions: [AirportSubscription]) throws {
+        try write(subscriptions, to: airportSubscriptionsURL)
+    }
+
+    static func loadSurgeConfigurationTargets() -> [SurgeConfigurationTarget] {
+        if let targets: [SurgeConfigurationTarget] = decodeFile(at: surgeConfigurationTargetsURL) {
+            return targets
+        }
+        let defaultURL = URL(filePath: AppSettings.defaultSurgeDirectory, directoryHint: .isDirectory)
+            .appending(path: "General.conf")
+        return [SurgeConfigurationTarget(path: defaultURL.path)]
+    }
+
+    static func saveSurgeConfigurationTargets(_ targets: [SurgeConfigurationTarget]) throws {
+        try write(targets, to: surgeConfigurationTargetsURL)
     }
 
     static func useConfigurationDirectory(_ path: String) throws {

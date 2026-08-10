@@ -1,36 +1,57 @@
 import AppKit
 import SwiftUI
 
-/// Keeps the app resident in the menu bar by turning the main window's close
-/// button into a hide action. This avoids replacing SwiftUI's window delegate.
+/// Applies the mode-specific lifecycle after SwiftUI closes the main window.
 @MainActor
 struct MainWindowCloseBehavior: NSViewRepresentable {
+    let deviceMode: RelayDeviceMode
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async { context.coordinator.install(on: view.window) }
+        DispatchQueue.main.async {
+            context.coordinator.deviceMode = deviceMode
+            context.coordinator.install(on: view.window)
+        }
         return view
     }
 
     func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async { context.coordinator.install(on: view.window) }
+        DispatchQueue.main.async {
+            context.coordinator.deviceMode = deviceMode
+            context.coordinator.install(on: view.window)
+        }
     }
 
     @MainActor
     final class Coordinator: NSObject {
         private weak var window: NSWindow?
+        private var closeObserver: NSObjectProtocol?
+        var deviceMode: RelayDeviceMode = .server
 
         func install(on candidate: NSWindow?) {
-            guard let candidate, window !== candidate,
-                  let closeButton = candidate.standardWindowButton(.closeButton) else { return }
+            guard let candidate, window !== candidate else { return }
+            if let closeObserver {
+                NotificationCenter.default.removeObserver(closeObserver)
+            }
             window = candidate
-            closeButton.target = self
-            closeButton.action = #selector(hideMainWindow)
+            closeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: candidate,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.mainWindowWillClose()
+                }
+            }
         }
 
-        @objc private func hideMainWindow() {
-            window?.orderOut(nil)
+        private func mainWindowWillClose() {
+            if deviceMode == .client {
+                NSApp.terminate(nil)
+                return
+            }
             NSApp.setActivationPolicy(.accessory)
         }
     }

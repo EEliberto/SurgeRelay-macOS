@@ -1,6 +1,8 @@
 import Foundation
 
 extension AppModel {
+    private static let ignoredVersionMismatchKey = "SurgeRelay.ignoredVersionMismatch.v1"
+
     var isClientMode: Bool { deviceMode == .client }
 
     var hasConfiguredRemoteServer: Bool { remoteManagementURL != nil }
@@ -249,7 +251,9 @@ extension AppModel {
 
     func clearRemoteProjection() {
         modules = []
-        selectedModuleID = RelayPlatform.ios.selectionID
+        if selectedModuleID != AirportSubscriptionSummary.selectionID {
+            selectedModuleID = RelayPlatform.ios.selectionID
+        }
         isWorking = false
         synchronizingModuleID = nil
         synchronizationTotalCount = 0
@@ -258,6 +262,8 @@ extension AppModel {
 
     func applyRemoteState(_ state: RemoteStatePayload, baseURL: URL) {
         guard isClientMode else { return }
+
+        evaluateRemoteVersion(state.settings.appVersion)
 
         let previousSelection = selectedModuleID
         modules = state.modules.compactMap { $0.asRelayModule(baseURL: baseURL) }
@@ -271,14 +277,37 @@ extension AppModel {
 
         if let previousSelection,
            modules.contains(where: { $0.id == previousSelection })
-            || RelayPlatform.from(selectionID: previousSelection) != nil {
+            || RelayPlatform.from(selectionID: previousSelection) != nil
+            || previousSelection == AirportSubscriptionSummary.selectionID {
             selectedModuleID = previousSelection
         } else if selectedModuleID == nil || !(
             modules.contains(where: { $0.id == selectedModuleID })
                 || (selectedModuleID.map { RelayPlatform.from(selectionID: $0) != nil } ?? false)
+                || selectedModuleID == AirportSubscriptionSummary.selectionID
         ) {
             selectedModuleID = RelayPlatform.ios.selectionID
         }
+    }
+
+    func ignoreRemoteVersionMismatch() {
+        guard let mismatch = remoteVersionMismatch else { return }
+        UserDefaults.standard.set(mismatch.id, forKey: Self.ignoredVersionMismatchKey)
+        remoteVersionMismatch = nil
+    }
+
+    private func evaluateRemoteVersion(_ serverVersion: String) {
+        let clientVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let serverVersion = serverVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clientVersion.isEmpty, !serverVersion.isEmpty, serverVersion != "—", clientVersion != serverVersion else {
+            remoteVersionMismatch = nil
+            return
+        }
+        let mismatch = RemoteVersionMismatch(clientVersion: clientVersion, serverVersion: serverVersion)
+        guard UserDefaults.standard.string(forKey: Self.ignoredVersionMismatchKey) != mismatch.id else {
+            remoteVersionMismatch = nil
+            return
+        }
+        remoteVersionMismatch = mismatch
     }
 
     private func applyRemoteActivity(_ activity: RemoteActivityPayload) {

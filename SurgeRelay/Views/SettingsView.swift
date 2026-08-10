@@ -306,10 +306,12 @@ struct SettingsView: View {
                     Text("每 6 小时").tag(360)
                     Text("每 12 小时").tag(720)
                 }
-                Toggle("登录时启动 Surge Relay", isOn: Binding(
-                    get: { model.settings.launchAtLogin },
-                    set: { model.setLaunchAtLogin($0) }
-                ))
+                if model.deviceMode == .server {
+                    Toggle("登录时启动 Surge Relay", isOn: Binding(
+                        get: { model.settings.launchAtLogin },
+                        set: { model.setLaunchAtLogin($0) }
+                    ))
+                }
                 Toggle("自动同步", isOn: Binding(
                     get: { model.settings.automaticallyPublish },
                     set: { model.settings.automaticallyPublish = $0; model.saveSettings() }

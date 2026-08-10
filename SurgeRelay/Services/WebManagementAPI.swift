@@ -75,6 +75,19 @@ enum WebManagementAPI {
                 let ids = mutation.ids.compactMap(UUID.init(uuidString:))
                 model.reorderModules(ids: ids)
                 return .json(ActionPayload(ok: true, message: model.statusMessage))
+            case ("POST", "/api/airports"):
+                let mutation = try request.decodeBody(WebAirportMutation.self)
+                try model.addAirportSubscription(from: mutation.draft())
+                return .json(ActionPayload(ok: true, message: model.statusMessage), status: 201, reason: "Created")
+            case ("POST", "/api/airports/write"):
+                let count = try model.writeAirportSubscriptionsToEnabledConfigurations()
+                return .json(ActionPayload(ok: true, message: "已写入 \(count) 个 Surge 配置。"))
+            case ("POST", "/api/airports/configurations"):
+                let mutation = try request.decodeBody(WebConfigurationMutation.self)
+                try model.addSurgeConfigurationTarget(path: mutation.path)
+                return .json(ActionPayload(ok: true, message: model.statusMessage), status: 201, reason: "Created")
+            case _ where request.path.hasPrefix("/api/airports/"):
+                return try await airportResponse(for: request, model: model)
             case ("POST", "/api/source/name"):
                 let payload = try request.decodeBody(WebSourceNameRequest.self)
                 guard let url = URL(string: payload.url),
@@ -422,6 +435,69 @@ enum WebManagementAPI {
         }
     }
 
+    private static func airportResponse(for request: WebHTTPRequest, model: AppModel) async throws -> WebHTTPResponse {
+        let components = request.path.split(separator: "/").map(String.init)
+        guard components.count >= 3, components[0] == "api", components[1] == "airports" else {
+            throw WebAPIError.airportNotFound
+        }
+
+        if components[2] == "configurations" {
+            guard components.count >= 4, let id = UUID(uuidString: components[3]),
+                  model.surgeConfigurationTargets.contains(where: { $0.id == id }) else {
+                throw WebAPIError.configurationNotFound
+            }
+            if components.count == 4 {
+                switch request.method {
+                case "PUT":
+                    let mutation = try request.decodeBody(WebConfigurationMutation.self)
+                    try model.updateSurgeConfigurationTarget(id: id, path: mutation.path)
+                    return .json(ActionPayload(ok: true, message: model.statusMessage))
+                case "DELETE":
+                    model.removeSurgeConfigurationTarget(id: id)
+                    return .json(ActionPayload(ok: true, message: "配置文件已移除。"))
+                default: throw WebAPIError.methodNotAllowed
+                }
+            }
+            guard components.count == 5, components[4] == "enabled", request.method == "POST" else {
+                throw WebAPIError.methodNotAllowed
+            }
+            let payload = try request.decodeBody(WebEnabledRequest.self)
+            model.setSurgeConfigurationTargetEnabled(id: id, enabled: payload.enabled)
+            return .json(ActionPayload(ok: true, message: payload.enabled ? "已启用配置文件。" : "已停用配置文件。"))
+        }
+
+        guard let id = UUID(uuidString: components[2]),
+              let subscription = model.airportSubscriptions.first(where: { $0.id == id }) else {
+            throw WebAPIError.airportNotFound
+        }
+        if components.count == 3 {
+            switch request.method {
+            case "PUT":
+                let mutation = try request.decodeBody(WebAirportMutation.self)
+                try model.updateAirportSubscription(id: id, from: mutation.draft(existing: subscription))
+                return .json(ActionPayload(ok: true, message: model.statusMessage))
+            case "DELETE":
+                model.removeAirportSubscription(id: id)
+                return .json(ActionPayload(ok: true, message: model.statusMessage))
+            default: throw WebAPIError.methodNotAllowed
+            }
+        }
+        guard components.count == 4 else { throw WebAPIError.methodNotAllowed }
+        switch (request.method, components[3]) {
+        case ("POST", "enabled"):
+            let payload = try request.decodeBody(WebEnabledRequest.self)
+            model.setAirportSubscriptionEnabled(id: id, enabled: payload.enabled)
+            return .json(ActionPayload(ok: true, message: payload.enabled ? "已启用 \(subscription.name)。" : "已停用 \(subscription.name)。"))
+        case ("POST", "refresh"):
+            try await model.refreshAirportSubscription(id: id)
+            return .json(ActionPayload(ok: true, message: model.statusMessage))
+        case ("GET", "preview"):
+            guard model.hasCachedAirportSubscription(id: id) else { throw WebAPIError.airportCacheMissing }
+            return .text(try model.cachedAirportSubscriptionContent(id: id))
+        default: throw WebAPIError.methodNotAllowed
+        }
+    }
+
     private static func statePayload(model: AppModel) -> WebStatePayload {
         let newestUpdate = model.modules.compactMap(\.lastUpdatedAt).max()
         let platforms = RelayPlatform.allCases.map { platform in
@@ -491,7 +567,28 @@ enum WebManagementAPI {
                 )
             },
             activity: activityPayload(model: model),
-            platforms: platforms
+            platforms: platforms,
+            airports: airportPayload(model: model)
+        )
+    }
+
+    private static func airportPayload(model: AppModel) -> WebAirportOverviewPayload {
+        WebAirportOverviewPayload(
+            subscriptions: model.airportSubscriptions.map {
+                WebAirportPayload(
+                    id: $0.id.uuidString.lowercased(), name: $0.name, sourceURL: $0.sourceURL,
+                    policyRegexFilter: $0.policyRegexFilter, iconURL: $0.iconURL,
+                    isEnabled: $0.isEnabled, lastUpdatedAt: $0.lastUpdatedAt,
+                    lastError: $0.lastError, hasCache: model.hasCachedAirportSubscription(id: $0.id)
+                )
+            },
+            configurations: model.surgeConfigurationTargets.map {
+                WebConfigurationPayload(
+                    id: $0.id.uuidString.lowercased(), path: $0.path,
+                    isEnabled: $0.isEnabled, lastWrittenAt: $0.lastWrittenAt
+                )
+            },
+            configurationPreview: model.airportConfigurationPreview
         )
     }
 
@@ -606,6 +703,54 @@ private struct WebStatePayload: Encodable {
     let modules: [WebModulePayload]
     let activity: WebActivityPayload
     let platforms: [WebPlatformPayload]
+    let airports: WebAirportOverviewPayload
+}
+
+private struct WebAirportOverviewPayload: Encodable {
+    let subscriptions: [WebAirportPayload]
+    let configurations: [WebConfigurationPayload]
+    let configurationPreview: String
+}
+
+private struct WebAirportPayload: Encodable {
+    let id: String
+    let name: String
+    let sourceURL: String
+    let policyRegexFilter: String
+    let iconURL: String
+    let isEnabled: Bool
+    let lastUpdatedAt: Date?
+    let lastError: String?
+    let hasCache: Bool
+}
+
+private struct WebConfigurationPayload: Encodable {
+    let id: String
+    let path: String
+    let isEnabled: Bool
+    let lastWrittenAt: Date?
+}
+
+private struct WebAirportMutation: Decodable {
+    let name: String
+    let sourceURL: String
+    let policyRegexFilter: String?
+    let iconURL: String?
+    let isEnabled: Bool?
+
+    func draft(existing: AirportSubscription? = nil) -> AirportSubscriptionDraft {
+        var draft = existing.map(AirportSubscriptionDraft.init(subscription:)) ?? AirportSubscriptionDraft()
+        draft.name = name
+        draft.sourceURL = sourceURL
+        if let policyRegexFilter { draft.policyRegexFilter = policyRegexFilter }
+        if let iconURL { draft.iconURL = iconURL }
+        if let isEnabled { draft.isEnabled = isEnabled }
+        return draft
+    }
+}
+
+private struct WebConfigurationMutation: Decodable {
+    let path: String
 }
 
 private struct WebOverridesPayload: Encodable {
@@ -827,10 +972,13 @@ private enum WebAPIError: LocalizedError {
     case invalidSourceURL
     case invalidPort
     case invalidStorageMode
+    case airportNotFound
+    case configurationNotFound
+    case airportCacheMissing
 
     var status: Int {
         switch self {
-        case .moduleNotFound: 404
+        case .moduleNotFound, .airportNotFound, .configurationNotFound, .airportCacheMissing: 404
         case .methodNotAllowed: 405
         default: 400
         }
@@ -847,6 +995,9 @@ private enum WebAPIError: LocalizedError {
         case .invalidSourceURL: "来源地址无效。"
         case .invalidPort: "端口必须在 1–65535 之间。"
         case .invalidStorageMode: "同步方式无效。"
+        case .airportNotFound: "找不到这个机场。"
+        case .configurationNotFound: "找不到这个配置文件。"
+        case .airportCacheMissing: "请先刷新机场订阅。"
         }
     }
 }

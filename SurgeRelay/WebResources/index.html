@@ -14,10 +14,10 @@
   <link rel="manifest" href="/manifest.webmanifest?v=7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Surge Relay">
-  <link rel="stylesheet" href="/app.css?v=73">
-  <script src="/app.js?v=81" defer></script>
+  <link rel="stylesheet" href="/app.css?v=76">
+  <script src="/app.js?v=85" defer></script>
 </head>
-<body>
+<body class="initializing">
   <div class="app-shell">
     <aside class="sidebar" aria-label="模块列表">
       <div class="sidebar-top">
@@ -34,6 +34,8 @@
       </div>
 
       <nav class="module-navigation">
+        <div class="section-label">机场订阅</div>
+        <div id="airport-summary-list"></div>
         <div class="section-label">汇总模块</div>
         <div id="summary-list"></div>
         <div class="section-label">来源模块</div>
@@ -109,6 +111,50 @@
       <div class="dialog-message" id="module-dialog-message" role="alert" hidden></div>
       <div class="dialog-actions"><button class="button secondary close-module-dialog" type="button">取消</button><button class="button primary" type="submit" id="save-module-button">添加</button></div>
     </form>
+  </dialog>
+
+  <dialog id="airport-dialog" class="sheet-dialog compact-dialog">
+    <form id="airport-form">
+      <div class="dialog-header">
+        <div><h2 id="airport-dialog-title">添加机场</h2></div>
+        <button class="icon-button close-airport-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button>
+      </div>
+      <div class="form-content">
+        <section class="editor-section"><h3>机场</h3><div class="editor-group">
+          <label class="form-row"><span>名称</span><input name="name" type="text" required placeholder="例如：FlowerCloud"></label>
+          <label class="form-row switch-row"><span>写入 Surge 配置</span><input name="isEnabled" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+        </div></section>
+        <section class="editor-section"><h3>订阅</h3><div class="editor-group">
+          <label class="form-row"><span>订阅链接</span><input name="sourceURL" type="url" required placeholder="https://example.com/subscription"></label>
+        </div></section>
+        <section class="editor-section"><h3>可选参数</h3><div class="editor-group">
+          <label class="form-row"><span>节点过滤正则</span><input name="policyRegexFilter" type="text" placeholder="留空则保留全部节点"></label>
+          <label class="form-row"><span>图标地址</span><input name="iconURL" type="url" placeholder="https://example.com/icon.png"></label>
+        </div></section>
+      </div>
+      <div class="dialog-message" id="airport-dialog-message" role="alert" hidden></div>
+      <div class="dialog-actions"><button class="button secondary close-airport-dialog" type="button">取消</button><button class="button primary" type="submit" id="save-airport-button">添加</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="configuration-dialog" class="sheet-dialog compact-dialog">
+    <form id="configuration-form">
+      <div class="dialog-header">
+        <div><h2 id="configuration-dialog-title">添加 Surge 配置</h2></div>
+        <button class="icon-button close-configuration-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button>
+      </div>
+      <div class="form-content"><section class="editor-section"><h3>配置文件</h3><div class="editor-group">
+        <label class="form-row"><span>完整路径</span><input name="path" type="text" required placeholder="/Users/name/.../General.conf"></label>
+      </div><p class="section-footer">请输入服务器 Mac 上的 .conf 文件路径。</p></section></div>
+      <div class="dialog-message" id="configuration-dialog-message" role="alert" hidden></div>
+      <div class="dialog-actions"><button class="button secondary close-configuration-dialog" type="button">取消</button><button class="button primary" type="submit" id="save-configuration-button">添加</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="airport-preview-dialog" class="sheet-dialog airport-preview-dialog">
+    <div class="dialog-header"><div><h2 id="airport-preview-title">订阅预览</h2></div><button class="icon-button close-airport-preview-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button></div>
+    <div class="airport-preview-content"><pre id="airport-preview-content"></pre></div>
+    <div class="dialog-actions"><button class="button secondary close-airport-preview-dialog" type="button">完成</button></div>
   </dialog>
 
   <dialog id="settings-dialog" class="sheet-dialog settings-dialog">

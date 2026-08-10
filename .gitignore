@@ -1,5 +1,7 @@
 .DS_Store
+/SPARKLE_SIGNING_KEY.md
 Build/
+build/
 .build/
 .build-*/
 DerivedData/

@@ -10,6 +10,22 @@ enum SurgeRelayWindow {
 
 extension Notification.Name {
     static let showSurgeRelayAbout = Notification.Name("showSurgeRelayAbout")
+    static let checkForSurgeRelayUpdates = Notification.Name("checkForSurgeRelayUpdates")
+}
+
+@MainActor
+enum SurgeRelayTerminationCoordinator {
+    private static var allowsNextTermination = false
+
+    static func terminateCompletely() {
+        allowsNextTermination = true
+        NSApp.terminate(nil)
+    }
+
+    static func consumeCompleteTerminationRequest() -> Bool {
+        defer { allowsNextTermination = false }
+        return allowsNextTermination
+    }
 }
 
 @MainActor
@@ -71,6 +87,12 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if RelayDeviceConfiguration.mode == .client {
+            try? LaunchAtLoginService.setEnabled(false)
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.setActivationPolicy(.accessory)
         DispatchQueue.main.async {
             NSApp.windows
@@ -80,7 +102,17 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
+        RelayDeviceConfiguration.mode == .client
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if SurgeRelayTerminationCoordinator.consumeCompleteTerminationRequest()
+            || RelayDeviceConfiguration.mode == .client {
+            return .terminateNow
+        }
+        sender.windows.filter { $0.level == .normal }.forEach { $0.orderOut(nil) }
+        sender.setActivationPolicy(.accessory)
+        return .terminateCancel
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -150,11 +182,21 @@ struct SurgeRelayApp: App {
                     .environment(\.locale, Locale(identifier: "zh_CN"))
             }
             .frame(minWidth: 920, minHeight: 640)
+            .background(MenuBarStatusHost(
+                isEnabled: model.deviceMode == .server,
+                model: model,
+                updater: updaterController.updater
+            ))
+            .onReceive(NotificationCenter.default.publisher(for: .checkForSurgeRelayUpdates)) { _ in
+                updaterController.updater.checkForUpdates()
+            }
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: false))
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1240, height: 760)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.presented)
         .commands {
             SurgeRelayAppInfoCommands()
             CommandGroup(after: .appInfo) {
@@ -181,19 +223,5 @@ struct SurgeRelayApp: App {
         .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
 
-        MenuBarExtra {
-            SurgeRelayRuntimeHost(model: model) {
-                MenuBarContent(updater: updaterController.updater)
-                    .environment(model)
-                    .environment(\.locale, Locale(identifier: "zh_CN"))
-            }
-        } label: {
-            Image(nsImage: Self.menuBarIcon)
-                // Template menu-bar icons can't use semantic colors reliably;
-                // opacity is the system-native way to show a lighter disconnected state.
-                .opacity(menuBarIconOpacity)
-                .accessibilityLabel("Surge Relay")
-        }
-        .menuBarExtraStyle(.menu)
     }
 }

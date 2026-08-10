@@ -9,6 +9,8 @@ final class AppModel {
     static let combinedModuleSelectionID = RelayPlatform.ios.selectionID
 
     var modules: [RelayModule]
+    var airportSubscriptions: [AirportSubscription]
+    var surgeConfigurationTargets: [SurgeConfigurationTarget]
     var settings: AppSettings
     var upstreamState: ScriptHubUpstreamState
     var selectedModuleID: UUID?
@@ -31,6 +33,8 @@ final class AppModel {
     var deviceMode: RelayDeviceMode
     var ponteServerAddress: String
     var remoteConnectionState: RemoteConnectionState = .idle
+    var remoteVersionMismatch: RemoteVersionMismatch?
+    var airportConfigurationPreviewRevision = 0
 
     @ObservationIgnored private let scriptHubClient = ScriptHubClient()
     @ObservationIgnored private let sourceRevisionService = SourceRevisionService()
@@ -62,6 +66,7 @@ final class AppModel {
     @ObservationIgnored var sleepObserver: NSObjectProtocol?
     @ObservationIgnored var wakeObserver: NSObjectProtocol?
     @ObservationIgnored var isSystemSleeping = false
+    @ObservationIgnored var airportConfigurationPreviewCache: String?
     @ObservationIgnored private var pendingModuleUpdateIDs = Set<UUID>()
     @ObservationIgnored private let automaticPublishDebounce: Duration = .seconds(15)
 
@@ -133,6 +138,8 @@ final class AppModel {
             }
         }
         modules = loadedModules
+        airportSubscriptions = PersistenceStore.loadAirportSubscriptions()
+        surgeConfigurationTargets = PersistenceStore.loadSurgeConfigurationTargets()
         settings = loadedSettings
         upstreamState = PersistenceStore.loadUpstreamState()
         updateHistory = PersistenceStore.loadUpdateHistory()
@@ -148,6 +155,11 @@ final class AppModel {
 
     func start() async {
         guard !hasStarted else { return }
+
+        if deviceMode == .client {
+            try? LaunchAtLoginService.setEnabled(false)
+            settings.launchAtLogin = false
+        }
 
         if PersistenceStore.configurationFilesNeedDownload {
             statusMessage = "正在等待 iCloud 配置下载…"
@@ -349,6 +361,9 @@ final class AppModel {
             PersistenceStore.loadModules(),
             combinedFileName: loadedSettings.combinedModuleFileName
         )
+        airportSubscriptions = PersistenceStore.loadAirportSubscriptions()
+        invalidateAirportConfigurationPreview()
+        surgeConfigurationTargets = PersistenceStore.loadSurgeConfigurationTargets()
         upstreamState = PersistenceStore.loadUpstreamState()
         updateHistory = PersistenceStore.loadUpdateHistory()
         githubToken = loadedSettings.githubToken
@@ -463,6 +478,8 @@ final class AppModel {
         deviceMode = mode
         RelayDeviceConfiguration.mode = mode
         if mode == .client {
+            try? LaunchAtLoginService.setEnabled(false)
+            settings.launchAtLogin = false
             schedulerTask?.cancel()
             synchronizationTask?.cancel()
             combinedRebuildTask?.cancel()
@@ -486,6 +503,7 @@ final class AppModel {
             statusMessage = remoteManagementURL == nil ? "请设置服务器 Ponte 地址" : "已切换到客户端模式"
         } else {
             stopRemoteSession()
+            remoteVersionMismatch = nil
             reloadConfigurationFromSelectedDirectory()
             await start()
         }

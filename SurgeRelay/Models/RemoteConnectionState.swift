@@ -34,3 +34,10 @@ enum RemoteConnectionState: Equatable, Sendable {
         }
     }
 }
+
+struct RemoteVersionMismatch: Identifiable, Equatable, Sendable {
+    let clientVersion: String
+    let serverVersion: String
+
+    var id: String { "\(clientVersion)|\(serverVersion)" }
+}

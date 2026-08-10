@@ -2,6 +2,7 @@ const ui = {
   body: document.body,
   list: document.querySelector('#module-list'),
   summaryList: document.querySelector('#summary-list'),
+  airportSummaryList: document.querySelector('#airport-summary-list'),
   navigation: document.querySelector('.module-navigation'),
   detailRoot: document.querySelector('#detail'),
   detail: document.querySelector('#detail-content'),
@@ -41,6 +42,19 @@ const ui = {
   confirmAccept: document.querySelector('#confirm-accept'),
   toast: document.querySelector('#toast'),
   iconDialog: document.querySelector('#icon-dialog')
+  ,airportDialog: document.querySelector('#airport-dialog')
+  ,airportForm: document.querySelector('#airport-form')
+  ,airportDialogTitle: document.querySelector('#airport-dialog-title')
+  ,airportDialogMessage: document.querySelector('#airport-dialog-message')
+  ,saveAirport: document.querySelector('#save-airport-button')
+  ,configurationDialog: document.querySelector('#configuration-dialog')
+  ,configurationForm: document.querySelector('#configuration-form')
+  ,configurationDialogTitle: document.querySelector('#configuration-dialog-title')
+  ,configurationDialogMessage: document.querySelector('#configuration-dialog-message')
+  ,saveConfiguration: document.querySelector('#save-configuration-button')
+  ,airportPreviewDialog: document.querySelector('#airport-preview-dialog')
+  ,airportPreviewTitle: document.querySelector('#airport-preview-title')
+  ,airportPreviewContent: document.querySelector('#airport-preview-content')
 };
 
 const scriptHubDefaults = {
@@ -123,6 +137,8 @@ let selectedID = 'combined';
 let selectedPlatform = 'iOS';
 let detailTab = 'info';
 let editingID = null;
+let editingAirportID = null;
+let editingConfigurationID = null;
 /** @type {{ moduleID: string, arguments: Array<{key: string, defaultValue: string, value: string}>, help: string|null } | null} */
 let moduleArgumentsState = null;
 let moduleArgumentsLoadToken = 0;
@@ -215,6 +231,9 @@ ui.summaryList.addEventListener('click', event => {
     selectItem(`combined-${selectedPlatform}`);
   }
 });
+ui.airportSummaryList?.addEventListener('click', event => {
+  if (event.target.closest('.summary-row')) selectItem('airports');
+});
   ui.back.addEventListener('click', navigateBackToList);
 ui.desktopBack?.addEventListener('click', () => history.back());
 ui.desktopForward?.addEventListener('click', () => history.forward());
@@ -237,12 +256,20 @@ ui.moduleForm.elements.name.addEventListener('input', event => {
 document.querySelectorAll('.close-module-dialog').forEach(button => button.addEventListener('click', () => closeDialog(ui.moduleDialog)));
 document.querySelectorAll('.close-settings-dialog').forEach(button => button.addEventListener('click', () => closeDialog(ui.settingsDialog)));
 document.querySelectorAll('.close-icon-dialog').forEach(button => button.addEventListener('click', () => closeDialog(ui.iconDialog)));
+document.querySelectorAll('.close-airport-dialog').forEach(button => button.addEventListener('click', () => closeDialog(ui.airportDialog)));
+document.querySelectorAll('.close-configuration-dialog').forEach(button => button.addEventListener('click', () => closeDialog(ui.configurationDialog)));
+document.querySelectorAll('.close-airport-preview-dialog').forEach(button => button.addEventListener('click', () => closeDialog(ui.airportPreviewDialog)));
 document.getElementById('cancel-icon-dialog').addEventListener('click', () => closeDialog(ui.iconDialog));
 document.getElementById('done-icon-dialog').addEventListener('click', commitIconDraft);
 ui.moduleDialog.addEventListener('click', event => { if (event.target === ui.moduleDialog) closeDialog(ui.moduleDialog); });
 ui.iconDialog.addEventListener('click', event => { if (event.target === ui.iconDialog) closeDialog(ui.iconDialog); });
-[ui.moduleDialog, ui.settingsDialog, ui.confirmDialog, ui.iconDialog].forEach(dialog => dialog?.addEventListener('close', unlockDialogScrollIfIdle));
+ui.airportDialog?.addEventListener('click', event => { if (event.target === ui.airportDialog) closeDialog(ui.airportDialog); });
+ui.configurationDialog?.addEventListener('click', event => { if (event.target === ui.configurationDialog) closeDialog(ui.configurationDialog); });
+ui.airportPreviewDialog?.addEventListener('click', event => { if (event.target === ui.airportPreviewDialog) closeDialog(ui.airportPreviewDialog); });
+[ui.moduleDialog, ui.settingsDialog, ui.confirmDialog, ui.iconDialog, ui.airportDialog, ui.configurationDialog, ui.airportPreviewDialog].forEach(dialog => dialog?.addEventListener('close', unlockDialogScrollIfIdle));
 ui.moduleForm.addEventListener('submit', saveModule);
+ui.airportForm?.addEventListener('submit', saveAirport);
+ui.configurationForm?.addEventListener('submit', saveConfiguration);
 ui.confirmCancel.addEventListener('click', () => resolveConfirmation(false));
 ui.confirmAccept.addEventListener('click', () => resolveConfirmation(true));
 ui.confirmDialog.addEventListener('click', event => { if (event.target === ui.confirmDialog) resolveConfirmation(false); });
@@ -340,7 +367,7 @@ function applyState(next, initial = false, renderCurrentDetail = false) {
     if (initial) {
       let requested = new URL(location.href).searchParams.get('module');
       if (requested === 'combined') requested = 'combined-' + selectedPlatform;
-      if (requested && (requested.startsWith('combined-') || next.modules.some(module => module.id === requested))) {
+      if (requested && (requested === 'airports' || requested.startsWith('combined-') || next.modules.some(module => module.id === requested))) {
         selectedID = requested;
         if (requested.startsWith('combined-')) {
           selectedPlatform = requested.substring(9);
@@ -357,7 +384,9 @@ function applyState(next, initial = false, renderCurrentDetail = false) {
       const activePlatform = next.platforms.find(p => p.isEnabled);
       if (activePlatform) selectedPlatform = activePlatform.id;
     }
-    if (selectedID && selectedID.startsWith('combined-')) {
+    if (selectedID === 'airports') {
+      // Airport aggregation is a stable top-level destination.
+    } else if (selectedID && selectedID.startsWith('combined-')) {
       selectedID = 'combined-' + selectedPlatform;
     } else if (selectedID && !next.modules.some(module => module.id === selectedID)) {
       selectedID = 'combined-' + selectedPlatform;
@@ -372,6 +401,7 @@ function applyState(next, initial = false, renderCurrentDetail = false) {
       patchLiveState(previous, next);
       renderActivity();
     }
+    if (initial) requestAnimationFrame(() => ui.body.classList.remove('initializing'));
     updateDesktopNavigationButtons();
 }
 
@@ -430,6 +460,12 @@ function patchLiveState(previous, next) {
     return;
   }
 
+  if (selectedID === 'airports') {
+    // Keep the current DOM and scroll position stable while server events arrive.
+    // User-initiated airport actions explicitly reload and render their result.
+    return;
+  }
+
   const previousList = previous.modules.map(module => [module.id, module.name, module.sourceFormatTitle, module.iconURL].join('|')).join('\n');
   const nextList = next.modules.map(module => [module.id, module.name, module.sourceFormatTitle, module.iconURL].join('|')).join('\n');
   if (previousList !== nextList) renderSidebar(); else patchSidebarLive();
@@ -469,7 +505,17 @@ function renderSummaryList() {
   }).join(''));
 }
 
+function renderAirportSummary() {
+  const count = state?.airports?.subscriptions?.length || 0;
+  setTemplateHTML(ui.airportSummaryList, `<button class="summary-row ${selectedID === 'airports' ? 'selected' : ''}" type="button">
+    <span class="module-icon summary-icon airport-summary-icon"><img src="/airport-subscription-icon.png?v=3" alt=""></span>
+    <span class="module-copy"><strong>订阅汇总</strong><small>${count} 个机场</small></span>
+    <span class="symbol disclosure" data-symbol="chevron.right"></span>
+  </button>`);
+}
+
 function patchSidebarLive() {
+  renderAirportSummary();
   renderSummaryList();
 }
 
@@ -477,6 +523,7 @@ function renderSidebar() {
   if (!state) return;
   const query = ui.search.value.trim().toLocaleLowerCase();
   const modules = state.modules.filter(module => [module.name, module.sourceURL, module.sourceFormatTitle, module.outputFileName].join('\n').toLocaleLowerCase().includes(query));
+  renderAirportSummary();
   renderSummaryList();
   setTemplateHTML(ui.list, modules.length ? modules.map(moduleRow).join('') : `<div class="empty-state"><div><span class="symbol" data-symbol="magnifyingglass"></span><div>${query ? '没有搜索结果' : '还没有模块'}</div></div></div>`);
 }
@@ -509,6 +556,7 @@ function renderActivity() {
 
 function renderDetail(animate = true) {
   ui.body.classList.toggle('preview-mode', detailTab === 'preview' && Boolean(selectedID));
+  ui.body.classList.toggle('airport-page', selectedID === 'airports');
   if (state && !selectedID && !mobileLayout.matches) selectedID = defaultDetailSelection();
   if (!state || !selectedID) {
     if (ui.mobileTitleIcon) ui.mobileTitleIcon.style.display = 'none';
@@ -517,7 +565,16 @@ function renderDetail(animate = true) {
     setDetailHTML('', false);
     return;
   }
-  if (selectedID && selectedID.startsWith('combined-')) {
+  if (selectedID === 'airports') {
+    ui.mobileTitle.textContent = '订阅汇总';
+    if (ui.mobileTitleIcon) {
+      setTemplateHTML(ui.mobileTitleIcon, '<img src="/airport-subscription-icon.png?v=3" alt="">');
+      ui.mobileTitleIcon.style.display = 'block';
+    }
+    ui.desktopTitle.textContent = '订阅汇总';
+    renderAirportDetail(animate);
+  }
+  else if (selectedID && selectedID.startsWith('combined-')) {
     const currentPlatform = state.platforms?.find(p => p.id === selectedPlatform) || state.platforms?.[0] || { displayName: 'iOS' };
     const name = `Surge Relay 汇总 (${currentPlatform.displayName})`;
     ui.mobileTitle.textContent = name;
@@ -622,6 +679,62 @@ function renderCombinedDetail(animate = true) {
       ${detailRow('shippingbox', '包含来源', `${currentPlatform.enabledModules.length} / ${state.modules.length}`)}
       ${detailRow('clock', '最新更新', formatDate(state.combined.lastUpdatedAt, '尚未更新'))}
     </div></section>${subscription}${modulesSection}`, animate);
+}
+
+function renderAirportDetail(animate = true) {
+  const overview = state.airports || { subscriptions: [], configurations: [], configurationPreview: '' };
+  const subscriptions = overview.subscriptions || [];
+  const configurations = overview.configurations || [];
+  const canWrite = subscriptions.some(item => item.isEnabled && item.hasCache)
+    && configurations.some(item => item.isEnabled);
+  const toolbar = `<button class="icon-button airport-add-button" data-action="add-airport" type="button" aria-label="添加机场" title="添加机场"><span class="symbol" data-symbol="plus"></span></button>`;
+  setTemplateHTML(ui.desktopActions, toolbar);
+  setTemplateHTML(ui.mobileActions, toolbar);
+
+  const airportRows = subscriptions.length ? subscriptions.map(airport => {
+    let host = airport.sourceURL;
+    try { host = new URL(airport.sourceURL).host || airport.sourceURL; } catch (_) {}
+    const icon = airport.iconURL
+      ? `<img src="${escapeAttribute(airport.iconURL)}" alt="" loading="lazy">`
+      : `<span class="symbol" data-symbol="airplane"></span>`;
+    const status = airport.lastError
+      ? `<small class="airport-error">${escapeHTML(airport.lastError)}</small>`
+      : `<small>${escapeHTML(host)}${airport.lastUpdatedAt ? ` · ${escapeHTML(formatDate(airport.lastUpdatedAt))}` : ''}</small>`;
+    return `<div class="airport-row">
+      <span class="module-icon ${airport.iconURL ? '' : 'placeholder'}">${icon}</span>
+      <span class="airport-copy"><strong>${escapeHTML(airport.name)}</strong>${status}</span>
+      <div class="airport-actions">
+        <label class="module-toggle" title="写入 Surge 配置"><input type="checkbox" data-airport-toggle="${airport.id}" ${airport.isEnabled ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
+        <button class="icon-button" data-action="refresh-airport" data-airport-id="${airport.id}" type="button" title="刷新" aria-label="刷新"><span class="symbol" data-symbol="refresh"></span></button>
+        <button class="icon-button" data-action="preview-airport" data-airport-id="${airport.id}" type="button" title="预览缓存" aria-label="预览缓存" ${airport.hasCache ? '' : 'disabled'}><span class="symbol" data-symbol="doc.text"></span></button>
+        <button class="button" data-action="edit-airport" data-airport-id="${airport.id}" type="button">编辑</button>
+        <button class="icon-button destructive-icon" data-action="delete-airport" data-airport-id="${airport.id}" type="button" title="删除" aria-label="删除"><span class="symbol" data-symbol="trash"></span></button>
+      </div>
+    </div>`;
+  }).join('') : `<div class="airport-empty"><span class="symbol" data-symbol="airplane"></span><strong>还没有机场</strong><button class="button" data-action="add-airport" type="button">添加机场</button></div>`;
+
+  const configurationRows = configurations.map(configuration => {
+    const fileName = configuration.path.split('/').filter(Boolean).pop() || configuration.path;
+    const directory = configuration.path.slice(0, Math.max(0, configuration.path.lastIndexOf('/'))) || '/';
+    return `<div class="configuration-row">
+      <span class="symbol configuration-file-icon" data-symbol="doc.text"></span>
+      <span class="airport-copy"><strong>${escapeHTML(fileName)}</strong><small>${escapeHTML(directory)}${configuration.lastWrittenAt ? ` · 写入于 ${escapeHTML(formatDate(configuration.lastWrittenAt))}` : ''}</small></span>
+      <div class="airport-actions">
+        <label class="module-toggle"><input type="checkbox" data-configuration-toggle="${configuration.id}" ${configuration.isEnabled ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
+        <button class="button" data-action="edit-configuration" data-configuration-id="${configuration.id}" type="button">编辑</button>
+        <button class="icon-button destructive-icon" data-action="delete-configuration" data-configuration-id="${configuration.id}" type="button" title="移除" aria-label="移除"><span class="symbol" data-symbol="trash"></span></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  setDetailHTML(`
+    <section class="form-section-view"><div class="section-heading-row"><h3 class="section-heading">机场</h3></div><div class="group-box airport-list">${airportRows}</div></section>
+    <section class="form-section-view"><div class="section-heading-row"><h3 class="section-heading">Surge 配置</h3></div><div class="group-box configuration-list">
+      ${configurationRows}
+      <div class="airport-section-actions"><button class="button" data-action="add-configuration" type="button">添加配置文件</button><button class="button primary" data-action="write-airports" type="button" ${canWrite ? '' : 'disabled'}>写入配置</button></div>
+    </div></section>
+    <section class="form-section-view airport-configuration-preview"><div class="section-heading-row"><h3 class="section-heading">配置预览</h3></div><div class="group-box"><pre>${escapeHTML(overview.configurationPreview || '')}</pre></div></section>
+  `, animate);
 }
 
 function renderModuleDetail(module, animate = true) {
@@ -1027,6 +1140,23 @@ async function handleDetailClick(event) {
   if (!action) return;
   const module = state.modules.find(item => item.id === selectedID);
   switch (action) {
+  case 'add-airport': openAirportEditor(); break;
+  case 'edit-airport': {
+    const airport = state.airports?.subscriptions?.find(item => item.id === source.dataset.airportId);
+    if (airport) openAirportEditor(airport);
+    break;
+  }
+  case 'refresh-airport': await refreshAirport(source.dataset.airportId, source); break;
+  case 'preview-airport': await previewAirport(source.dataset.airportId); break;
+  case 'delete-airport': await deleteAirport(source.dataset.airportId); break;
+  case 'add-configuration': openConfigurationEditor(); break;
+  case 'edit-configuration': {
+    const configuration = state.airports?.configurations?.find(item => item.id === source.dataset.configurationId);
+    if (configuration) openConfigurationEditor(configuration);
+    break;
+  }
+  case 'delete-configuration': await deleteConfiguration(source.dataset.configurationId); break;
+  case 'write-airports': await writeAirportConfigurations(source); break;
   case 'toggle-all-modules':
     if (source) {
       const platformId = source.dataset.platformId;
@@ -1081,6 +1211,30 @@ async function acceptOverride(module) {
 }
 
 async function handleDetailChange(event) {
+  const airportToggle = event.target.closest('[data-airport-toggle]');
+  if (airportToggle) {
+    try {
+      const result = await api(`/api/airports/${airportToggle.dataset.airportToggle}/enabled`, { method: 'POST', json: { enabled: airportToggle.checked } });
+      showToast(result.message);
+      await loadState(false, true);
+    } catch (error) {
+      airportToggle.checked = !airportToggle.checked;
+      showToast(error.message, true);
+    }
+    return;
+  }
+  const configurationToggle = event.target.closest('[data-configuration-toggle]');
+  if (configurationToggle) {
+    try {
+      const result = await api(`/api/airports/configurations/${configurationToggle.dataset.configurationToggle}/enabled`, { method: 'POST', json: { enabled: configurationToggle.checked } });
+      showToast(result.message);
+      await loadState(false, true);
+    } catch (error) {
+      configurationToggle.checked = !configurationToggle.checked;
+      showToast(error.message, true);
+    }
+    return;
+  }
   const platformToggle = event.target.closest('[data-platform-module-toggle]');
   if (platformToggle) {
     const platformId = platformToggle.dataset.platformId;
@@ -1326,7 +1480,9 @@ function revealPreviewSearchMatch(preserveSearchFocus = false) {
 
 function selectItem(id, pushHistory = true) {
   if (!state) return;
-  if (id.startsWith('combined-')) {
+  if (id === 'airports') {
+    // Top-level airport aggregation page.
+  } else if (id.startsWith('combined-')) {
     selectedPlatform = id.substring(9);
   } else if (!state.modules.some(module => module.id === id)) {
     id = 'combined-' + selectedPlatform;
@@ -1620,6 +1776,126 @@ async function saveModule(event) {
     ui.moduleDialogMessage.hidden = false;
   }
   finally { ui.saveModule.disabled = false; }
+}
+
+function openAirportEditor(airport = null) {
+  editingAirportID = airport?.id || null;
+  ui.airportDialogTitle.textContent = airport ? '编辑机场' : '添加机场';
+  ui.saveAirport.textContent = airport ? '保存' : '添加';
+  ui.airportDialogMessage.hidden = true;
+  const form = ui.airportForm.elements;
+  form.name.value = airport?.name || '';
+  form.sourceURL.value = airport?.sourceURL || '';
+  form.policyRegexFilter.value = airport?.policyRegexFilter || '';
+  form.iconURL.value = airport?.iconURL || '';
+  form.isEnabled.checked = airport?.isEnabled ?? true;
+  openDialog(ui.airportDialog);
+  setTimeout(() => (airport ? form.name : form.sourceURL).focus(), 180);
+}
+
+async function saveAirport(event) {
+  event.preventDefault();
+  const form = ui.airportForm.elements;
+  const payload = {
+    name: form.name.value.trim(), sourceURL: form.sourceURL.value.trim(),
+    policyRegexFilter: form.policyRegexFilter.value.trim(), iconURL: form.iconURL.value.trim(),
+    isEnabled: form.isEnabled.checked
+  };
+  ui.saveAirport.disabled = true;
+  try {
+    const path = editingAirportID ? `/api/airports/${editingAirportID}` : '/api/airports';
+    const result = await api(path, { method: editingAirportID ? 'PUT' : 'POST', json: payload });
+    await closeDialog(ui.airportDialog);
+    showToast(result.message);
+    await loadState(false, true);
+  } catch (error) {
+    ui.airportDialogMessage.textContent = error.message;
+    ui.airportDialogMessage.hidden = false;
+  } finally { ui.saveAirport.disabled = false; }
+}
+
+function openConfigurationEditor(configuration = null) {
+  editingConfigurationID = configuration?.id || null;
+  ui.configurationDialogTitle.textContent = configuration ? '编辑 Surge 配置' : '添加 Surge 配置';
+  ui.saveConfiguration.textContent = configuration ? '保存' : '添加';
+  ui.configurationDialogMessage.hidden = true;
+  ui.configurationForm.elements.path.value = configuration?.path || '';
+  openDialog(ui.configurationDialog);
+  setTimeout(() => ui.configurationForm.elements.path.focus(), 180);
+}
+
+async function saveConfiguration(event) {
+  event.preventDefault();
+  ui.saveConfiguration.disabled = true;
+  try {
+    const path = editingConfigurationID
+      ? `/api/airports/configurations/${editingConfigurationID}`
+      : '/api/airports/configurations';
+    const result = await api(path, {
+      method: editingConfigurationID ? 'PUT' : 'POST',
+      json: { path: ui.configurationForm.elements.path.value.trim() }
+    });
+    await closeDialog(ui.configurationDialog);
+    showToast(result.message);
+    await loadState(false, true);
+  } catch (error) {
+    ui.configurationDialogMessage.textContent = error.message;
+    ui.configurationDialogMessage.hidden = false;
+  } finally { ui.saveConfiguration.disabled = false; }
+}
+
+async function refreshAirport(id, button) {
+  if (!id) return;
+  button.disabled = true;
+  button.classList.add('is-spinning');
+  try {
+    const result = await api(`/api/airports/${id}/refresh`, { method: 'POST' });
+    showToast(result.message);
+    await loadState(false, true);
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; button.classList.remove('is-spinning'); }
+}
+
+async function previewAirport(id) {
+  const airport = state.airports?.subscriptions?.find(item => item.id === id);
+  if (!airport) return;
+  try {
+    const content = await api(`/api/airports/${id}/preview`);
+    ui.airportPreviewTitle.textContent = `${airport.name} 订阅预览`;
+    ui.airportPreviewContent.textContent = content;
+    openDialog(ui.airportPreviewDialog);
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function deleteAirport(id) {
+  const airport = state.airports?.subscriptions?.find(item => item.id === id);
+  if (!airport || !await askConfirmation('删除机场？', `“${airport.name}”及其缓存会被移除。`, '删除')) return;
+  try {
+    const result = await api(`/api/airports/${id}`, { method: 'DELETE' });
+    showToast(result.message);
+    await loadState(false, true);
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function deleteConfiguration(id) {
+  const configuration = state.airports?.configurations?.find(item => item.id === id);
+  if (!configuration || !await askConfirmation('移除配置文件？', '文件本身不会被删除。', '移除')) return;
+  try {
+    const result = await api(`/api/airports/configurations/${id}`, { method: 'DELETE' });
+    showToast(result.message);
+    await loadState(false, true);
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function writeAirportConfigurations(button) {
+  if (!await askConfirmation('写入 Surge 配置？', '现有配置会保留，并在写入前创建备份。', '写入')) return;
+  button.disabled = true;
+  try {
+    const result = await api('/api/airports/write', { method: 'POST' });
+    showToast(result.message);
+    await loadState(false, true);
+  } catch (error) { showToast(error.message, true); }
+  finally { button.disabled = false; }
 }
 
 async function updateAll() {
@@ -1961,7 +2237,7 @@ function lockDialogScroll() {
 }
 
 function unlockDialogScrollIfIdle() {
-  if ([ui.moduleDialog, ui.settingsDialog, ui.confirmDialog, ui.iconDialog].some(item => item?.open)) return;
+  if ([ui.moduleDialog, ui.settingsDialog, ui.confirmDialog, ui.iconDialog, ui.airportDialog, ui.configurationDialog, ui.airportPreviewDialog].some(item => item?.open)) return;
   if (!document.body.classList.contains('dialog-open')) return;
   document.body.classList.remove('dialog-open');
   document.body.style.position = '';
@@ -2083,7 +2359,7 @@ function highlightInlineCode(line) {
 
 function showToast(message, isError = false) {
   clearTimeout(toastTimer);
-  const topDialog = [ui.confirmDialog, ui.iconDialog, ui.moduleDialog, ui.settingsDialog].find(dialog => dialog?.open);
+  const topDialog = [ui.confirmDialog, ui.airportPreviewDialog, ui.airportDialog, ui.configurationDialog, ui.iconDialog, ui.moduleDialog, ui.settingsDialog].find(dialog => dialog?.open);
   if (topDialog && ui.toast.parentElement !== topDialog) topDialog.appendChild(ui.toast);
   if (!topDialog && ui.toast.parentElement !== document.body) document.body.appendChild(ui.toast);
   ui.toast.textContent = message;

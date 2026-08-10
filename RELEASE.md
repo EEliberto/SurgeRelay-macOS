@@ -71,6 +71,8 @@ hdiutil create -volname "Surge Relay" -srcfolder "$STAGE" -ov -format UDZO "$DMG
 
 ## 4. 使用正确 Sparkle 私钥签名
 
+优先读取仓库根目录下仅保存在本机、已被 Git 忽略的 `SPARKLE_SIGNING_KEY.md`。从其中取得 Base64 Ed25519 seed，并先验证其派生公钥等于 App 内的 `SUPublicEDKey`。若命名钥匙串项不存在，可通过 `sign_update --ed-key-file -` 从标准输入传入该 seed；不得生成新密钥。
+
 ```sh
 SIGN="/path/to/Sparkle/bin/sign_update"
 "$SIGN" --account com.allenmiao.SurgeRelay "$DMG"

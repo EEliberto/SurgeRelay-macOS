@@ -3,6 +3,27 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>260810</title>
+            <pubDate>Mon, 10 Aug 2026 10:32:43 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260810</link>
+            <sparkle:version>27072302</sparkle:version>
+            <sparkle:shortVersionString>260810</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[Surge Relay 260810 带来了以下更新：
+
+新增：机场订阅功能
+由于众所周知的原因，大部份机场订阅时间只有 5-15 分钟，因此 URL 会很快过期，如果你不在所有设备身边，很大概率设备会因更新不及时，丢失这次 URL 所有节点导致 Surge 无法连接代理。
+现在，Surge Relay 可以直接拉取你订阅中的节点信息，智能写入你的 Surge 配置文件 (完全本地处理和运行，不经过任何服务器中转)。且依旧支持正则表达式和图标。
+
+其他错误与修复：
+1.优化部分功能和逻辑。
+2.服务器模式支持菜单栏始终显示。
+3.客户端模式菜单栏不再显示和始终运行。
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260810/Surge-Relay-260810-build-27072302.dmg" length="27471561" type="application/octet-stream" sparkle:edSignature="ajBEYmAphKDYSyRzcPTz7XPnTS+EOj56U+1f/5GlkScJ4a0QcHyoH/gWNyX0nYJZ8EtTixmcVd6V0VUh5iDYDA=="/>
+        </item>
+        <item>
             <title>260723</title>
             <pubDate>Thu, 23 Jul 2026 16:15:36 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260723</link>

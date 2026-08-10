@@ -52,16 +52,23 @@ struct ModulesView: View {
     @State private var backStack: [UUID?] = []
     @State private var forwardStack: [UUID?] = []
     @State private var isHistoryNavigation = false
+    @State private var presentsAirportSubscriptionIntro = false
+    @AppStorage("SurgeRelay.hasSeenAirportSubscriptionIntro.v1")
+    private var hasSeenAirportSubscriptionIntro = false
 
     private enum DetailTab: Hashable { case info, preview }
 
     private enum SelectionKind {
+        case airportSubscriptions
         case combined(RelayPlatform)
         case module(RelayModule)
     }
 
     private var selectionKind: SelectionKind? {
         if let id = model.selectedModuleID {
+            if id == AirportSubscriptionSummary.selectionID {
+                return .airportSubscriptions
+            }
             if let platform = RelayPlatform.from(selectionID: id) {
                 return .combined(platform)
             }
@@ -75,6 +82,7 @@ struct ModulesView: View {
     private var selectedDetailTitle: String? {
         guard let selectionKind else { return nil }
         switch selectionKind {
+        case .airportSubscriptions: return "机场订阅汇总"
         case let .combined(platform): return "Surge Relay 汇总 (\(platform.summaryDisplayName))"
         case let .module(module): return module.name
         }
@@ -306,6 +314,11 @@ struct ModulesView: View {
         @Bindable var model = model
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $model.selectedModuleID) {
+                Section("机场订阅") {
+                    AirportSubscriptionSummaryRow()
+                        .tag(AirportSubscriptionSummary.selectionID)
+                }
+
                 Section("汇总模块") {
                     ForEach(model.enabledPlatforms) { platform in
                         CombinedModuleRow(platform: platform)
@@ -365,6 +378,8 @@ struct ModulesView: View {
                     // view — that recreation is what caused the white flash.
                     ZStack {
                         switch kind {
+                        case .airportSubscriptions:
+                            AirportSubscriptionsView()
                         case let .combined(platform):
                             CombinedModuleDetailView(platform: platform)
                                 .opacity(detailTab == .info ? 1 : 0)
@@ -402,7 +417,8 @@ struct ModulesView: View {
                     .sharedBackgroundVisibility(.hidden)
                 }
                 ToolbarSpacer(.flexible)
-                if selectionKind != nil {
+                if selectionKind != nil,
+                   model.selectedModuleID != AirportSubscriptionSummary.selectionID {
                     ToolbarItem {
                         detailTabSwitcher
                     }
@@ -412,12 +428,22 @@ struct ModulesView: View {
         .onChange(of: model.selectedModuleID) { oldValue, newValue in
             detailTab = .info
             guard oldValue != newValue else { return }
+            if newValue == AirportSubscriptionSummary.selectionID,
+               !hasSeenAirportSubscriptionIntro {
+                hasSeenAirportSubscriptionIntro = true
+                presentsAirportSubscriptionIntro = true
+            }
             if isHistoryNavigation {
                 isHistoryNavigation = false
                 return
             }
             backStack.append(oldValue)
             forwardStack.removeAll()
+        }
+        .alert("机场订阅汇总", isPresented: $presentsAirportSubscriptionIntro) {
+            Button("继续") {}
+        } message: {
+            Text("缓存机场订阅，并将代理与分组写入所选的 Surge 配置。原有配置保持不变。")
         }
         .task(id: contentIndexToken) { await rebuildContentIndex() }
         .sheet(item: $editorRoute) { route in
@@ -532,6 +558,28 @@ struct ModulesView: View {
             Capsule()
                 .stroke(Color(nsColor: .separatorColor).opacity(0.18), lineWidth: 1)
         }
+    }
+}
+
+private struct AirportSubscriptionSummaryRow: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Image("AirportSubscriptionIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("订阅汇总")
+                    .fontWeight(.semibold)
+                Text("\(model.airportSubscriptions.filter(\.isEnabled).count) 个机场")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+        }
+        .padding(.vertical, 4)
     }
 }
 
