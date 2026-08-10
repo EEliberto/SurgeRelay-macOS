@@ -36,6 +36,7 @@ struct MainWindowCloseBehavior: NSViewRepresentable {
                 NotificationCenter.default.removeObserver(closeObserver)
             }
             window = candidate
+            candidate.setFrameAutosaveName("SurgeRelay.MainWindow")
             closeObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.willCloseNotification,
                 object: candidate,

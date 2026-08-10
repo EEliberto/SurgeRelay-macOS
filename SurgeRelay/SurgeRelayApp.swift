@@ -17,14 +17,31 @@ extension Notification.Name {
 enum SurgeRelayTerminationCoordinator {
     private static var allowsNextTermination = false
 
-    static func terminateCompletely() {
+    static func allowNextTermination() {
         allowsNextTermination = true
+    }
+
+    static func terminateCompletely() {
+        allowNextTermination()
         NSApp.terminate(nil)
     }
 
     static func consumeCompleteTerminationRequest() -> Bool {
         defer { allowsNextTermination = false }
         return allowsNextTermination
+    }
+}
+
+/// Sparkle must be allowed to terminate the server process once so it can
+/// replace the application bundle and relaunch the updated version.
+@MainActor
+private final class SurgeRelayUpdaterDelegate: NSObject, SPUUpdaterDelegate {
+    func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
+        SurgeRelayTerminationCoordinator.allowNextTermination()
+    }
+
+    func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
+        SurgeRelayTerminationCoordinator.allowNextTermination()
     }
 }
 
@@ -149,12 +166,15 @@ private struct SurgeRelayRuntimeHost<Content: View>: View {
 struct SurgeRelayApp: App {
     @NSApplicationDelegateAdaptor(SurgeRelayAppDelegate.self) private var appDelegate
     @State private var model = AppModel()
+    private let updaterDelegate: SurgeRelayUpdaterDelegate
     private let updaterController: SPUStandardUpdaterController
 
     init() {
+        let updaterDelegate = SurgeRelayUpdaterDelegate()
+        self.updaterDelegate = updaterDelegate
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: updaterDelegate,
             userDriverDelegate: nil
         )
     }
@@ -194,8 +214,7 @@ struct SurgeRelayApp: App {
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: false))
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 1240, height: 760)
-        .restorationBehavior(.disabled)
+        .defaultSize(width: 1100, height: 720)
         .defaultLaunchBehavior(.presented)
         .commands {
             SurgeRelayAppInfoCommands()
