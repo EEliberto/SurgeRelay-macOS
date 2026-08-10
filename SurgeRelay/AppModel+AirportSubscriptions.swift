@@ -91,7 +91,130 @@ extension AppModel {
     }
 
     func hasCachedAirportSubscription(id: UUID) -> Bool {
-        AirportSubscriptionStore.hasCache(for: id)
+        if isClientMode { return remoteAirportCacheIDs.contains(id) }
+        return AirportSubscriptionStore.hasCache(for: id)
+    }
+
+    func saveAirportSubscriptionForCurrentMode(id: UUID?, draft: AirportSubscriptionDraft) async throws {
+        guard isClientMode else {
+            if let id {
+                try updateAirportSubscription(id: id, from: draft)
+            } else {
+                try addAirportSubscription(from: draft)
+            }
+            return
+        }
+        let client = try operationalRemoteClient()
+        if let id {
+            try await client.updateAirportSubscription(id: id, draft: draft)
+        } else {
+            try await client.addAirportSubscription(draft)
+        }
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func removeAirportSubscriptionForCurrentMode(id: UUID) async throws {
+        guard isClientMode else {
+            removeAirportSubscription(id: id)
+            return
+        }
+        let client = try operationalRemoteClient()
+        try await client.deleteAirportSubscription(id: id)
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func setAirportSubscriptionEnabledForCurrentMode(id: UUID, enabled: Bool) async throws {
+        guard isClientMode else {
+            setAirportSubscriptionEnabled(id: id, enabled: enabled)
+            return
+        }
+        let client = try operationalRemoteClient()
+        try await client.setAirportSubscriptionEnabled(id: id, enabled: enabled)
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func refreshAirportSubscriptionForCurrentMode(id: UUID) async throws {
+        guard isClientMode else {
+            try await refreshAirportSubscription(id: id)
+            return
+        }
+        let client = try operationalRemoteClient()
+        try await client.refreshAirportSubscription(id: id)
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func airportSubscriptionPreviewForCurrentMode(id: UUID, refresh: Bool) async throws -> String {
+        guard isClientMode else {
+            if refresh { try await refreshAirportSubscription(id: id) }
+            return try cachedAirportSubscriptionContent(id: id)
+        }
+        let client = try operationalRemoteClient()
+        if refresh {
+            try await client.refreshAirportSubscription(id: id)
+            try await synchronizeRemoteAirportState(using: client)
+        }
+        return try await client.airportSubscriptionPreview(id: id)
+    }
+
+    func saveSurgeConfigurationTargetForCurrentMode(id: UUID?, path: String) async throws {
+        guard isClientMode else {
+            if let id {
+                try updateSurgeConfigurationTarget(id: id, path: path)
+            } else {
+                try addSurgeConfigurationTarget(path: path)
+            }
+            return
+        }
+        let client = try operationalRemoteClient()
+        if let id {
+            try await client.updateSurgeConfigurationTarget(id: id, path: path)
+        } else {
+            try await client.addSurgeConfigurationTarget(path: path)
+        }
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func removeSurgeConfigurationTargetForCurrentMode(id: UUID) async throws {
+        guard isClientMode else {
+            removeSurgeConfigurationTarget(id: id)
+            return
+        }
+        let client = try operationalRemoteClient()
+        try await client.deleteSurgeConfigurationTarget(id: id)
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func setSurgeConfigurationTargetEnabledForCurrentMode(id: UUID, enabled: Bool) async throws {
+        guard isClientMode else {
+            setSurgeConfigurationTargetEnabled(id: id, enabled: enabled)
+            return
+        }
+        let client = try operationalRemoteClient()
+        try await client.setSurgeConfigurationTargetEnabled(id: id, enabled: enabled)
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    func writeAirportSubscriptionsForCurrentMode() async throws {
+        guard isClientMode else {
+            _ = try writeAirportSubscriptionsToEnabledConfigurations()
+            return
+        }
+        let client = try operationalRemoteClient()
+        try await client.writeAirportSubscriptions()
+        try await synchronizeRemoteAirportState(using: client)
+    }
+
+    private func operationalRemoteClient() throws -> RemoteManagementClient {
+        guard remoteConnectionState.isOperational else {
+            throw RelayError.invalidOutput("服务器无响应，无法执行此操作。")
+        }
+        return try remoteClient()
+    }
+
+    private func synchronizeRemoteAirportState(using client: RemoteManagementClient) async throws {
+        let state = try await client.fetchState()
+        applyRemoteState(state, baseURL: client.baseURL)
+        remoteConnectionState = .connected
     }
 
     func addSurgeConfigurationTargets(_ urls: [URL]) {

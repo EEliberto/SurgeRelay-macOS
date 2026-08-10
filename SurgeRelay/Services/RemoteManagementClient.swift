@@ -62,6 +62,76 @@ struct RemoteManagementClient: Sendable {
         _ = try await postAction("api/update-all")
     }
 
+    func addAirportSubscription(_ draft: AirportSubscriptionDraft) async throws {
+        _ = try await sendJSON(
+            "api/airports",
+            method: "POST",
+            body: RemoteAirportMutation(draft: draft),
+            expectingStatus: 201
+        )
+    }
+
+    func updateAirportSubscription(id: UUID, draft: AirportSubscriptionDraft) async throws {
+        _ = try await sendJSON(
+            "api/airports/\(id.uuidString.lowercased())",
+            method: "PUT",
+            body: RemoteAirportMutation(draft: draft)
+        )
+    }
+
+    func deleteAirportSubscription(id: UUID) async throws {
+        _ = try await send("api/airports/\(id.uuidString.lowercased())", method: "DELETE")
+    }
+
+    func setAirportSubscriptionEnabled(id: UUID, enabled: Bool) async throws {
+        _ = try await sendJSON(
+            "api/airports/\(id.uuidString.lowercased())/enabled",
+            method: "POST",
+            body: RemoteEnabledRequest(enabled: enabled)
+        )
+    }
+
+    func refreshAirportSubscription(id: UUID) async throws {
+        _ = try await postAction("api/airports/\(id.uuidString.lowercased())/refresh")
+    }
+
+    func airportSubscriptionPreview(id: UUID) async throws -> String {
+        try await getText("api/airports/\(id.uuidString.lowercased())/preview")
+    }
+
+    func addSurgeConfigurationTarget(path: String) async throws {
+        _ = try await sendJSON(
+            "api/airports/configurations",
+            method: "POST",
+            body: RemoteConfigurationMutation(path: path),
+            expectingStatus: 201
+        )
+    }
+
+    func updateSurgeConfigurationTarget(id: UUID, path: String) async throws {
+        _ = try await sendJSON(
+            "api/airports/configurations/\(id.uuidString.lowercased())",
+            method: "PUT",
+            body: RemoteConfigurationMutation(path: path)
+        )
+    }
+
+    func deleteSurgeConfigurationTarget(id: UUID) async throws {
+        _ = try await send("api/airports/configurations/\(id.uuidString.lowercased())", method: "DELETE")
+    }
+
+    func setSurgeConfigurationTargetEnabled(id: UUID, enabled: Bool) async throws {
+        _ = try await sendJSON(
+            "api/airports/configurations/\(id.uuidString.lowercased())/enabled",
+            method: "POST",
+            body: RemoteEnabledRequest(enabled: enabled)
+        )
+    }
+
+    func writeAirportSubscriptions() async throws {
+        _ = try await postAction("api/airports/write")
+    }
+
     func refreshScriptHub() async throws {
         _ = try await postAction("api/settings/script-hub/refresh")
     }
@@ -438,6 +508,32 @@ struct RemoteStatePayload: Codable, Sendable {
     var modules: [RemoteModulePayload]
     var activity: RemoteActivityPayload
     var platforms: [RemotePlatformPayload]
+    var airports: RemoteAirportOverviewPayload?
+}
+
+struct RemoteAirportOverviewPayload: Codable, Sendable {
+    var subscriptions: [RemoteAirportPayload]
+    var configurations: [RemoteConfigurationPayload]
+    var configurationPreview: String
+}
+
+struct RemoteAirportPayload: Codable, Sendable {
+    var id: String
+    var name: String
+    var sourceURL: String
+    var policyRegexFilter: String
+    var iconURL: String
+    var isEnabled: Bool
+    var lastUpdatedAt: Date?
+    var lastError: String?
+    var hasCache: Bool
+}
+
+struct RemoteConfigurationPayload: Codable, Sendable {
+    var id: String
+    var path: String
+    var isEnabled: Bool
+    var lastWrittenAt: Date?
 }
 
 struct RemoteSettingsPayload: Codable, Sendable {
@@ -596,6 +692,26 @@ struct RemoteModuleMutation: Codable, Sendable {
         isEnabled = draft.isEnabled
         scriptHubOptions = draft.scriptHubOptions
     }
+}
+
+struct RemoteAirportMutation: Codable, Sendable {
+    var name: String
+    var sourceURL: String
+    var policyRegexFilter: String
+    var iconURL: String
+    var isEnabled: Bool
+
+    init(draft: AirportSubscriptionDraft) {
+        name = draft.name
+        sourceURL = draft.sourceURL
+        policyRegexFilter = draft.policyRegexFilter
+        iconURL = draft.iconURL
+        isEnabled = draft.isEnabled
+    }
+}
+
+struct RemoteConfigurationMutation: Codable, Sendable {
+    var path: String
 }
 
 extension RemoteModulePayload {

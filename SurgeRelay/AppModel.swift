@@ -35,6 +35,7 @@ final class AppModel {
     var remoteConnectionState: RemoteConnectionState = .idle
     var remoteVersionMismatch: RemoteVersionMismatch?
     var airportConfigurationPreviewRevision = 0
+    var remoteAirportCacheIDs = Set<UUID>()
 
     @ObservationIgnored private let scriptHubClient = ScriptHubClient()
     @ObservationIgnored private let sourceRevisionService = SourceRevisionService()

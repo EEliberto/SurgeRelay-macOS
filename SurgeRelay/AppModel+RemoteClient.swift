@@ -251,6 +251,11 @@ extension AppModel {
 
     func clearRemoteProjection() {
         modules = []
+        airportSubscriptions = []
+        surgeConfigurationTargets = []
+        remoteAirportCacheIDs = []
+        airportConfigurationPreviewCache = nil
+        airportConfigurationPreviewRevision &+= 1
         if selectedModuleID != AirportSubscriptionSummary.selectionID {
             selectedModuleID = RelayPlatform.ios.selectionID
         }
@@ -267,6 +272,38 @@ extension AppModel {
 
         let previousSelection = selectedModuleID
         modules = state.modules.compactMap { $0.asRelayModule(baseURL: baseURL) }
+        if let airports = state.airports {
+            airportSubscriptions = airports.subscriptions.compactMap { payload in
+                guard let id = UUID(uuidString: payload.id) else { return nil }
+                return AirportSubscription(
+                    id: id,
+                    name: payload.name,
+                    sourceURL: payload.sourceURL,
+                    policyRegexFilter: payload.policyRegexFilter,
+                    iconURL: payload.iconURL,
+                    isEnabled: payload.isEnabled,
+                    lastUpdatedAt: payload.lastUpdatedAt,
+                    lastError: payload.lastError
+                )
+            }
+            surgeConfigurationTargets = airports.configurations.compactMap { payload in
+                guard let id = UUID(uuidString: payload.id) else { return nil }
+                return SurgeConfigurationTarget(
+                    id: id,
+                    path: payload.path,
+                    isEnabled: payload.isEnabled,
+                    lastWrittenAt: payload.lastWrittenAt
+                )
+            }
+            remoteAirportCacheIDs = Set(
+                airports.subscriptions.compactMap { payload in
+                    guard payload.hasCache else { return nil }
+                    return UUID(uuidString: payload.id)
+                }
+            )
+            airportConfigurationPreviewCache = airports.configurationPreview
+            airportConfigurationPreviewRevision &+= 1
+        }
         applyRemoteSettings(state.settings, platforms: state.platforms)
         updateHistory = state.settings.updateHistory
         upstreamState.revision = state.settings.scriptHubRevision

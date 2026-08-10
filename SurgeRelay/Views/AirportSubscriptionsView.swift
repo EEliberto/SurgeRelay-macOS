@@ -93,8 +93,14 @@ struct AirportSubscriptionsView: View {
         ) {
             Button("删除机场", role: .destructive) {
                 guard let id = deleteCandidate?.id else { return }
-                model.removeAirportSubscription(id: id)
                 deleteCandidate = nil
+                Task {
+                    do {
+                        try await model.removeAirportSubscriptionForCurrentMode(id: id)
+                    } catch {
+                        model.presentedError = error.localizedDescription
+                    }
+                }
             }
             Button("取消", role: .cancel) { deleteCandidate = nil }
         }
@@ -132,7 +138,18 @@ struct AirportSubscriptionsView: View {
             Spacer()
             Toggle("启用", isOn: Binding(
                 get: { subscription.isEnabled },
-                set: { model.setAirportSubscriptionEnabled(id: subscription.id, enabled: $0) }
+                set: { enabled in
+                    Task {
+                        do {
+                            try await model.setAirportSubscriptionEnabledForCurrentMode(
+                                id: subscription.id,
+                                enabled: enabled
+                            )
+                        } catch {
+                            model.presentedError = error.localizedDescription
+                        }
+                    }
+                }
             ))
             .labelsHidden()
             Button {
@@ -182,7 +199,7 @@ struct AirportSubscriptionsView: View {
         Task {
             defer { refreshingID = nil }
             do {
-                try await model.refreshAirportSubscription(id: id)
+                try await model.refreshAirportSubscriptionForCurrentMode(id: id)
             } catch {
                 model.presentedError = error.localizedDescription
             }
@@ -206,11 +223,30 @@ struct AirportSubscriptionsView: View {
             Spacer()
             Toggle("启用", isOn: Binding(
                 get: { target.isEnabled },
-                set: { model.setSurgeConfigurationTargetEnabled(id: target.id, enabled: $0) }
+                set: { enabled in
+                    Task {
+                        do {
+                            try await model.setSurgeConfigurationTargetEnabledForCurrentMode(
+                                id: target.id,
+                                enabled: enabled
+                            )
+                        } catch {
+                            model.presentedError = error.localizedDescription
+                        }
+                    }
+                }
             ))
             .labelsHidden()
             Button("编辑") { targetEditorRoute = ConfigurationTargetEditorRoute(target: target) }
-            Button(role: .destructive) { model.removeSurgeConfigurationTarget(id: target.id) } label: {
+            Button(role: .destructive) {
+                Task {
+                    do {
+                        try await model.removeSurgeConfigurationTargetForCurrentMode(id: target.id)
+                    } catch {
+                        model.presentedError = error.localizedDescription
+                    }
+                }
+            } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
@@ -219,6 +255,10 @@ struct AirportSubscriptionsView: View {
     }
 
     private func addConfigurationFiles() {
+        if model.isClientMode {
+            targetEditorRoute = ConfigurationTargetEditorRoute(target: nil)
+            return
+        }
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
@@ -228,10 +268,12 @@ struct AirportSubscriptionsView: View {
     }
 
     private func writeConfiguration() {
-        do {
-            _ = try model.writeAirportSubscriptionsToEnabledConfigurations()
-        } catch {
-            model.presentedError = error.localizedDescription
+        Task {
+            do {
+                try await model.writeAirportSubscriptionsForCurrentMode()
+            } catch {
+                model.presentedError = error.localizedDescription
+            }
         }
     }
 }
@@ -248,33 +290,36 @@ private struct AirportPreviewRoute: Identifiable {
 
 private struct ConfigurationTargetEditorRoute: Identifiable {
     let id = UUID()
-    let target: SurgeConfigurationTarget
+    let target: SurgeConfigurationTarget?
 }
 
 private struct ConfigurationTargetEditor: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    let target: SurgeConfigurationTarget
+    let target: SurgeConfigurationTarget?
     @State private var path: String
     @State private var errorMessage: String?
+    @State private var isSaving = false
 
-    init(target: SurgeConfigurationTarget) {
+    init(target: SurgeConfigurationTarget?) {
         self.target = target
-        _path = State(initialValue: target.path)
+        _path = State(initialValue: target?.path ?? "")
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField("配置文件", text: $path)
-                Button("选择文件…") { chooseFile() }
+                if !model.isClientMode {
+                    Button("选择文件…") { chooseFile() }
+                }
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.red)
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("编辑 Surge 配置")
+            .navigationTitle(target == nil ? "添加 Surge 配置" : "编辑 Surge 配置")
             .frame(minWidth: 520, minHeight: 190)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -283,6 +328,7 @@ private struct ConfigurationTargetEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
                         .keyboardShortcut(.defaultAction)
+                        .disabled(isSaving)
                 }
             }
         }
@@ -299,11 +345,16 @@ private struct ConfigurationTargetEditor: View {
     }
 
     private func save() {
-        do {
-            try model.updateSurgeConfigurationTarget(id: target.id, path: path)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+        isSaving = true
+        errorMessage = nil
+        Task {
+            defer { isSaving = false }
+            do {
+                try await model.saveSurgeConfigurationTargetForCurrentMode(id: target?.id, path: path)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -356,11 +407,7 @@ private struct AirportSubscriptionPreview: View {
             }
         }
         .task {
-            if model.hasCachedAirportSubscription(id: subscriptionID) {
-                loadCache()
-            } else {
-                await refresh()
-            }
+            await loadPreview(refresh: !model.hasCachedAirportSubscription(id: subscriptionID))
         }
     }
 
@@ -369,20 +416,26 @@ private struct AirportSubscriptionPreview: View {
         errorMessage = nil
         defer { isRefreshing = false }
         do {
-            try await model.refreshAirportSubscription(id: subscriptionID)
-            loadCache()
+            content = try await model.airportSubscriptionPreviewForCurrentMode(
+                id: subscriptionID,
+                refresh: true
+            )
         } catch {
             errorMessage = error.localizedDescription
-            // If a refreshed short URL has expired, keep the last successful cache visible.
-            loadCache(preservingError: true)
         }
     }
 
-    private func loadCache(preservingError: Bool = false) {
+    private func loadPreview(refresh: Bool) async {
+        isRefreshing = true
+        errorMessage = nil
+        defer { isRefreshing = false }
         do {
-            content = try model.cachedAirportSubscriptionContent(id: subscriptionID)
+            content = try await model.airportSubscriptionPreviewForCurrentMode(
+                id: subscriptionID,
+                refresh: refresh
+            )
         } catch {
-            if !preservingError { errorMessage = error.localizedDescription }
+            errorMessage = error.localizedDescription
         }
     }
 }
@@ -441,6 +494,7 @@ private struct AirportSubscriptionEditor: View {
     let subscription: AirportSubscription?
     @State private var draft: AirportSubscriptionDraft
     @State private var errorMessage: String?
+    @State private var isSaving = false
 
     init(subscription: AirportSubscription?) {
         self.subscription = subscription
@@ -478,21 +532,23 @@ private struct AirportSubscriptionEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
                         .keyboardShortcut(.defaultAction)
+                        .disabled(isSaving)
                 }
             }
         }
     }
 
     private func save() {
-        do {
-            if let subscription {
-                try model.updateAirportSubscription(id: subscription.id, from: draft)
-            } else {
-                try model.addAirportSubscription(from: draft)
+        isSaving = true
+        errorMessage = nil
+        Task {
+            defer { isSaving = false }
+            do {
+                try await model.saveAirportSubscriptionForCurrentMode(id: subscription?.id, draft: draft)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
             }
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }

@@ -4,9 +4,9 @@
         <title>Surge Relay</title>
         <item>
             <title>260810</title>
-            <pubDate>Mon, 10 Aug 2026 10:32:43 +0800</pubDate>
+            <pubDate>Mon, 10 Aug 2026 11:01:30 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260810</link>
-            <sparkle:version>27072302</sparkle:version>
+            <sparkle:version>27072303</sparkle:version>
             <sparkle:shortVersionString>260810</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -21,7 +21,7 @@
 2.服务器模式支持菜单栏始终显示。
 3.客户端模式菜单栏不再显示和始终运行。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260810/Surge-Relay-260810-build-27072302.dmg" length="27471561" type="application/octet-stream" sparkle:edSignature="ajBEYmAphKDYSyRzcPTz7XPnTS+EOj56U+1f/5GlkScJ4a0QcHyoH/gWNyX0nYJZ8EtTixmcVd6V0VUh5iDYDA=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260810/Surge-Relay-260810-build-27072303.dmg" length="27527078" type="application/octet-stream" sparkle:edSignature="q7Ia+p9+B1tYGwmV+XLOT1NHmC3mp3xBXYBn5z8NC/STjH3TIajoxG4HRPtb+0Noq30601/C68o/y/bjueikCw=="/>
         </item>
         <item>
             <title>260723</title>
