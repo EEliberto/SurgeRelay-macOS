@@ -240,9 +240,13 @@ struct AppSettings: Codable, Equatable, Sendable {
     }
 
     static var defaultConfigurationDirectory: String {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appending(path: "Surge Relay", directoryHint: .isDirectory).path
+    }
+
+    static var legacyICloudConfigurationDirectory: String {
         URL(filePath: defaultSurgeDirectory, directoryHint: .isDirectory)
-            .appending(path: "Surge Relay", directoryHint: .isDirectory)
-            .path
+            .appending(path: "Surge Relay", directoryHint: .isDirectory).path
     }
 
     static func surgeDirectory(forSelectedDirectory selectedDirectory: URL) -> URL {
@@ -285,7 +289,8 @@ enum StorageMode: String, Codable, Sendable {
 }
 
 /// This is intentionally stored in UserDefaults rather than AppSettings.
-/// AppSettings may live in iCloud, while each Mac must keep its own role.
+/// AppSettings lives in Application Support, while each Mac still keeps its role
+/// separately so changing server/client mode never alters imported settings data.
 enum RelayDeviceMode: String, CaseIterable, Identifiable, Sendable {
     case server
     case client

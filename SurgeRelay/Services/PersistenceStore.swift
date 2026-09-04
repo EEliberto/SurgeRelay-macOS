@@ -10,6 +10,12 @@ enum PersistenceStore {
     private static let initialSetupLoadedExistingKey = "SurgeRelay.initialSetupLoadedExisting.v1"
     private static let legacySettingsKey = "SurgeRelay.settings.v1"
     private static let legacyUpstreamKey = "SurgeRelay.upstream.v1"
+    private static let localStorageMigrationKey = "SurgeRelay.applicationSupportMigration.v1"
+    private static let managedNames = [
+        "settings.json", "settings.json.bak", "modules.json", "script-hub-state.json",
+        "update-history.json", "airport-subscriptions.json", "surge-configuration-targets.json",
+        "Overrides", "Backups",
+    ]
 
     static var hasSelectedConfigurationDirectory: Bool {
         UserDefaults.standard.string(forKey: configurationDirectoryKey) != nil
@@ -40,16 +46,15 @@ enum PersistenceStore {
     }
 
     static var configurationDirectoryURL: URL {
-        let path = UserDefaults.standard.string(forKey: configurationDirectoryKey)
-            ?? AppSettings.defaultConfigurationDirectory
-        let directory = URL(filePath: path, directoryHint: .isDirectory)
+        let directory = URL(filePath: AppSettings.defaultConfigurationDirectory, directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        migrateLegacyConfigurationIfNeeded(to: directory)
         return directory
     }
 
     static var cacheDirectoryURL: URL {
-        let directory = FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Application Support/Surge Relay/Cache", directoryHint: .isDirectory)
+        let directory = configurationDirectoryURL
+            .appending(path: "Cache", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
@@ -208,11 +213,10 @@ enum PersistenceStore {
     static func useConfigurationDirectory(_ path: String) throws {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw CocoaError(.fileNoSuchFile) }
-        let sourceDirectory = configurationDirectoryURL
         let directory = URL(filePath: trimmed, directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try migrateOverrides(from: sourceDirectory, to: directory)
-        UserDefaults.standard.set(directory.path, forKey: configurationDirectoryKey)
+        guard FileManager.default.fileExists(atPath: directory.path) else { throw CocoaError(.fileNoSuchFile) }
+        try importManagedFiles(from: directory, to: configurationDirectoryURL, removesSource: false)
+        UserDefaults.standard.set(configurationDirectoryURL.path, forKey: configurationDirectoryKey)
     }
 
     /// Selects a configuration directory on a new Mac without migrating the
@@ -220,9 +224,69 @@ enum PersistenceStore {
     static func selectConfigurationDirectory(_ path: String) throws {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw CocoaError(.fileNoSuchFile) }
-        let directory = URL(filePath: trimmed, directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        UserDefaults.standard.set(directory.path, forKey: configurationDirectoryKey)
+        let sourceDirectory = URL(filePath: trimmed, directoryHint: .isDirectory)
+        if FileManager.default.fileExists(atPath: sourceDirectory.path) {
+            try importManagedFiles(from: sourceDirectory, to: configurationDirectoryURL, removesSource: false)
+        }
+        UserDefaults.standard.set(configurationDirectoryURL.path, forKey: configurationDirectoryKey)
+    }
+
+    static func prepareLocalStorage() throws {
+        try FileManager.default.createDirectory(at: configurationDirectoryURL, withIntermediateDirectories: true)
+        UserDefaults.standard.set(configurationDirectoryURL.path, forKey: configurationDirectoryKey)
+    }
+
+    private static func migrateLegacyConfigurationIfNeeded(to destination: URL) {
+        guard !UserDefaults.standard.bool(forKey: localStorageMigrationKey) else { return }
+        let stored = UserDefaults.standard.string(forKey: configurationDirectoryKey).map {
+            URL(filePath: $0, directoryHint: .isDirectory)
+        }
+        let defaultLegacy = URL(
+            filePath: AppSettings.legacyICloudConfigurationDirectory,
+            directoryHint: .isDirectory
+        )
+        let sources = [stored, defaultLegacy]
+            .compactMap { $0?.standardizedFileURL }
+            .filter { $0 != destination.standardizedFileURL }
+        let hasLegacyData = sources.contains { source in
+            managedNames.contains { name in
+                FileManager.default.fileExists(atPath: source.appending(path: name).path)
+            }
+        }
+
+        do {
+            for source in Array(Set(sources)) where FileManager.default.fileExists(atPath: source.path) {
+                try importManagedFiles(from: source, to: destination, removesSource: true)
+            }
+            if stored != nil || hasLegacyData {
+                UserDefaults.standard.set(destination.path, forKey: configurationDirectoryKey)
+            }
+            UserDefaults.standard.set(true, forKey: localStorageMigrationKey)
+        } catch {
+            // Keep the legacy source untouched when migration cannot complete;
+            // the next launch retries without replacing local data.
+        }
+    }
+
+    private static func importManagedFiles(from source: URL, to destination: URL, removesSource: Bool) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        for name in managedNames {
+            let sourceURL = source.appending(path: name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            var destinationURL = destination.appending(path: name)
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                let recovery = destination.appending(path: "Legacy Migration", directoryHint: .isDirectory)
+                try fileManager.createDirectory(at: recovery, withIntermediateDirectories: true)
+                destinationURL = recovery.appending(path: "\(UUID().uuidString)-\(name)")
+            }
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            if removesSource { try fileManager.removeItem(at: sourceURL) }
+        }
+        if removesSource,
+           (try fileManager.contentsOfDirectory(atPath: source.path)).isEmpty {
+            try fileManager.removeItem(at: source)
+        }
     }
 
     static func migrateOverrides(from sourceDirectory: URL, to destinationDirectory: URL) throws {

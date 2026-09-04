@@ -286,7 +286,7 @@ actor ModuleProcessingWorker {
         customRules: [String] = [],
         customMitM: [String] = []
     ) -> String {
-        var resolved = ModuleArgumentProcessor.materialize(content, overrides: overrides)
+        let resolved = ModuleArgumentProcessor.materialize(content, overrides: overrides)
         
         var sections: [String: [String]] = [:]
         var currentSection = ""
@@ -398,10 +398,10 @@ actor ModuleProcessingWorker {
         }
         
         if !customMitM.isEmpty {
-            var updatedMitmLines: [String] = []
             var hostnameLineIndex = -1
             
             let mitmLines = sections["MitM"] ?? []
+            let hadMitMSection = sections["MitM"] != nil
             for (index, line) in mitmLines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("hostname") {
@@ -430,7 +430,7 @@ actor ModuleProcessingWorker {
                 var newMitmLines = mitmLines
                 newMitmLines.append("hostname = \(customMitM.joined(separator: ", "))")
                 sections["MitM"] = newMitmLines
-                if sections["MitM"] == nil {
+                if !hadMitMSection {
                     originalLineOrder.append("[MitM]")
                 }
             }

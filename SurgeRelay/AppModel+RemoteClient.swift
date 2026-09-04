@@ -104,13 +104,12 @@ extension AppModel {
                 do {
                     try await withThrowingTaskGroup(of: Void.self) { group in
                         group.addTask {
-                            try await client.listenForStateEvents { [weak self] state in
-                                self?.applyRemoteState(state, baseURL: client.baseURL)
-                                self?.remoteConnectionState = .connected
+                            try await client.listenForStateEvents { state in
+                                self.applyRemoteState(state, baseURL: client.baseURL)
+                                self.remoteConnectionState = .connected
                             }
                         }
-                        group.addTask { [weak self] in
-                            guard let self else { return }
+                        group.addTask {
                             try await self.pollRemoteActivity(using: client)
                         }
                         _ = try await group.next()
@@ -280,6 +279,9 @@ extension AppModel {
                     name: payload.name,
                     sourceURL: payload.sourceURL,
                     policyRegexFilter: payload.policyRegexFilter,
+                    nodeNameTemplate: payload.nodeNameTemplate ?? "",
+                    nodeNameOptimization: payload.nodeNameOptimization ?? AirportNodeNameOptimization(),
+                    nodeProcessing: payload.nodeProcessing ?? AirportNodeProcessingOptions(),
                     iconURL: payload.iconURL,
                     isEnabled: payload.isEnabled,
                     lastUpdatedAt: payload.lastUpdatedAt,

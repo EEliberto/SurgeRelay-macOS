@@ -360,12 +360,20 @@ private struct ConfigurationTargetEditor: View {
 }
 
 private struct AirportSubscriptionPreview: View {
+    private enum PreviewMode: Hashable {
+        case changes
+        case source
+    }
+
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let subscriptionID: UUID
     @State private var content = ""
     @State private var errorMessage: String?
     @State private var isRefreshing = false
+    @State private var previewMode = PreviewMode.changes
+    @State private var processingRecords: [AirportNodeProcessingRecord] = []
+    @State private var processingError: String?
 
     private var subscription: AirportSubscription? {
         model.airportSubscriptions.first { $0.id == subscriptionID }
@@ -383,7 +391,30 @@ private struct AirportSubscriptionPreview: View {
                         description: Text(errorMessage)
                     )
                 } else {
-                    WrappingPlainTextView(text: content)
+                    VStack(spacing: 0) {
+                        Picker("预览内容", selection: $previewMode) {
+                            Text("处理结果").tag(PreviewMode.changes)
+                            Text("原始订阅").tag(PreviewMode.source)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        .padding(12)
+
+                        Divider()
+
+                        if previewMode == .source {
+                            WrappingPlainTextView(text: content)
+                        } else if let processingError {
+                            ContentUnavailableView(
+                                "无法生成处理预览",
+                                systemImage: "exclamationmark.triangle",
+                                description: Text(processingError)
+                            )
+                        } else {
+                            AirportNodeChangesTable(records: processingRecords)
+                        }
+                    }
                 }
             }
             .frame(minWidth: 720, minHeight: 520)
@@ -420,6 +451,7 @@ private struct AirportSubscriptionPreview: View {
                 id: subscriptionID,
                 refresh: true
             )
+            await rebuildProcessingPreview()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -434,8 +466,65 @@ private struct AirportSubscriptionPreview: View {
                 id: subscriptionID,
                 refresh: refresh
             )
+            await rebuildProcessingPreview()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func rebuildProcessingPreview() async {
+        guard let subscription, let data = content.data(using: .utf8) else {
+            processingRecords = []
+            return
+        }
+        do {
+            processingRecords = try await Task.detached(priority: .userInitiated) {
+                let entries = try AirportSubscriptionParser.proxyEntries(from: data)
+                var usedNames = Set<String>()
+                return AirportSubscriptionParser.process(
+                    entries,
+                    for: subscription,
+                    reserving: &usedNames
+                ).records
+            }.value
+            processingError = nil
+        } catch {
+            processingRecords = []
+            processingError = error.localizedDescription
+        }
+    }
+}
+
+private struct AirportNodeChangesTable: View {
+    let records: [AirportNodeProcessingRecord]
+
+    private var includedCount: Int {
+        records.lazy.filter { $0.outputName != nil }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("保留 \(includedCount) 个，过滤 \(records.count - includedCount) 个")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+            Table(records) {
+                TableColumn("原始名称") { record in
+                    Text(record.originalName)
+                        .lineLimit(1)
+                }
+                TableColumn("处理后") { record in
+                    Text(record.outputName ?? "—")
+                        .foregroundStyle(record.outputName == nil ? .secondary : .primary)
+                        .lineLimit(1)
+                }
+                TableColumn("结果") { record in
+                    Text(record.status)
+                        .foregroundStyle(record.outputName == nil ? .secondary : .primary)
+                }
+                .width(ideal: 110)
+            }
         }
     }
 }
@@ -511,9 +600,52 @@ private struct AirportSubscriptionEditor: View {
                 Section("订阅") {
                     TextField("订阅链接", text: $draft.sourceURL, prompt: Text("https://…"))
                 }
+                Section("节点筛选") {
+                    Toggle("过滤流量、到期等订阅信息节点", isOn: $draft.nodeProcessing.filtersMetadataNodes)
+                    AirportKeywordListEditor(
+                        title: "只保留包含",
+                        prompt: "例如 香港",
+                        keywords: $draft.nodeProcessing.includeKeywords
+                    )
+                    AirportKeywordListEditor(
+                        title: "排除包含",
+                        prompt: "例如 倍率",
+                        keywords: $draft.nodeProcessing.excludeKeywords
+                    )
+                    DisclosureGroup("高级正则") {
+                        TextField(
+                            "节点过滤正则",
+                            text: $draft.policyRegexFilter,
+                            prompt: Text("留空则不使用")
+                        )
+                    }
+                }
+                Section("节点排序") {
+                    Picker("排序方式", selection: $draft.nodeProcessing.sortOrder) {
+                        ForEach(AirportNodeSortOrder.allCases) { order in
+                            Text(order.displayName).tag(order)
+                        }
+                    }
+                    if draft.nodeProcessing.sortOrder == .keywordPriority {
+                        AirportKeywordListEditor(
+                            title: "优先级",
+                            prompt: "依次添加 香港、日本…",
+                            keywords: $draft.nodeProcessing.sortPriorityKeywords
+                        )
+                    }
+                }
+                Section("代理属性") {
+                    AirportProxyOptionsEditor(options: $draft.nodeProcessing)
+                }
                 Section("可选参数") {
-                    TextField("节点过滤正则", text: $draft.policyRegexFilter, prompt: Text("例如 ^((?!(Traffic|Expire)).)*$"))
+                    TextField("节点名称模板", text: $draft.nodeNameTemplate, prompt: Text("例如 {airport} - {name}"))
+                    Text("使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     TextField("图标地址", text: $draft.iconURL, prompt: Text("https://…"))
+                }
+                Section("节点名称优化") {
+                    AirportNodeNameOptimizationEditor(optimization: $draft.nodeNameOptimization)
                 }
                 if let errorMessage {
                     Section {
@@ -524,7 +656,7 @@ private struct AirportSubscriptionEditor: View {
             }
             .formStyle(.grouped)
             .navigationTitle(subscription == nil ? "添加机场" : "编辑机场")
-            .frame(minWidth: 520, minHeight: 390)
+            .frame(minWidth: 580, minHeight: 650)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -548,6 +680,125 @@ private struct AirportSubscriptionEditor: View {
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private struct AirportKeywordListEditor: View {
+    let title: String
+    let prompt: String
+    @Binding var keywords: [String]
+    @State private var pendingKeyword = ""
+
+    private var visibleKeywords: [String] {
+        var seen = Set<String>()
+        return keywords.filter { seen.insert($0.lowercased()).inserted }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent(title) {
+                HStack(spacing: 6) {
+                    TextField(prompt, text: $pendingKeyword)
+                        .onSubmit(addKeyword)
+                    Button("添加", systemImage: "plus", action: addKeyword)
+                        .labelStyle(.iconOnly)
+                        .disabled(pendingKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .frame(maxWidth: 300)
+            }
+            if !visibleKeywords.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(visibleKeywords, id: \.self) { keyword in
+                            HStack(spacing: 4) {
+                                Text(keyword)
+                                Button {
+                                    keywords.removeAll { $0.caseInsensitiveCompare(keyword) == .orderedSame }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("移除关键词 \(keyword)")
+                            }
+                            .padding(.leading, 8)
+                            .padding(.trailing, 5)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private func addKeyword() {
+        let keyword = pendingKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty,
+              !keywords.contains(where: { $0.caseInsensitiveCompare(keyword) == .orderedSame }) else { return }
+        keywords.append(keyword)
+        pendingKeyword = ""
+    }
+}
+
+private struct AirportProxyOptionsEditor: View {
+    @Binding var options: AirportNodeProcessingOptions
+
+    var body: some View {
+        proxyOptionPicker("UDP Relay", selection: $options.udpRelay)
+        proxyOptionPicker("TCP Fast Open", selection: $options.tcpFastOpen)
+        proxyOptionPicker("跳过证书验证", selection: $options.skipCertificateVerification)
+        Text("仅对支持该参数的代理协议生效；“跟随订阅”不会修改原始值。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    private func proxyOptionPicker(
+        _ title: String,
+        selection: Binding<AirportProxyOptionOverride>
+    ) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(AirportProxyOptionOverride.allCases) { option in
+                Text(option.displayName).tag(option)
+            }
+        }
+    }
+}
+
+private struct AirportNodeNameOptimizationEditor: View {
+    @Binding var optimization: AirportNodeNameOptimization
+
+    private let exampleName = "🇭🇰 香港实验性 IEPL 专线 1"
+
+    private var optimizedExampleName: String {
+        AirportSubscriptionParser.optimizedNodeName(exampleName, using: optimization)
+    }
+
+    var body: some View {
+        Toggle("自动优化节点名称", isOn: $optimization.isEnabled)
+        if optimization.isEnabled {
+            Toggle("移除 Emoji 与国旗", isOn: $optimization.removesEmoji)
+            TextField(
+                "移除关键词",
+                text: $optimization.removalTerms,
+                prompt: Text(AirportNodeNameOptimization.defaultRemovalTerms)
+            )
+            Text("使用逗号分隔，不区分大小写。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            LabeledContent("效果示例") {
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(exampleName)
+                        .foregroundStyle(.secondary)
+                    Text(optimizedExampleName)
+                        .fontWeight(.medium)
+                }
+                .textSelection(.enabled)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("优化前 \(exampleName)，优化后 \(optimizedExampleName)")
             }
         }
     }

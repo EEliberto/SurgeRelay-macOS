@@ -316,6 +316,9 @@ extension AppModel {
         subscription.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         subscription.sourceURL = draft.sourceURL.trimmingCharacters(in: .whitespacesAndNewlines)
         subscription.policyRegexFilter = draft.policyRegexFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+        subscription.nodeNameTemplate = draft.nodeNameTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        subscription.nodeNameOptimization = draft.nodeNameOptimization
+        subscription.nodeProcessing = draft.nodeProcessing
         subscription.iconURL = draft.iconURL.trimmingCharacters(in: .whitespacesAndNewlines)
         subscription.isEnabled = draft.isEnabled
     }
@@ -338,6 +341,15 @@ extension AppModel {
                 _ = try NSRegularExpression(pattern: regex)
             } catch {
                 throw RelayError.invalidOutput("节点过滤正则无效。")
+            }
+        }
+        let template = subscription.nodeNameTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !template.isEmpty {
+            guard template.contains("{name}") else {
+                throw RelayError.invalidOutput("节点名称模板必须包含 {name}。")
+            }
+            guard !template.contains(where: { $0 == "\n" || $0 == "\r" || $0 == "=" || $0 == "," }) else {
+                throw RelayError.invalidOutput("节点名称模板不能包含逗号、等号或换行。")
             }
         }
     }
@@ -378,28 +390,21 @@ extension AppModel {
         var usedProxyNames = Set<String>()
 
         for subscription in subscriptions {
-            var entries = try AirportSubscriptionParser.proxyEntries(
+            let entries = try AirportSubscriptionParser.proxyEntries(
                 from: AirportSubscriptionStore.data(for: subscription.id)
             )
-            entries.removeAll(where: AirportSubscriptionParser.isBuiltInDirect)
-            let regex = subscription.policyRegexFilter.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !regex.isEmpty {
-                entries = entries.filter {
-                    AirportSubscriptionParser.name($0.originalName, matchesRegex: regex)
-                }
-            }
-            guard !entries.isEmpty else {
+            let processingResult = AirportSubscriptionParser.process(
+                entries,
+                for: subscription,
+                reserving: &usedProxyNames
+            )
+            guard !processingResult.included.isEmpty else {
                 throw RelayError.invalidOutput("\(subscription.name) 的节点在过滤后为空。")
             }
-            let names = entries.map { entry -> String in
-                let name = entry.originalName
+            let names = processingResult.included.map { entry -> String in
+                let name = entry.name
                 proxyLines.append("\(name) = \(entry.definition)")
                 return quoted(name)
-            }
-            let duplicateNames = names.filter { !usedProxyNames.insert($0).inserted }
-            guard duplicateNames.isEmpty else {
-                let names = duplicateNames.prefix(3).joined(separator: "、")
-                throw RelayError.invalidOutput("多个机场存在同名节点：\(names)。Surge 的 [Proxy] 名称必须唯一。")
             }
             var groupMembers = names
             let icon = subscription.iconURL.trimmingCharacters(in: .whitespacesAndNewlines)

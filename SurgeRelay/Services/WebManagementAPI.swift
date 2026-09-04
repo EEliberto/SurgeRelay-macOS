@@ -494,6 +494,18 @@ enum WebManagementAPI {
         case ("GET", "preview"):
             guard model.hasCachedAirportSubscription(id: id) else { throw WebAPIError.airportCacheMissing }
             return .text(try model.cachedAirportSubscriptionContent(id: id))
+        case ("GET", "processing-preview"):
+            guard model.hasCachedAirportSubscription(id: id) else { throw WebAPIError.airportCacheMissing }
+            let entries = try AirportSubscriptionParser.proxyEntries(
+                from: AirportSubscriptionStore.data(for: id)
+            )
+            var usedNames = Set<String>()
+            let result = AirportSubscriptionParser.process(
+                entries,
+                for: subscription,
+                reserving: &usedNames
+            )
+            return .json(WebAirportProcessingPreviewPayload(records: result.records))
         default: throw WebAPIError.methodNotAllowed
         }
     }
@@ -577,7 +589,10 @@ enum WebManagementAPI {
             subscriptions: model.airportSubscriptions.map {
                 WebAirportPayload(
                     id: $0.id.uuidString.lowercased(), name: $0.name, sourceURL: $0.sourceURL,
-                    policyRegexFilter: $0.policyRegexFilter, iconURL: $0.iconURL,
+                    policyRegexFilter: $0.policyRegexFilter, nodeNameTemplate: $0.nodeNameTemplate,
+                    nodeNameOptimization: $0.nodeNameOptimization,
+                    nodeProcessing: $0.nodeProcessing,
+                    iconURL: $0.iconURL,
                     isEnabled: $0.isEnabled, lastUpdatedAt: $0.lastUpdatedAt,
                     lastError: $0.lastError, hasCache: model.hasCachedAirportSubscription(id: $0.id)
                 )
@@ -712,11 +727,18 @@ private struct WebAirportOverviewPayload: Encodable {
     let configurationPreview: String
 }
 
+private struct WebAirportProcessingPreviewPayload: Encodable {
+    let records: [AirportNodeProcessingRecord]
+}
+
 private struct WebAirportPayload: Encodable {
     let id: String
     let name: String
     let sourceURL: String
     let policyRegexFilter: String
+    let nodeNameTemplate: String
+    let nodeNameOptimization: AirportNodeNameOptimization
+    let nodeProcessing: AirportNodeProcessingOptions
     let iconURL: String
     let isEnabled: Bool
     let lastUpdatedAt: Date?
@@ -735,6 +757,9 @@ private struct WebAirportMutation: Decodable {
     let name: String
     let sourceURL: String
     let policyRegexFilter: String?
+    let nodeNameTemplate: String?
+    let nodeNameOptimization: AirportNodeNameOptimization?
+    let nodeProcessing: AirportNodeProcessingOptions?
     let iconURL: String?
     let isEnabled: Bool?
 
@@ -743,6 +768,9 @@ private struct WebAirportMutation: Decodable {
         draft.name = name
         draft.sourceURL = sourceURL
         if let policyRegexFilter { draft.policyRegexFilter = policyRegexFilter }
+        if let nodeNameTemplate { draft.nodeNameTemplate = nodeNameTemplate }
+        if let nodeNameOptimization { draft.nodeNameOptimization = nodeNameOptimization }
+        if let nodeProcessing { draft.nodeProcessing = nodeProcessing }
         if let iconURL { draft.iconURL = iconURL }
         if let isEnabled { draft.isEnabled = isEnabled }
         return draft

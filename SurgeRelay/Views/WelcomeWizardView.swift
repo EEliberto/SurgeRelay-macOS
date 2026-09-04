@@ -123,7 +123,7 @@ struct WelcomeWizardView: View {
     private var roleStep: some View {
         VStack(spacing: 18) {
             if model.configurationWelcomeLoadedExistingConfiguration {
-                Label("检测到 iCloud 中已有 Surge Relay 配置", systemImage: "icloud.fill")
+                Label("已迁移现有 Surge Relay 配置", systemImage: "checkmark.circle.fill")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.secondary)
             }
@@ -281,7 +281,7 @@ struct WelcomeWizardView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("通过 iCloud 保持 Surge Relay 同步")
                                 .font(.title3.weight(.semibold))
-                            Text("汇总模块存入 iCloud 云盘的 Surge 文件夹，配置与同步状态由 Surge Relay 管理。")
+                            Text("仅将生成的模块存入 iCloud 云盘的 Surge 文件夹；App 设置、缓存与历史记录保存在本机。")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         }

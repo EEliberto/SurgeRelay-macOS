@@ -3,6 +3,40 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>260904</title>
+            <pubDate>Fri, 04 Sep 2026 16:44:32 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260904</link>
+            <sparkle:version>27090401</sparkle:version>
+            <sparkle:shortVersionString>260904</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay，260904 版本已推出！
+
+此次更新我们带来了以下亮点：
+
+1.已为 macOS 27 Golden Gate 做好准备。
+
+2.机场订阅现已支持更完整的自定义处理：可自动过滤流量、到期等信息节点，按关键词保留或排除节点，使用高级正则筛选，并按原始顺序、名称或关键词优先级排序。
+
+3.新增节点名称优化，可自动移除 Emoji、国旗以及 IEPL、IPEL、“专线”等无用文字；自定义移除关键词后，重名节点会自动追加序号。
+
+4.新增 UDP Relay、TCP Fast Open 和跳过证书验证等代理属性设置，并只对兼容的代理协议生效。
+
+5.Web 端已同步机场订阅的筛选、排序、节点名称优化和代理属性功能，并新增处理结果预览，可直接对比原始名称、处理后名称与过滤原因。
+
+6.重新整理文件存储：App 私有配置和缓存迁移至 Application Support，iCloud 云盘只保留用于多设备同步的生成文件，减少 Spotlight 搜索 Surge 时出现的无用文件。
+
+7.修复服务器模式开机启动后只出现在 Dock、必须点击 App 才显示菜单栏图标的问题；现在无需打开主窗口即可正确启动菜单栏服务。
+
+8.优化 macOS 27 工具栏与侧边栏外观，修复详情/预览选择状态错位，并恢复侧边栏原生的柔和滚动边缘效果。
+
+9.修复首次向模块加入 MitM 自定义主机名时可能漏写段标题的问题，并清理相关 Swift 6 编译诊断。
+
+Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260904/Surge-Relay-260904-build-27090401.dmg" length="27799093" type="application/octet-stream" sparkle:edSignature="j1rrKAkywvyG/Lk41mO6Hfjzphzu0L6u5D9zFTE/tMUljC4h5W73dvRyuSIeePzLFc+MNr0+wFlVUnTXejv5CA=="/>
+        </item>
+        <item>
             <title>260810</title>
             <pubDate>Mon, 10 Aug 2026 11:13:00 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260810</link>

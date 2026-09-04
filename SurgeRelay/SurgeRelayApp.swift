@@ -70,7 +70,7 @@ private struct SurgeRelayAppInfoCommands: Commands {
                 NSApp.setActivationPolicy(.regular)
                 SurgeRelaySettingsNavigation.requestAbout()
                 openWindow(id: SurgeRelayWindow.settings)
-                NSApp.activate(ignoringOtherApps: true)
+                NSApp.activate()
             }
         }
     }
@@ -89,12 +89,14 @@ private struct SurgeRelaySettingsCommands: Commands {
     }
 }
 
+@MainActor
 final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
     private var launchedAsLoginItem = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         launchedAsLoginItem = Self.currentLaunchIsLoginItem
         NSApp.setActivationPolicy(launchedAsLoginItem ? .accessory : .regular)
+        MenuBarStatusController.shared.prepare(isEnabled: RelayDeviceConfiguration.mode == .server)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -135,7 +137,7 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard !flag else { return true }
         sender.setActivationPolicy(.regular)
-        sender.activate(ignoringOtherApps: true)
+        sender.activate()
         let window = sender.windows.first(where: { $0.canBecomeMain && $0.level == .normal })
         window?.deminiaturize(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -149,27 +151,16 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Starts AppModel runtime at process scope so menu-bar-only mode keeps serving clients.
-private struct SurgeRelayRuntimeHost<Content: View>: View {
-    let model: AppModel
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        content()
-            .task {
-                await model.start()
-            }
-    }
-}
-
 @main
 struct SurgeRelayApp: App {
     @NSApplicationDelegateAdaptor(SurgeRelayAppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model: AppModel
     private let updaterDelegate: SurgeRelayUpdaterDelegate
     private let updaterController: SPUStandardUpdaterController
 
     init() {
+        let model = AppModel()
+        _model = State(initialValue: model)
         let updaterDelegate = SurgeRelayUpdaterDelegate()
         self.updaterDelegate = updaterDelegate
         updaterController = SPUStandardUpdaterController(
@@ -177,30 +168,16 @@ struct SurgeRelayApp: App {
             updaterDelegate: updaterDelegate,
             userDriverDelegate: nil
         )
+        Task { @MainActor in
+            await model.start()
+        }
     }
-
-    private var menuBarIconOpacity: Double {
-        guard model.deviceMode == .client else { return 1 }
-        return model.remoteConnectionState.shouldDimMenuBarIcon ? 0.35 : 1
-    }
-
-    private static let menuBarIcon: NSImage = {
-        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-        let image = NSImage(
-            systemSymbolName: "dot.radiowaves.left.and.right",
-            accessibilityDescription: "Surge Relay"
-        )?.withSymbolConfiguration(configuration) ?? NSImage()
-        image.isTemplate = true
-        return image
-    }()
 
     var body: some Scene {
         Window("Surge Relay", id: SurgeRelayWindow.main) {
-            SurgeRelayRuntimeHost(model: model) {
-                RootView()
-                    .environment(model)
-                    .environment(\.locale, Locale(identifier: "zh_CN"))
-            }
+            RootView()
+                .environment(model)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
             .frame(minWidth: 920, minHeight: 640)
             .background(MenuBarStatusHost(
                 isEnabled: model.deviceMode == .server,

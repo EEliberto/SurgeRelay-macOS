@@ -55,6 +55,8 @@ const ui = {
   ,airportPreviewDialog: document.querySelector('#airport-preview-dialog')
   ,airportPreviewTitle: document.querySelector('#airport-preview-title')
   ,airportPreviewContent: document.querySelector('#airport-preview-content')
+  ,airportPreviewSummary: document.querySelector('#airport-preview-summary')
+  ,airportPreviewRows: document.querySelector('#airport-preview-rows')
 };
 
 const scriptHubDefaults = {
@@ -269,6 +271,8 @@ ui.airportPreviewDialog?.addEventListener('click', event => { if (event.target =
 [ui.moduleDialog, ui.settingsDialog, ui.confirmDialog, ui.iconDialog, ui.airportDialog, ui.configurationDialog, ui.airportPreviewDialog].forEach(dialog => dialog?.addEventListener('close', unlockDialogScrollIfIdle));
 ui.moduleForm.addEventListener('submit', saveModule);
 ui.airportForm?.addEventListener('submit', saveAirport);
+ui.airportForm?.elements.optimizeNodeNames?.addEventListener('change', syncAirportNameOptimizationControls);
+ui.airportForm?.elements.nodeSortOrder?.addEventListener('change', syncAirportProcessingControls);
 ui.configurationForm?.addEventListener('submit', saveConfiguration);
 ui.confirmCancel.addEventListener('click', () => resolveConfirmation(false));
 ui.confirmAccept.addEventListener('click', () => resolveConfirmation(true));
@@ -1787,10 +1791,49 @@ function openAirportEditor(airport = null) {
   form.name.value = airport?.name || '';
   form.sourceURL.value = airport?.sourceURL || '';
   form.policyRegexFilter.value = airport?.policyRegexFilter || '';
+  form.nodeNameTemplate.value = airport?.nodeNameTemplate || '';
+  const processing = airport?.nodeProcessing || {};
+  form.filtersMetadataNodes.checked = processing.filtersMetadataNodes ?? true;
+  form.includeKeywords.value = (processing.includeKeywords || []).join(', ');
+  form.excludeKeywords.value = (processing.excludeKeywords || []).join(', ');
+  form.nodeSortOrder.value = processing.sortOrder || 'original';
+  form.sortPriorityKeywords.value = (processing.sortPriorityKeywords || []).join(', ');
+  form.udpRelay.value = processing.udpRelay || 'inherit';
+  form.tcpFastOpen.value = processing.tcpFastOpen || 'inherit';
+  form.skipCertificateVerification.value = processing.skipCertificateVerification || 'inherit';
+  form.optimizeNodeNames.checked = airport?.nodeNameOptimization?.isEnabled ?? true;
+  form.removeNodeNameEmoji.checked = airport?.nodeNameOptimization?.removesEmoji ?? true;
+  form.nodeNameRemovalTerms.value = airport?.nodeNameOptimization?.removalTerms || 'IEPL, IPEL, 专线';
   form.iconURL.value = airport?.iconURL || '';
   form.isEnabled.checked = airport?.isEnabled ?? true;
+  syncAirportNameOptimizationControls();
+  syncAirportProcessingControls();
   openDialog(ui.airportDialog);
   setTimeout(() => (airport ? form.name : form.sourceURL).focus(), 180);
+}
+
+function syncAirportNameOptimizationControls() {
+  const form = ui.airportForm?.elements;
+  if (!form) return;
+  const disabled = !form.optimizeNodeNames.checked;
+  form.removeNodeNameEmoji.disabled = disabled;
+  form.nodeNameRemovalTerms.disabled = disabled;
+}
+
+function syncAirportProcessingControls() {
+  const form = ui.airportForm?.elements;
+  if (!form) return;
+  form.sortPriorityKeywords.disabled = form.nodeSortOrder.value !== 'keywordPriority';
+}
+
+function splitAirportKeywords(value) {
+  const seen = new Set();
+  return String(value || '').split(/[,，\n]/).map(item => item.trim()).filter(item => {
+    const key = item.toLocaleLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function saveAirport(event) {
@@ -1798,7 +1841,23 @@ async function saveAirport(event) {
   const form = ui.airportForm.elements;
   const payload = {
     name: form.name.value.trim(), sourceURL: form.sourceURL.value.trim(),
-    policyRegexFilter: form.policyRegexFilter.value.trim(), iconURL: form.iconURL.value.trim(),
+    policyRegexFilter: form.policyRegexFilter.value.trim(), nodeNameTemplate: form.nodeNameTemplate.value.trim(),
+    nodeNameOptimization: {
+      isEnabled: form.optimizeNodeNames.checked,
+      removesEmoji: form.removeNodeNameEmoji.checked,
+      removalTerms: form.nodeNameRemovalTerms.value.trim()
+    },
+    nodeProcessing: {
+      filtersMetadataNodes: form.filtersMetadataNodes.checked,
+      includeKeywords: splitAirportKeywords(form.includeKeywords.value),
+      excludeKeywords: splitAirportKeywords(form.excludeKeywords.value),
+      sortOrder: form.nodeSortOrder.value,
+      sortPriorityKeywords: splitAirportKeywords(form.sortPriorityKeywords.value),
+      udpRelay: form.udpRelay.value,
+      tcpFastOpen: form.tcpFastOpen.value,
+      skipCertificateVerification: form.skipCertificateVerification.value
+    },
+    iconURL: form.iconURL.value.trim(),
     isEnabled: form.isEnabled.checked
   };
   ui.saveAirport.disabled = true;
@@ -1860,8 +1919,15 @@ async function previewAirport(id) {
   const airport = state.airports?.subscriptions?.find(item => item.id === id);
   if (!airport) return;
   try {
-    const content = await api(`/api/airports/${id}/preview`);
+    const [content, processing] = await Promise.all([
+      api(`/api/airports/${id}/preview`),
+      api(`/api/airports/${id}/processing-preview`)
+    ]);
+    const records = processing.records || [];
+    const included = records.filter(record => record.outputName != null).length;
     ui.airportPreviewTitle.textContent = `${airport.name} 订阅预览`;
+    ui.airportPreviewSummary.textContent = `保留 ${included} 个，过滤 ${records.length - included} 个`;
+    ui.airportPreviewRows.innerHTML = records.map(record => `<tr class="${record.outputName == null ? 'is-filtered' : ''}"><td>${escapeHTML(record.originalName)}</td><td>${record.outputName == null ? '—' : escapeHTML(record.outputName)}</td><td>${escapeHTML(record.status)}</td></tr>`).join('');
     ui.airportPreviewContent.textContent = content;
     openDialog(ui.airportPreviewDialog);
   } catch (error) { showToast(error.message, true); }

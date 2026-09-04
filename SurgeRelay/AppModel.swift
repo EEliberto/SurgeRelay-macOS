@@ -163,9 +163,9 @@ final class AppModel {
         }
 
         if PersistenceStore.configurationFilesNeedDownload {
-            statusMessage = "正在等待 iCloud 配置下载…"
+            statusMessage = "正在等待配置文件可用…"
             guard await PersistenceStore.waitForConfigurationFiles() else {
-                presentedError = "iCloud 配置尚未下载完成。App 已暂停写入，将在网络恢复或下次打开时重试。"
+                presentedError = "配置文件尚未就绪。App 已暂停写入，将在下次打开时重试。"
                 return
             }
             reloadConfigurationFromSelectedDirectory()
@@ -184,7 +184,7 @@ final class AppModel {
                     do {
                         try prepareDefaultConfigurationDestination()
                     } catch {
-                        configurationWelcomeError = "无法准备 iCloud 云盘中的 Surge Relay 文件夹：\(error.localizedDescription)"
+                        configurationWelcomeError = "无法准备 Application Support 存储：\(error.localizedDescription)"
                     }
                 } else {
                     configurationWelcomeLoadedExistingConfiguration = PersistenceStore.initialSetupLoadedExistingConfiguration
@@ -268,14 +268,13 @@ final class AppModel {
             filePath: AppSettings.defaultSurgeDirectory,
             directoryHint: .isDirectory
         ).standardizedFileURL
-        let configurationDirectory = AppSettings.configurationDirectory(forSurgeDirectory: surgeDirectory)
-        try PersistenceStore.selectConfigurationDirectory(configurationDirectory.path)
+        try PersistenceStore.prepareLocalStorage()
         reloadConfigurationFromSelectedDirectory()
         settings.localModuleDirectory = surgeDirectory.path
         saveSettings()
         configurationWelcomeLoadedExistingConfiguration = configurationExistedBeforeLaunch
         PersistenceStore.setInitialSetupLoadedExistingConfiguration(configurationExistedBeforeLaunch)
-        statusMessage = configurationExistedBeforeLaunch ? "已读取 Surge Relay 中的现有配置" : "已准备 iCloud 云盘存储"
+        statusMessage = configurationExistedBeforeLaunch ? "已读取 Surge Relay 的现有配置" : "已准备本地 App 存储"
     }
 
     func completeConfigurationWelcome(storageMode: StorageMode) async -> Bool {
@@ -424,7 +423,7 @@ final class AppModel {
             return
         }
         PersistenceStore.saveSettings(settings)
-        statusMessage = githubToken.isEmpty ? "GitHub Token 已从同步配置移除" : "GitHub Token 已保存到 iCloud 配置"
+        statusMessage = githubToken.isEmpty ? "GitHub Token 已移除" : "GitHub Token 已保存到本机配置"
     }
 
     func pushRemoteScriptHubSettings() async {

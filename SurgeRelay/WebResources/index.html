@@ -127,9 +127,32 @@
         <section class="editor-section"><h3>订阅</h3><div class="editor-group">
           <label class="form-row"><span>订阅链接</span><input name="sourceURL" type="url" required placeholder="https://example.com/subscription"></label>
         </div></section>
+        <section class="editor-section"><h3>节点筛选</h3><div class="editor-group">
+          <label class="form-row switch-row"><span>过滤流量、到期等信息节点</span><input name="filtersMetadataNodes" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+          <label class="form-row"><span>只保留包含</span><input name="includeKeywords" type="text" placeholder="多个关键词用逗号分隔"></label>
+          <label class="form-row"><span>排除包含</span><input name="excludeKeywords" type="text" placeholder="多个关键词用逗号分隔"></label>
+          <label class="form-row"><span>高级正则</span><input name="policyRegexFilter" type="text" placeholder="留空则不使用"></label>
+        </div></section>
+        <section class="editor-section"><h3>节点排序</h3><div class="editor-group">
+          <label class="form-row"><span>排序方式</span><select name="nodeSortOrder"><option value="original">订阅原始顺序</option><option value="nameAscending">名称升序</option><option value="nameDescending">名称降序</option><option value="keywordPriority">关键词优先级</option></select></label>
+          <label class="form-row"><span>优先级关键词</span><input name="sortPriorityKeywords" type="text" placeholder="依次填写香港、日本…"></label>
+        </div></section>
+        <section class="editor-section"><h3>代理属性</h3><div class="editor-group">
+          <label class="form-row"><span>UDP Relay</span><select name="udpRelay"><option value="inherit">跟随订阅</option><option value="enabled">开启</option><option value="disabled">关闭</option></select></label>
+          <label class="form-row"><span>TCP Fast Open</span><select name="tcpFastOpen"><option value="inherit">跟随订阅</option><option value="enabled">开启</option><option value="disabled">关闭</option></select></label>
+          <label class="form-row"><span>跳过证书验证</span><select name="skipCertificateVerification"><option value="inherit">跟随订阅</option><option value="enabled">开启</option><option value="disabled">关闭</option></select></label>
+          <p class="form-hint">仅对支持该参数的代理协议生效。</p>
+        </div></section>
         <section class="editor-section"><h3>可选参数</h3><div class="editor-group">
-          <label class="form-row"><span>节点过滤正则</span><input name="policyRegexFilter" type="text" placeholder="留空则保留全部节点"></label>
+          <label class="form-row"><span>节点名称模板</span><input name="nodeNameTemplate" type="text" placeholder="例如 {airport} - {name}"></label>
+          <p class="form-hint">使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。</p>
           <label class="form-row"><span>图标地址</span><input name="iconURL" type="url" placeholder="https://example.com/icon.png"></label>
+        </div></section>
+        <section class="editor-section"><h3>节点名称优化</h3><div class="editor-group">
+          <label class="form-row switch-row"><span>自动优化节点名称</span><input name="optimizeNodeNames" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+          <label class="form-row switch-row"><span>移除 Emoji 与国旗</span><input name="removeNodeNameEmoji" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+          <label class="form-row"><span>移除关键词</span><input name="nodeNameRemovalTerms" type="text" placeholder="IEPL, IPEL, 专线" value="IEPL, IPEL, 专线"></label>
+          <p class="form-hint">使用逗号分隔，不区分大小写；重名节点会自动追加序号。</p>
         </div></section>
       </div>
       <div class="dialog-message" id="airport-dialog-message" role="alert" hidden></div>
@@ -153,7 +176,11 @@
 
   <dialog id="airport-preview-dialog" class="sheet-dialog airport-preview-dialog">
     <div class="dialog-header"><div><h2 id="airport-preview-title">订阅预览</h2></div><button class="icon-button close-airport-preview-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button></div>
-    <div class="airport-preview-content"><pre id="airport-preview-content"></pre></div>
+    <div class="airport-preview-content">
+      <p class="airport-preview-summary" id="airport-preview-summary"></p>
+      <div class="airport-preview-table-wrap"><table class="airport-preview-table"><thead><tr><th>原始名称</th><th>处理后</th><th>结果</th></tr></thead><tbody id="airport-preview-rows"></tbody></table></div>
+      <details class="airport-preview-source"><summary>原始订阅</summary><pre id="airport-preview-content"></pre></details>
+    </div>
     <div class="dialog-actions"><button class="button secondary close-airport-preview-dialog" type="button">完成</button></div>
   </dialog>
 

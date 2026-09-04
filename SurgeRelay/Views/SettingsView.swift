@@ -265,9 +265,9 @@ struct SettingsView: View {
         Form {
             Section("配置目录") {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("配置与同步目录")
+                    Text("App 数据目录")
                     HStack(spacing: 10) {
-                        Text("iCloud/Surge/Surge Relay")
+                        Text("~/Library/Application Support/Surge Relay")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
@@ -285,7 +285,7 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         .help("在 Finder 中显示")
                     }
-                    Text("Surge Relay 的配置与同步状态保存在 iCloud 云盘中。")
+                    Text("设置、缓存与历史记录保存在本机；iCloud 的 Surge 文件夹只保留生成的模块。")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -547,7 +547,7 @@ struct SettingsView: View {
                         storageProviderSummary(
                             assetName: "iCloudIcon",
                             title: "通过 iCloud 保持 Surge Relay 同步",
-                            detail: "汇总模块保存在 iCloud 云盘的 Surge 文件夹中，配置与同步状态由 Surge Relay 管理。"
+                            detail: "生成模块保存在 iCloud 云盘的 Surge 文件夹中；App 私有数据留在本机 Application Support。"
                         )
 
                         if showsStableICloudStatus {

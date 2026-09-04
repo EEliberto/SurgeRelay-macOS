@@ -15,6 +15,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     private var openMainWindowAction: (() -> Void)?
     private var openSettingsWindowAction: (() -> Void)?
 
+    /// Installs the status item before SwiftUI creates a window scene. Login-item
+    /// launches can otherwise remain dormant until the user activates the Dock icon.
+    func prepare(isEnabled: Bool) {
+        guard isEnabled else { return }
+        installStatusItemIfNeeded()
+    }
+
     func configure(
         isEnabled: Bool,
         model: AppModel,
@@ -34,6 +41,10 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
             }
             return
         }
+        installStatusItemIfNeeded()
+    }
+
+    private func installStatusItemIfNeeded() {
         guard statusItem == nil else { return }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -53,8 +64,14 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        guard let model else { return }
         menu.removeAllItems()
+
+        guard let model else {
+            menu.addItem(actionItem("打开 Surge Relay", action: #selector(openMainWindow)))
+            menu.addItem(.separator())
+            menu.addItem(actionItem("退出 Surge Relay", action: #selector(terminateCompletely)))
+            return
+        }
 
         let status = NSMenuItem(title: webServerStatus(model), action: nil, keyEquivalent: "")
         status.isEnabled = false
@@ -122,7 +139,13 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openMainWindow() {
-        openMainWindowAction?()
+        if let openMainWindowAction {
+            openMainWindowAction()
+            return
+        }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+        NSApp.windows.first(where: { $0.canBecomeMain && $0.level == .normal })?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func openSettingsWindow() {
@@ -167,7 +190,7 @@ struct MenuBarStatusHost: View {
             }
             window?.deminiaturize(nil)
             window?.level = .normal
-            NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+            NSRunningApplication.current.activate(options: [.activateAllWindows])
             window?.makeKeyAndOrderFront(nil)
             window?.orderFrontRegardless()
         }
