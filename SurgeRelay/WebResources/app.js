@@ -55,6 +55,8 @@ const ui = {
   ,airportPreviewDialog: document.querySelector('#airport-preview-dialog')
   ,airportPreviewTitle: document.querySelector('#airport-preview-title')
   ,airportPreviewContent: document.querySelector('#airport-preview-content')
+  ,airportPreviewChanges: document.querySelector('#airport-preview-changes')
+  ,airportPreviewRefresh: document.querySelector('#airport-preview-refresh')
   ,airportPreviewSummary: document.querySelector('#airport-preview-summary')
   ,airportPreviewRows: document.querySelector('#airport-preview-rows')
 };
@@ -141,6 +143,8 @@ let detailTab = 'info';
 let editingID = null;
 let editingAirportID = null;
 let editingConfigurationID = null;
+let previewingAirportID = null;
+let airportPreviewMode = 'changes';
 /** @type {{ moduleID: string, arguments: Array<{key: string, defaultValue: string, value: string}>, help: string|null } | null} */
 let moduleArgumentsState = null;
 let moduleArgumentsLoadToken = 0;
@@ -267,7 +271,18 @@ ui.moduleDialog.addEventListener('click', event => { if (event.target === ui.mod
 ui.iconDialog.addEventListener('click', event => { if (event.target === ui.iconDialog) closeDialog(ui.iconDialog); });
 ui.airportDialog?.addEventListener('click', event => { if (event.target === ui.airportDialog) closeDialog(ui.airportDialog); });
 ui.configurationDialog?.addEventListener('click', event => { if (event.target === ui.configurationDialog) closeDialog(ui.configurationDialog); });
-ui.airportPreviewDialog?.addEventListener('click', event => { if (event.target === ui.airportPreviewDialog) closeDialog(ui.airportPreviewDialog); });
+ui.airportPreviewDialog?.addEventListener('click', event => {
+  if (event.target === ui.airportPreviewDialog) {
+    closeDialog(ui.airportPreviewDialog);
+    return;
+  }
+  const modeButton = event.target.closest('[data-airport-preview-mode]');
+  if (modeButton) {
+    setAirportPreviewMode(modeButton.dataset.airportPreviewMode);
+    return;
+  }
+  if (event.target.closest('#airport-preview-refresh')) refreshAirportPreview();
+});
 [ui.moduleDialog, ui.settingsDialog, ui.confirmDialog, ui.iconDialog, ui.airportDialog, ui.configurationDialog, ui.airportPreviewDialog].forEach(dialog => dialog?.addEventListener('close', unlockDialogScrollIfIdle));
 ui.moduleForm.addEventListener('submit', saveModule);
 ui.airportForm?.addEventListener('submit', saveAirport);
@@ -1151,6 +1166,11 @@ async function handleDetailClick(event) {
   const source = event.target.closest('[data-action]');
   const action = source?.dataset.action;
   if (!action) return;
+  if (source.disabled) return;
+  if (state.isClientMode === true && ['add-configuration', 'edit-configuration', 'delete-configuration'].includes(action)) {
+    showToast('请前往服务器端进行设置', true);
+    return;
+  }
   const module = state.modules.find(item => item.id === selectedID);
   switch (action) {
   case 'add-airport': openAirportEditor(); break;
@@ -1238,6 +1258,10 @@ async function handleDetailChange(event) {
   }
   const configurationToggle = event.target.closest('[data-configuration-toggle]');
   if (configurationToggle) {
+    if (configurationToggle.disabled || state.isClientMode === true) {
+      configurationToggle.checked = !configurationToggle.checked;
+      return;
+    }
     try {
       const result = await api(`/api/airports/configurations/${configurationToggle.dataset.configurationToggle}/enabled`, { method: 'POST', json: { enabled: configurationToggle.checked } });
       showToast(result.message);
@@ -2012,6 +2036,9 @@ async function refreshAirport(id, button) {
 async function previewAirport(id) {
   const airport = state.airports?.subscriptions?.find(item => item.id === id);
   if (!airport) return;
+  previewingAirportID = id;
+  airportPreviewMode = 'changes';
+  setAirportPreviewMode('changes');
   try {
     const [content, processing] = await Promise.all([
       api(`/api/airports/${id}/preview`),
@@ -2019,12 +2046,53 @@ async function previewAirport(id) {
     ]);
     const records = processing.records || [];
     const included = records.filter(record => record.outputName != null).length;
-    ui.airportPreviewTitle.textContent = `${airport.name} 订阅预览`;
+    ui.airportPreviewTitle.textContent = airport.name;
     ui.airportPreviewSummary.textContent = `保留 ${included} 个，过滤 ${records.length - included} 个`;
     ui.airportPreviewRows.innerHTML = records.map(record => `<tr class="${record.outputName == null ? 'is-filtered' : ''}"><td>${escapeHTML(record.originalName)}</td><td>${record.outputName == null ? '—' : escapeHTML(record.outputName)}</td><td>${escapeHTML(record.status)}</td></tr>`).join('');
     ui.airportPreviewContent.textContent = content;
     openDialog(ui.airportPreviewDialog);
   } catch (error) { showToast(error.message, true); }
+}
+
+function setAirportPreviewMode(mode) {
+  airportPreviewMode = mode === 'source' ? 'source' : 'changes';
+  if (ui.airportPreviewChanges) ui.airportPreviewChanges.hidden = airportPreviewMode !== 'changes';
+  if (ui.airportPreviewContent) ui.airportPreviewContent.hidden = airportPreviewMode !== 'source';
+  if (ui.airportPreviewSummary) ui.airportPreviewSummary.hidden = airportPreviewMode !== 'changes';
+  ui.airportPreviewDialog?.querySelectorAll('[data-airport-preview-mode]').forEach(button => {
+    const selected = button.dataset.airportPreviewMode === airportPreviewMode;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+}
+
+async function refreshAirportPreview() {
+  const id = previewingAirportID;
+  const button = ui.airportPreviewRefresh;
+  if (!id || !button) return;
+  button.disabled = true;
+  button.classList.add('is-spinning');
+  try {
+    await api(`/api/airports/${id}/refresh`, { method: 'POST' });
+    const airport = state.airports?.subscriptions?.find(item => item.id === id);
+    const [content, processing] = await Promise.all([
+      api(`/api/airports/${id}/preview`),
+      api(`/api/airports/${id}/processing-preview`)
+    ]);
+    const records = processing.records || [];
+    const included = records.filter(record => record.outputName != null).length;
+    if (airport) ui.airportPreviewTitle.textContent = airport.name;
+    ui.airportPreviewSummary.textContent = `保留 ${included} 个，过滤 ${records.length - included} 个`;
+    ui.airportPreviewRows.innerHTML = records.map(record => `<tr class="${record.outputName == null ? 'is-filtered' : ''}"><td>${escapeHTML(record.originalName)}</td><td>${record.outputName == null ? '—' : escapeHTML(record.outputName)}</td><td>${escapeHTML(record.status)}</td></tr>`).join('');
+    ui.airportPreviewContent.textContent = content;
+    showToast('机场订阅已刷新');
+    await loadState(false, true);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.classList.remove('is-spinning');
+  }
 }
 
 async function deleteAirport(id) {

@@ -182,13 +182,20 @@
   </dialog>
 
   <dialog id="airport-preview-dialog" class="sheet-dialog airport-preview-dialog">
-    <div class="dialog-header"><div><h2 id="airport-preview-title">订阅预览</h2></div><button class="icon-button close-airport-preview-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button></div>
+    <div class="dialog-header airport-preview-header"><div><h2 id="airport-preview-title">订阅预览</h2></div></div>
     <div class="airport-preview-content">
       <p class="airport-preview-summary" id="airport-preview-summary"></p>
-      <div class="airport-preview-table-wrap"><table class="airport-preview-table"><thead><tr><th>原始名称</th><th>处理后</th><th>结果</th></tr></thead><tbody id="airport-preview-rows"></tbody></table></div>
-      <details class="airport-preview-source"><summary>原始订阅</summary><pre id="airport-preview-content"></pre></details>
+      <div class="airport-preview-table-wrap" id="airport-preview-changes"><table class="airport-preview-table"><thead><tr><th>原始名称</th><th>处理后</th><th>结果</th></tr></thead><tbody id="airport-preview-rows"></tbody></table></div>
+      <pre class="airport-preview-source" id="airport-preview-content" hidden></pre>
     </div>
-    <div class="dialog-actions"><button class="button secondary close-airport-preview-dialog" type="button">完成</button></div>
+    <div class="dialog-actions airport-preview-actions">
+      <div class="airport-preview-segmented" role="group" aria-label="预览内容">
+        <button class="button selected" data-airport-preview-mode="changes" type="button" aria-pressed="true">处理结果</button>
+        <button class="button" data-airport-preview-mode="source" type="button" aria-pressed="false">原始订阅</button>
+      </div>
+      <button class="button" id="airport-preview-refresh" type="button"><span class="symbol" data-symbol="refresh"></span>刷新</button>
+      <button class="button secondary close-airport-preview-dialog airport-preview-close" type="button">关闭</button>
+    </div>
   </dialog>
 
   <dialog id="settings-dialog" class="sheet-dialog settings-dialog">
