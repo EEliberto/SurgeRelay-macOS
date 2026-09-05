@@ -83,10 +83,7 @@ enum WebManagementAPI {
                 try await model.writeAirportSubscriptionsForCurrentMode()
                 return .json(ActionPayload(ok: true, message: "Surge 配置已写入。"))
             case ("POST", "/api/airports/configurations"):
-                try requireServerMode(model)
-                let mutation = try request.decodeBody(WebConfigurationMutation.self)
-                try model.addSurgeConfigurationTarget(path: mutation.path)
-                return .json(ActionPayload(ok: true, message: model.statusMessage), status: 201, reason: "Created")
+                throw WebAPIError.serverOnly
             case _ where request.path.hasPrefix("/api/airports/"):
                 return try await airportResponse(for: request, model: model)
             case ("POST", "/api/source/name"):
@@ -443,29 +440,7 @@ enum WebManagementAPI {
         }
 
         if components[2] == "configurations" {
-            try requireServerMode(model)
-            guard components.count >= 4, let id = UUID(uuidString: components[3]),
-                  model.surgeConfigurationTargets.contains(where: { $0.id == id }) else {
-                throw WebAPIError.configurationNotFound
-            }
-            if components.count == 4 {
-                switch request.method {
-                case "PUT":
-                    let mutation = try request.decodeBody(WebConfigurationMutation.self)
-                    try model.updateSurgeConfigurationTarget(id: id, path: mutation.path)
-                    return .json(ActionPayload(ok: true, message: model.statusMessage))
-                case "DELETE":
-                    model.removeSurgeConfigurationTarget(id: id)
-                    return .json(ActionPayload(ok: true, message: "配置文件已移除。"))
-                default: throw WebAPIError.methodNotAllowed
-                }
-            }
-            guard components.count == 5, components[4] == "enabled", request.method == "POST" else {
-                throw WebAPIError.methodNotAllowed
-            }
-            let payload = try request.decodeBody(WebEnabledRequest.self)
-            model.setSurgeConfigurationTargetEnabled(id: id, enabled: payload.enabled)
-            return .json(ActionPayload(ok: true, message: payload.enabled ? "已启用配置文件。" : "已停用配置文件。"))
+            throw WebAPIError.serverOnly
         }
 
         guard let id = UUID(uuidString: components[2]),
@@ -510,10 +485,6 @@ enum WebManagementAPI {
             return .json(WebAirportProcessingPreviewPayload(records: result.records))
         default: throw WebAPIError.methodNotAllowed
         }
-    }
-
-    private static func requireServerMode(_ model: AppModel) throws {
-        guard !model.isClientMode else { throw WebAPIError.serverOnly }
     }
 
     private static func statePayload(model: AppModel) -> WebStatePayload {
@@ -783,10 +754,6 @@ private struct WebAirportMutation: Decodable {
         if let isEnabled { draft.isEnabled = isEnabled }
         return draft
     }
-}
-
-private struct WebConfigurationMutation: Decodable {
-    let path: String
 }
 
 private struct WebOverridesPayload: Encodable {

@@ -592,7 +592,7 @@ function renderDetail(animate = true) {
   if (selectedID === 'airports') {
     ui.mobileTitle.textContent = '订阅汇总';
     if (ui.mobileTitleIcon) {
-      setTemplateHTML(ui.mobileTitleIcon, '<img src="/airport-subscription-icon.png?v=3" alt="">');
+      setTemplateHTML(ui.mobileTitleIcon, '<img src="/brand-icon.png?v=7" alt="">');
       ui.mobileTitleIcon.style.display = 'block';
     }
     ui.desktopTitle.textContent = '订阅汇总';
@@ -709,7 +709,6 @@ function renderAirportDetail(animate = true) {
   const overview = state.airports || { subscriptions: [], configurations: [], configurationPreview: '' };
   const subscriptions = overview.subscriptions || [];
   const configurations = overview.configurations || [];
-  const isClientMode = state.isClientMode === true;
   const canWrite = subscriptions.some(item => item.isEnabled && item.hasCache)
     && configurations.some(item => item.isEnabled);
   const toolbar = `<button class="icon-button airport-add-button" data-action="add-airport" type="button" aria-label="添加机场" title="添加机场"><span class="symbol" data-symbol="plus"></span></button>`;
@@ -745,16 +744,16 @@ function renderAirportDetail(animate = true) {
       <span class="symbol configuration-file-icon" data-symbol="doc.text"></span>
       <span class="airport-copy"><strong>${escapeHTML(fileName)}</strong><small>${escapeHTML(directory)}${configuration.lastWrittenAt ? ` · 写入于 ${escapeHTML(formatDate(configuration.lastWrittenAt))}` : ''}</small></span>
       <div class="airport-actions">
-        <label class="module-toggle"><input type="checkbox" data-configuration-toggle="${configuration.id}" ${configuration.isEnabled ? 'checked' : ''} ${isClientMode ? 'disabled' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
-        <button class="button" data-action="edit-configuration" data-configuration-id="${configuration.id}" type="button" ${isClientMode ? 'disabled' : ''}>编辑</button>
-        <button class="icon-button destructive-icon" data-action="delete-configuration" data-configuration-id="${configuration.id}" type="button" title="移除" aria-label="移除" ${isClientMode ? 'disabled' : ''}><span class="symbol" data-symbol="trash"></span></button>
+        <label class="module-toggle" aria-disabled="true"><input type="checkbox" data-configuration-toggle="${configuration.id}" ${configuration.isEnabled ? 'checked' : ''} disabled><span class="toggle-track" aria-hidden="true"></span></label>
+        <button class="button" data-action="edit-configuration" data-configuration-id="${configuration.id}" type="button" disabled>编辑</button>
+        <button class="icon-button destructive-icon" data-action="delete-configuration" data-configuration-id="${configuration.id}" type="button" title="请前往服务器端进行设置" aria-label="移除" disabled><span class="symbol" data-symbol="trash"></span></button>
       </div>
     </div>`;
   }).join('');
 
   const configurationSections = `<section class="form-section-view"><div class="section-heading-row"><h3 class="section-heading">Surge 配置</h3></div><div class="group-box configuration-list">
       ${configurationRows}
-      <div class="airport-section-actions"><div class="airport-action-leading"><button class="button" data-action="add-configuration" type="button" ${isClientMode ? 'disabled' : ''}>添加配置文件</button>${isClientMode ? '<span class="client-mode-inline-note">请前往服务器端进行设置</span>' : ''}</div><button class="button primary" data-action="write-airports" type="button" ${canWrite ? '' : 'disabled'}>写入配置</button></div>
+      <div class="airport-section-actions"><div class="airport-action-leading"><button class="button" data-action="add-configuration" type="button" disabled>添加配置文件</button><span class="client-mode-inline-note">请前往服务器端进行设置</span></div><button class="button primary" data-action="write-airports" type="button" ${canWrite ? '' : 'disabled'}>写入配置</button></div>
     </div></section>`;
   const configurationPreview = `<section class="form-section-view airport-configuration-preview"><div class="section-heading-row"><h3 class="section-heading">配置预览</h3></div><div class="group-box"><pre>${escapeHTML(overview.configurationPreview || '')}</pre></div></section>`;
 
@@ -1167,7 +1166,7 @@ async function handleDetailClick(event) {
   const action = source?.dataset.action;
   if (!action) return;
   if (source.disabled) return;
-  if (state.isClientMode === true && ['add-configuration', 'edit-configuration', 'delete-configuration'].includes(action)) {
+  if (['add-configuration', 'edit-configuration', 'delete-configuration'].includes(action)) {
     showToast('请前往服务器端进行设置', true);
     return;
   }
@@ -1258,18 +1257,8 @@ async function handleDetailChange(event) {
   }
   const configurationToggle = event.target.closest('[data-configuration-toggle]');
   if (configurationToggle) {
-    if (configurationToggle.disabled || state.isClientMode === true) {
-      configurationToggle.checked = !configurationToggle.checked;
-      return;
-    }
-    try {
-      const result = await api(`/api/airports/configurations/${configurationToggle.dataset.configurationToggle}/enabled`, { method: 'POST', json: { enabled: configurationToggle.checked } });
-      showToast(result.message);
-      await loadState(false, true);
-    } catch (error) {
-      configurationToggle.checked = !configurationToggle.checked;
-      showToast(error.message, true);
-    }
+    const configuration = state.airports?.configurations?.find(item => item.id === configurationToggle.dataset.configurationToggle);
+    if (configuration) configurationToggle.checked = configuration.isEnabled;
     return;
   }
   const platformToggle = event.target.closest('[data-platform-module-toggle]');

@@ -4,9 +4,9 @@
         <title>Surge Relay</title>
         <item>
             <title>260905</title>
-            <pubDate>Sat, 05 Sep 2026 18:35:00 +0800</pubDate>
+            <pubDate>Sat, 05 Sep 2026 18:58:28 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260905</link>
-            <sparkle:version>27090502</sparkle:version>
+            <sparkle:version>27090503</sparkle:version>
             <sparkle:shortVersionString>260905</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -20,7 +20,7 @@
 
 3.新增节点名称优化，可自动移除 Emoji、国旗以及 IEPL、IPEL、“专线”等无用文字，并自动处理重名节点。
 
-4.App 与 Web 端的机场设置和交互现已保持一致；重新发布版本进一步对齐处理预览的表格、隔行底色与底部操作栏，并修复 Web 客户端模式下配置管理控件仍可操作的问题。
+4.App 与 Web 端的机场设置和交互现已保持一致；Web 端除“写入配置”外，配置管理控件现已完全只读，并在接口层同步阻止修改。
 
 5.重新整理文件存储：App 私有配置和缓存迁移至 Application Support，iCloud 云盘只保留用于多设备同步的生成文件。
 
@@ -28,11 +28,11 @@
 
 7.修复服务器模式开机启动后菜单栏图标不会自动出现的问题。
 
-8.修复已知问题和多处 UI 显示错误，并清理相关 Swift 6 编译诊断。
+8.修复机场处理预览的异常焦点边框等 UI 显示错误，并统一移动 Web 端的 Surge Relay 品牌图标。
 
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Surge Relay 遇到任何问题，欢迎在 Github 提交 Issue。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260905/Surge-Relay-260905-build-27090502.dmg" length="23895458" type="application/octet-stream" sparkle:edSignature="IChJJHK44FRCFjmoOi+Ookf6+EPHMBLGjHbZAp/x6Qhb8ZQbmowkqu2V0DAXYe3LQN8703tLcib6csJhBxTNDQ=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260905/Surge-Relay-260905-build-27090503.dmg" length="23894048" type="application/octet-stream" sparkle:edSignature="T09VBrxmV/x7hRKZHLuAKUprnjhP/rMnjPAxUZEB0Hi+uOn+/0DRbqpDP9thWZAid2q4JHaocBJP2MsyElchCA=="/>
         </item>
         <item>
             <title>260904</title>

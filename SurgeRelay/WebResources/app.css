@@ -339,6 +339,13 @@ button { color: inherit; }
 .airport-preview-segmented .button.selected { background: var(--accent); color: #fff; }
 .airport-preview-actions > #airport-preview-refresh { margin-left: 6px; }
 .airport-preview-actions .airport-preview-close { margin-left: auto; }
+.airport-preview-dialog:focus,
+.airport-preview-dialog:focus-visible,
+.airport-preview-actions .button:focus,
+.airport-preview-actions .button:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
 .is-spinning .symbol { animation: spin 780ms linear infinite; }
 
 @media (max-width: 760px) {
