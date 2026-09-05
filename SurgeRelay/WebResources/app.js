@@ -273,6 +273,11 @@ ui.moduleForm.addEventListener('submit', saveModule);
 ui.airportForm?.addEventListener('submit', saveAirport);
 ui.airportForm?.elements.optimizeNodeNames?.addEventListener('change', syncAirportNameOptimizationControls);
 ui.airportForm?.elements.nodeSortOrder?.addEventListener('change', syncAirportProcessingControls);
+ui.airportForm?.elements.removeNodeNameEmoji?.addEventListener('change', updateAirportNameExample);
+ui.airportForm?.elements.nodeNameRemovalTerms?.addEventListener('input', updateAirportNameExample);
+ui.airportForm?.addEventListener('input', handleAirportKeywordInput);
+ui.airportForm?.addEventListener('click', handleAirportKeywordClick);
+ui.airportForm?.addEventListener('keydown', handleAirportKeywordKeyDown);
 ui.configurationForm?.addEventListener('submit', saveConfiguration);
 ui.confirmCancel.addEventListener('click', () => resolveConfirmation(false));
 ui.confirmAccept.addEventListener('click', () => resolveConfirmation(true));
@@ -689,6 +694,7 @@ function renderAirportDetail(animate = true) {
   const overview = state.airports || { subscriptions: [], configurations: [], configurationPreview: '' };
   const subscriptions = overview.subscriptions || [];
   const configurations = overview.configurations || [];
+  const isClientMode = state.isClientMode === true;
   const canWrite = subscriptions.some(item => item.isEnabled && item.hasCache)
     && configurations.some(item => item.isEnabled);
   const toolbar = `<button class="icon-button airport-add-button" data-action="add-airport" type="button" aria-label="添加机场" title="添加机场"><span class="symbol" data-symbol="plus"></span></button>`;
@@ -724,20 +730,23 @@ function renderAirportDetail(animate = true) {
       <span class="symbol configuration-file-icon" data-symbol="doc.text"></span>
       <span class="airport-copy"><strong>${escapeHTML(fileName)}</strong><small>${escapeHTML(directory)}${configuration.lastWrittenAt ? ` · 写入于 ${escapeHTML(formatDate(configuration.lastWrittenAt))}` : ''}</small></span>
       <div class="airport-actions">
-        <label class="module-toggle"><input type="checkbox" data-configuration-toggle="${configuration.id}" ${configuration.isEnabled ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
-        <button class="button" data-action="edit-configuration" data-configuration-id="${configuration.id}" type="button">编辑</button>
-        <button class="icon-button destructive-icon" data-action="delete-configuration" data-configuration-id="${configuration.id}" type="button" title="移除" aria-label="移除"><span class="symbol" data-symbol="trash"></span></button>
+        <label class="module-toggle"><input type="checkbox" data-configuration-toggle="${configuration.id}" ${configuration.isEnabled ? 'checked' : ''} ${isClientMode ? 'disabled' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
+        <button class="button" data-action="edit-configuration" data-configuration-id="${configuration.id}" type="button" ${isClientMode ? 'disabled' : ''}>编辑</button>
+        <button class="icon-button destructive-icon" data-action="delete-configuration" data-configuration-id="${configuration.id}" type="button" title="移除" aria-label="移除" ${isClientMode ? 'disabled' : ''}><span class="symbol" data-symbol="trash"></span></button>
       </div>
     </div>`;
   }).join('');
 
+  const configurationSections = `<section class="form-section-view"><div class="section-heading-row"><h3 class="section-heading">Surge 配置</h3></div><div class="group-box configuration-list">
+      ${configurationRows}
+      <div class="airport-section-actions"><div class="airport-action-leading"><button class="button" data-action="add-configuration" type="button" ${isClientMode ? 'disabled' : ''}>添加配置文件</button>${isClientMode ? '<span class="client-mode-inline-note">请前往服务器端进行设置</span>' : ''}</div><button class="button primary" data-action="write-airports" type="button" ${canWrite ? '' : 'disabled'}>写入配置</button></div>
+    </div></section>`;
+  const configurationPreview = `<section class="form-section-view airport-configuration-preview"><div class="section-heading-row"><h3 class="section-heading">配置预览</h3></div><div class="group-box"><pre>${escapeHTML(overview.configurationPreview || '')}</pre></div></section>`;
+
   setDetailHTML(`
     <section class="form-section-view"><div class="section-heading-row"><h3 class="section-heading">机场</h3></div><div class="group-box airport-list">${airportRows}</div></section>
-    <section class="form-section-view"><div class="section-heading-row"><h3 class="section-heading">Surge 配置</h3></div><div class="group-box configuration-list">
-      ${configurationRows}
-      <div class="airport-section-actions"><button class="button" data-action="add-configuration" type="button">添加配置文件</button><button class="button primary" data-action="write-airports" type="button" ${canWrite ? '' : 'disabled'}>写入配置</button></div>
-    </div></section>
-    <section class="form-section-view airport-configuration-preview"><div class="section-heading-row"><h3 class="section-heading">配置预览</h3></div><div class="group-box"><pre>${escapeHTML(overview.configurationPreview || '')}</pre></div></section>
+    ${configurationSections}
+    ${configurationPreview}
   `, animate);
 }
 
@@ -1794,10 +1803,10 @@ function openAirportEditor(airport = null) {
   form.nodeNameTemplate.value = airport?.nodeNameTemplate || '';
   const processing = airport?.nodeProcessing || {};
   form.filtersMetadataNodes.checked = processing.filtersMetadataNodes ?? true;
-  form.includeKeywords.value = (processing.includeKeywords || []).join(', ');
-  form.excludeKeywords.value = (processing.excludeKeywords || []).join(', ');
+  setAirportKeywords('includeKeywords', processing.includeKeywords || []);
+  setAirportKeywords('excludeKeywords', processing.excludeKeywords || []);
   form.nodeSortOrder.value = processing.sortOrder || 'original';
-  form.sortPriorityKeywords.value = (processing.sortPriorityKeywords || []).join(', ');
+  setAirportKeywords('sortPriorityKeywords', processing.sortPriorityKeywords || []);
   form.udpRelay.value = processing.udpRelay || 'inherit';
   form.tcpFastOpen.value = processing.tcpFastOpen || 'inherit';
   form.skipCertificateVerification.value = processing.skipCertificateVerification || 'inherit';
@@ -1818,12 +1827,19 @@ function syncAirportNameOptimizationControls() {
   const disabled = !form.optimizeNodeNames.checked;
   form.removeNodeNameEmoji.disabled = disabled;
   form.nodeNameRemovalTerms.disabled = disabled;
+  ui.airportForm.querySelectorAll('[data-airport-optimization-dependent]').forEach(element => {
+    element.hidden = disabled;
+  });
+  const footer = form.optimizeNodeNames.closest('.editor-section')?.querySelector('.section-footer');
+  if (footer) footer.hidden = disabled;
+  updateAirportNameExample();
 }
 
 function syncAirportProcessingControls() {
   const form = ui.airportForm?.elements;
   if (!form) return;
-  form.sortPriorityKeywords.disabled = form.nodeSortOrder.value !== 'keywordPriority';
+  const editor = ui.airportForm.querySelector('[data-keyword-editor="sortPriorityKeywords"]');
+  if (editor) editor.hidden = form.nodeSortOrder.value !== 'keywordPriority';
 }
 
 function splitAirportKeywords(value) {
@@ -1834,6 +1850,84 @@ function splitAirportKeywords(value) {
     seen.add(key);
     return true;
   });
+}
+
+function setAirportKeywords(name, keywords) {
+  const editor = ui.airportForm?.querySelector(`[data-keyword-editor="${name}"]`);
+  if (!editor) return;
+  const values = splitAirportKeywords(Array.isArray(keywords) ? keywords.join(',') : keywords);
+  editor.querySelector(`input[name="${name}"]`).value = values.join(', ');
+  const input = editor.querySelector('[data-keyword-input]');
+  if (input) input.value = '';
+  renderAirportKeywordEditor(editor);
+}
+
+function renderAirportKeywordEditor(editor) {
+  const name = editor.dataset.keywordEditor;
+  const values = splitAirportKeywords(editor.querySelector(`input[name="${name}"]`).value);
+  const chips = editor.querySelector('[data-keyword-chips]');
+  chips.hidden = values.length === 0;
+  chips.innerHTML = values.map((value, index) => `
+    <span class="keyword-chip"><span>${escapeHTML(value)}</span><button type="button" data-keyword-remove="${index}" aria-label="移除关键词 ${escapeHTML(value)}">×</button></span>
+  `).join('');
+  const input = editor.querySelector('[data-keyword-input]');
+  editor.querySelector('[data-keyword-add]').disabled = !input.value.trim();
+}
+
+function addAirportKeyword(editor) {
+  const name = editor.dataset.keywordEditor;
+  const hiddenInput = editor.querySelector(`input[name="${name}"]`);
+  const input = editor.querySelector('[data-keyword-input]');
+  const value = input.value.trim();
+  if (!value) return;
+  const values = splitAirportKeywords(hiddenInput.value);
+  if (!values.some(item => item.localeCompare(value, undefined, { sensitivity: 'accent' }) === 0)) values.push(value);
+  hiddenInput.value = values.join(', ');
+  input.value = '';
+  renderAirportKeywordEditor(editor);
+  input.focus();
+}
+
+function handleAirportKeywordInput(event) {
+  const editor = event.target.closest('[data-keyword-editor]');
+  if (editor && event.target.matches('[data-keyword-input]')) renderAirportKeywordEditor(editor);
+}
+
+function handleAirportKeywordClick(event) {
+  const editor = event.target.closest('[data-keyword-editor]');
+  if (!editor) return;
+  if (event.target.closest('[data-keyword-add]')) {
+    addAirportKeyword(editor);
+    return;
+  }
+  const removeButton = event.target.closest('[data-keyword-remove]');
+  if (!removeButton) return;
+  const name = editor.dataset.keywordEditor;
+  const hiddenInput = editor.querySelector(`input[name="${name}"]`);
+  const values = splitAirportKeywords(hiddenInput.value);
+  values.splice(Number(removeButton.dataset.keywordRemove), 1);
+  hiddenInput.value = values.join(', ');
+  renderAirportKeywordEditor(editor);
+}
+
+function handleAirportKeywordKeyDown(event) {
+  if (event.key !== 'Enter' || !event.target.matches('[data-keyword-input]')) return;
+  event.preventDefault();
+  addAirportKeyword(event.target.closest('[data-keyword-editor]'));
+}
+
+function updateAirportNameExample() {
+  const form = ui.airportForm?.elements;
+  const output = ui.airportForm?.querySelector('[data-airport-example-optimized]');
+  if (!form || !output) return;
+  let name = '🇭🇰 香港实验性 IEPL 专线 1';
+  if (form.removeNodeNameEmoji.checked) name = name.replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D]/gu, '');
+  const terms = splitAirportKeywords(form.nodeNameRemovalTerms.value).sort((left, right) => right.length - left.length);
+  terms.forEach(term => {
+    name = name.replace(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
+  });
+  name = name.replace(/\[\s*\]|\(\s*\)|【\s*】|（\s*）/g, ' ').replace(/\s+/g, ' ').replace(/^[\s\-–—_|/·•]+|[\s\-–—_|/·•]+$/g, '');
+  output.textContent = name || '节点';
 }
 
 async function saveAirport(event) {

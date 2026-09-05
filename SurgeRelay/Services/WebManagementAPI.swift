@@ -80,9 +80,10 @@ enum WebManagementAPI {
                 try model.addAirportSubscription(from: mutation.draft())
                 return .json(ActionPayload(ok: true, message: model.statusMessage), status: 201, reason: "Created")
             case ("POST", "/api/airports/write"):
-                let count = try model.writeAirportSubscriptionsToEnabledConfigurations()
-                return .json(ActionPayload(ok: true, message: "已写入 \(count) 个 Surge 配置。"))
+                try await model.writeAirportSubscriptionsForCurrentMode()
+                return .json(ActionPayload(ok: true, message: "Surge 配置已写入。"))
             case ("POST", "/api/airports/configurations"):
+                try requireServerMode(model)
                 let mutation = try request.decodeBody(WebConfigurationMutation.self)
                 try model.addSurgeConfigurationTarget(path: mutation.path)
                 return .json(ActionPayload(ok: true, message: model.statusMessage), status: 201, reason: "Created")
@@ -442,6 +443,7 @@ enum WebManagementAPI {
         }
 
         if components[2] == "configurations" {
+            try requireServerMode(model)
             guard components.count >= 4, let id = UUID(uuidString: components[3]),
                   model.surgeConfigurationTargets.contains(where: { $0.id == id }) else {
                 throw WebAPIError.configurationNotFound
@@ -510,6 +512,10 @@ enum WebManagementAPI {
         }
     }
 
+    private static func requireServerMode(_ model: AppModel) throws {
+        guard !model.isClientMode else { throw WebAPIError.serverOnly }
+    }
+
     private static func statePayload(model: AppModel) -> WebStatePayload {
         let newestUpdate = model.modules.compactMap(\.lastUpdatedAt).max()
         let platforms = RelayPlatform.allCases.map { platform in
@@ -530,6 +536,7 @@ enum WebManagementAPI {
             )
         }
         return WebStatePayload(
+            isClientMode: model.isClientMode,
             storageMode: model.settings.storageMode.rawValue,
             settings: settingsPayload(model: model),
             combined: WebCombinedPayload(
@@ -712,6 +719,7 @@ enum WebManagementAPI {
 }
 
 private struct WebStatePayload: Encodable {
+    let isClientMode: Bool
     let storageMode: String
     let settings: WebSettingsPayload
     let combined: WebCombinedPayload
@@ -1003,11 +1011,13 @@ private enum WebAPIError: LocalizedError {
     case airportNotFound
     case configurationNotFound
     case airportCacheMissing
+    case serverOnly
 
     var status: Int {
         switch self {
         case .moduleNotFound, .airportNotFound, .configurationNotFound, .airportCacheMissing: 404
         case .methodNotAllowed: 405
+        case .serverOnly: 403
         default: 400
         }
     }
@@ -1026,6 +1036,7 @@ private enum WebAPIError: LocalizedError {
         case .airportNotFound: "找不到这个机场。"
         case .configurationNotFound: "找不到这个配置文件。"
         case .airportCacheMissing: "请先刷新机场订阅。"
+        case .serverOnly: "请前往服务器端进行设置。"
         }
     }
 }

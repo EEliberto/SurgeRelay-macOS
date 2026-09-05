@@ -283,6 +283,8 @@ button { color: inherit; }
   gap: 10px;
   border-top: 1px solid var(--separator);
 }
+.airport-action-leading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.client-mode-inline-note { color: var(--secondary-label); font-size: 12px; white-space: nowrap; }
 .airport-empty { min-height: 150px; padding: 24px; display: grid; place-items: center; align-content: center; gap: 10px; color: var(--secondary-label); }
 .airport-empty > .symbol { width: 30px; height: 30px; }
 .airport-configuration-preview pre, .airport-preview-content pre {
@@ -756,6 +758,32 @@ dialog.is-closing::backdrop { animation: backdrop-out 160ms ease forwards; }
 .form-row > span:first-child { font-weight: 500; }
 .form-row input:not([type="checkbox"]), .form-row select { width: 100%; min-width: 0; }
 .switch-row { grid-template-columns: minmax(0, 1fr) 36px; }
+.keyword-editor { margin: 0 13px; border-top: 1px solid var(--separator); }
+.keyword-editor > .form-row { min-height: 47px; margin: 0; padding: 7px 0; border-top: 0; }
+.keyword-entry { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 7px; }
+.keyword-entry input { text-align: left; }
+.keyword-add-button {
+  width: 36px; height: 30px; padding: 0; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--label) 5%, transparent); color: var(--secondary-label);
+  font: 22px/1 system-ui, sans-serif; cursor: pointer;
+}
+.keyword-add-button:disabled { opacity: .42; cursor: default; }
+.keyword-chips { padding: 0 0 9px 157px; display: flex; flex-wrap: wrap; gap: 6px; }
+.keyword-chip {
+  max-width: 100%; min-height: 24px; padding: 3px 6px 3px 9px; display: inline-flex; align-items: center; gap: 5px;
+  border-radius: 999px; background: color-mix(in srgb, var(--label) 7%, transparent); font-size: 12px;
+}
+.keyword-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.keyword-chip button { width: 16px; height: 16px; padding: 0; border: 0; background: transparent; color: var(--secondary-label); font-size: 14px; line-height: 16px; cursor: pointer; }
+.airport-disclosure { border-top: 1px solid var(--separator); }
+.airport-disclosure > summary { min-height: 47px; padding: 0 13px; display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-weight: 500; }
+.airport-disclosure > summary::-webkit-details-marker { display: none; }
+.airport-disclosure > summary .symbol { width: 10px; height: 10px; color: var(--secondary-label); transition: transform 180ms ease; }
+.airport-disclosure[open] > summary .symbol { transform: rotate(90deg); }
+.airport-disclosure > .form-row { margin: 0 13px; }
+.airport-name-example > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.airport-name-example > div > span { max-width: 100%; overflow: hidden; color: var(--secondary-label); text-overflow: ellipsis; white-space: nowrap; }
+.airport-name-example strong { font-weight: 600; }
 .switch-control {
   position: relative;
   width: 36px;
@@ -990,6 +1018,8 @@ body.initializing *, body.initializing *::before, body.initializing *::after {
   .icon-search-item { width: 64px; height: 64px; }
   .form-row { grid-template-columns: 1fr; gap: 6px; }
   .switch-row { grid-template-columns: minmax(0,1fr) 36px; }
+  .keyword-editor > .form-row { grid-template-columns: 1fr; }
+  .keyword-chips { padding-left: 0; }
   .dialog-actions { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
   .toast {
     bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));

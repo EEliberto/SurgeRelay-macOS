@@ -392,6 +392,11 @@ struct ModulesView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaPadding(.vertical, 1)
             .scrollEdgeEffectStyle(.hard, for: .top)
+            .background {
+                if #available(macOS 27.0, *) {
+                    DetailScrollEdgeEffectConfigurator(isActive: detailTab == .preview)
+                }
+            }
             .toolbar {
                 if selectionKind != nil {
                     ToolbarItem(placement: .navigation) {
@@ -546,6 +551,89 @@ struct ModulesView: View {
             Capsule()
                 .stroke(Color(nsColor: .separatorColor).opacity(0.18), lineWidth: 1)
         }
+    }
+}
+
+@available(macOS 27.0, *)
+private struct DetailScrollEdgeEffectConfigurator: NSViewRepresentable {
+    let isActive: Bool
+
+    func makeNSView(context: Context) -> DetailScrollEdgeEffectProbeView {
+        let view = DetailScrollEdgeEffectProbeView()
+        view.isActive = isActive
+        return view
+    }
+
+    func updateNSView(_ nsView: DetailScrollEdgeEffectProbeView, context: Context) {
+        nsView.isActive = isActive
+        nsView.scheduleUpdate()
+    }
+}
+
+@available(macOS 27.0, *)
+@MainActor
+private final class DetailScrollEdgeEffectProbeView: NSView {
+    var isActive = false
+    private weak var configuredItem: NSSplitViewItem?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        scheduleUpdate()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            restoreConfiguredItem()
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    func scheduleUpdate() {
+        DispatchQueue.main.async { [weak self] in
+            self?.applyPreferredStyle()
+        }
+    }
+
+    private func applyPreferredStyle() {
+        guard let rootController = window?.contentViewController,
+              let splitItem = splitViewItem(containing: self, in: rootController) else { return }
+
+        if configuredItem !== splitItem {
+            restoreConfiguredItem()
+            configuredItem = splitItem
+        }
+
+        let style: NSScrollEdgeEffectStyle = isActive ? .hard : .automatic
+        for controller in splitItem.topAlignedAccessoryViewControllers {
+            controller.preferredScrollEdgeEffectStyle = style
+        }
+    }
+
+    private func restoreConfiguredItem() {
+        guard let configuredItem else { return }
+        for controller in configuredItem.topAlignedAccessoryViewControllers {
+            controller.preferredScrollEdgeEffectStyle = .automatic
+        }
+        self.configuredItem = nil
+    }
+
+    private func splitViewItem(
+        containing view: NSView,
+        in controller: NSViewController
+    ) -> NSSplitViewItem? {
+        if let splitController = controller as? NSSplitViewController,
+           let item = splitController.splitViewItems.first(where: {
+               view === $0.viewController.view || view.isDescendant(of: $0.viewController.view)
+           }) {
+            return item
+        }
+
+        for child in controller.children {
+            if let item = splitViewItem(containing: view, in: child) {
+                return item
+            }
+        }
+        return nil
     }
 }
 

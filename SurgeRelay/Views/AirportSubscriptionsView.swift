@@ -49,6 +49,12 @@ struct AirportSubscriptionsView: View {
 
                 HStack {
                     Button("添加配置文件") { addConfigurationFiles() }
+                        .disabled(model.isClientMode)
+                    if model.isClientMode {
+                        Text("请前往服务器端进行设置")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
                     Button("写入配置") { confirmsWrite = true }
                         .buttonStyle(.borderedProminent)
@@ -237,7 +243,9 @@ struct AirportSubscriptionsView: View {
                 }
             ))
             .labelsHidden()
+            .disabled(model.isClientMode)
             Button("编辑") { targetEditorRoute = ConfigurationTargetEditorRoute(target: target) }
+                .disabled(model.isClientMode)
             Button(role: .destructive) {
                 Task {
                     do {
@@ -250,15 +258,13 @@ struct AirportSubscriptionsView: View {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
+            .disabled(model.isClientMode)
         }
         .padding(.vertical, 4)
     }
 
     private func addConfigurationFiles() {
-        if model.isClientMode {
-            targetEditorRoute = ConfigurationTargetEditorRoute(target: nil)
-            return
-        }
+        guard !model.isClientMode else { return }
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
@@ -390,51 +396,46 @@ private struct AirportSubscriptionPreview: View {
                         systemImage: "exclamationmark.triangle",
                         description: Text(errorMessage)
                     )
+                } else if previewMode == .source {
+                    WrappingPlainTextView(text: content)
+                } else if let processingError {
+                    ContentUnavailableView(
+                        "无法生成处理预览",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(processingError)
+                    )
                 } else {
-                    VStack(spacing: 0) {
-                        Picker("预览内容", selection: $previewMode) {
-                            Text("处理结果").tag(PreviewMode.changes)
-                            Text("原始订阅").tag(PreviewMode.source)
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .fixedSize()
-                        .padding(12)
-
-                        Divider()
-
-                        if previewMode == .source {
-                            WrappingPlainTextView(text: content)
-                        } else if let processingError {
-                            ContentUnavailableView(
-                                "无法生成处理预览",
-                                systemImage: "exclamationmark.triangle",
-                                description: Text(processingError)
-                            )
-                        } else {
-                            AirportNodeChangesTable(records: processingRecords)
-                        }
-                    }
+                    AirportNodeChangesTable(records: processingRecords)
                 }
             }
             .frame(minWidth: 720, minHeight: 520)
             .navigationTitle(subscription?.name ?? "订阅预览")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
-                }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    if let date = subscription?.lastUpdatedAt {
-                        Text("缓存于 \(date.formatted(date: .abbreviated, time: .shortened))")
-                            .foregroundStyle(.secondary)
+            .scrollEdgeEffectStyle(.hard, for: .vertical)
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                HStack(spacing: 12) {
+                    Picker("预览内容", selection: $previewMode) {
+                        Text("处理结果").tag(PreviewMode.changes)
+                        Text("原始订阅").tag(PreviewMode.source)
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+
                     Button {
                         Task { await refresh() }
                     } label: {
                         Label("刷新", systemImage: "arrow.clockwise")
                     }
                     .disabled(isRefreshing)
+
+                    Spacer(minLength: 0)
+
+                    Button("关闭") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
         }
         .task {
@@ -503,12 +504,12 @@ private struct AirportNodeChangesTable: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("保留 \(includedCount) 个，过滤 \(records.count - includedCount) 个")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
-                .padding(.top, 10)
+                .padding(.vertical, 10)
             Table(records) {
                 TableColumn("原始名称") { record in
                     Text(record.originalName)
@@ -584,10 +585,14 @@ private struct AirportSubscriptionEditor: View {
     @State private var draft: AirportSubscriptionDraft
     @State private var errorMessage: String?
     @State private var isSaving = false
+    @State private var isAdvancedRegexExpanded: Bool
 
     init(subscription: AirportSubscription?) {
         self.subscription = subscription
         _draft = State(initialValue: subscription.map(AirportSubscriptionDraft.init) ?? AirportSubscriptionDraft())
+        _isAdvancedRegexExpanded = State(
+            initialValue: !(subscription?.policyRegexFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        )
     }
 
     var body: some View {
@@ -612,12 +617,30 @@ private struct AirportSubscriptionEditor: View {
                         prompt: "例如 倍率",
                         keywords: $draft.nodeProcessing.excludeKeywords
                     )
-                    DisclosureGroup("高级正则") {
+                    Button {
+                        withAnimation(.snappy(duration: 0.24)) {
+                            isAdvancedRegexExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(isAdvancedRegexExpanded ? 90 : 0))
+                            Text("高级正则")
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+
+                    if isAdvancedRegexExpanded {
                         TextField(
                             "节点过滤正则",
                             text: $draft.policyRegexFilter,
                             prompt: Text("留空则不使用")
                         )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
                 Section("节点排序") {
@@ -634,18 +657,29 @@ private struct AirportSubscriptionEditor: View {
                         )
                     }
                 }
-                Section("代理属性") {
+                Section {
                     AirportProxyOptionsEditor(options: $draft.nodeProcessing)
+                } header: {
+                    Text("代理属性")
+                } footer: {
+                    Text("仅对支持该参数的代理协议生效；“跟随订阅”不会修改原始值。")
                 }
-                Section("可选参数") {
+                Section {
                     TextField("节点名称模板", text: $draft.nodeNameTemplate, prompt: Text("例如 {airport} - {name}"))
-                    Text("使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     TextField("图标地址", text: $draft.iconURL, prompt: Text("https://…"))
+                } header: {
+                    Text("可选参数")
+                } footer: {
+                    Text("使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。")
                 }
-                Section("节点名称优化") {
+                Section {
                     AirportNodeNameOptimizationEditor(optimization: $draft.nodeNameOptimization)
+                } header: {
+                    Text("节点名称优化")
+                } footer: {
+                    if draft.nodeNameOptimization.isEnabled {
+                        Text("使用逗号分隔，不区分大小写；重名节点会自动追加序号。")
+                    }
                 }
                 if let errorMessage {
                     Section {
@@ -700,7 +734,10 @@ private struct AirportKeywordListEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             LabeledContent(title) {
                 HStack(spacing: 6) {
-                    TextField(prompt, text: $pendingKeyword)
+                    TextField("", text: $pendingKeyword, prompt: Text(prompt))
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                         .onSubmit(addKeyword)
                     Button("添加", systemImage: "plus", action: addKeyword)
                         .labelStyle(.iconOnly)
@@ -751,9 +788,6 @@ private struct AirportProxyOptionsEditor: View {
         proxyOptionPicker("UDP Relay", selection: $options.udpRelay)
         proxyOptionPicker("TCP Fast Open", selection: $options.tcpFastOpen)
         proxyOptionPicker("跳过证书验证", selection: $options.skipCertificateVerification)
-        Text("仅对支持该参数的代理协议生效；“跟随订阅”不会修改原始值。")
-            .font(.caption)
-            .foregroundStyle(.secondary)
     }
 
     private func proxyOptionPicker(
@@ -786,9 +820,6 @@ private struct AirportNodeNameOptimizationEditor: View {
                 text: $optimization.removalTerms,
                 prompt: Text(AirportNodeNameOptimization.defaultRemovalTerms)
             )
-            Text("使用逗号分隔，不区分大小写。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
             LabeledContent("效果示例") {
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(exampleName)

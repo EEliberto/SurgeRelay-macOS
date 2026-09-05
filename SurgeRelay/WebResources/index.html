@@ -14,8 +14,8 @@
   <link rel="manifest" href="/manifest.webmanifest?v=7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Surge Relay">
-  <link rel="stylesheet" href="/app.css?v=76">
-  <script src="/app.js?v=85" defer></script>
+  <link rel="stylesheet" href="/app.css?v=80">
+  <script src="/app.js?v=93" defer></script>
 </head>
 <body class="initializing">
   <div class="app-shell">
@@ -121,39 +121,46 @@
       </div>
       <div class="form-content">
         <section class="editor-section"><h3>机场</h3><div class="editor-group">
-          <label class="form-row"><span>名称</span><input name="name" type="text" required placeholder="例如：FlowerCloud"></label>
+          <label class="form-row"><span>名称</span><input name="name" type="text" required placeholder="例如 FlowerCloud"></label>
           <label class="form-row switch-row"><span>写入 Surge 配置</span><input name="isEnabled" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
         </div></section>
         <section class="editor-section"><h3>订阅</h3><div class="editor-group">
-          <label class="form-row"><span>订阅链接</span><input name="sourceURL" type="url" required placeholder="https://example.com/subscription"></label>
+          <label class="form-row"><span>订阅链接</span><input name="sourceURL" type="url" required placeholder="https://…"></label>
         </div></section>
         <section class="editor-section"><h3>节点筛选</h3><div class="editor-group">
-          <label class="form-row switch-row"><span>过滤流量、到期等信息节点</span><input name="filtersMetadataNodes" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
-          <label class="form-row"><span>只保留包含</span><input name="includeKeywords" type="text" placeholder="多个关键词用逗号分隔"></label>
-          <label class="form-row"><span>排除包含</span><input name="excludeKeywords" type="text" placeholder="多个关键词用逗号分隔"></label>
-          <label class="form-row"><span>高级正则</span><input name="policyRegexFilter" type="text" placeholder="留空则不使用"></label>
+          <label class="form-row switch-row"><span>过滤流量、到期等订阅信息节点</span><input name="filtersMetadataNodes" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+          <div class="keyword-editor" data-keyword-editor="includeKeywords">
+            <div class="form-row"><span>只保留包含</span><div class="keyword-entry"><input data-keyword-input type="text" placeholder="例如 香港"><button class="keyword-add-button" data-keyword-add type="button" aria-label="添加只保留关键词">＋</button></div></div>
+            <input name="includeKeywords" type="hidden"><div class="keyword-chips" data-keyword-chips hidden></div>
+          </div>
+          <div class="keyword-editor" data-keyword-editor="excludeKeywords">
+            <div class="form-row"><span>排除包含</span><div class="keyword-entry"><input data-keyword-input type="text" placeholder="例如 倍率"><button class="keyword-add-button" data-keyword-add type="button" aria-label="添加排除关键词">＋</button></div></div>
+            <input name="excludeKeywords" type="hidden"><div class="keyword-chips" data-keyword-chips hidden></div>
+          </div>
+          <details class="airport-disclosure"><summary><span class="symbol" data-symbol="chevron.right"></span><span>高级正则</span></summary><label class="form-row"><span>节点过滤正则</span><input name="policyRegexFilter" type="text" placeholder="留空则不使用"></label></details>
         </div></section>
         <section class="editor-section"><h3>节点排序</h3><div class="editor-group">
           <label class="form-row"><span>排序方式</span><select name="nodeSortOrder"><option value="original">订阅原始顺序</option><option value="nameAscending">名称升序</option><option value="nameDescending">名称降序</option><option value="keywordPriority">关键词优先级</option></select></label>
-          <label class="form-row"><span>优先级关键词</span><input name="sortPriorityKeywords" type="text" placeholder="依次填写香港、日本…"></label>
+          <div class="keyword-editor" data-keyword-editor="sortPriorityKeywords">
+            <div class="form-row"><span>优先级</span><div class="keyword-entry"><input data-keyword-input type="text" placeholder="依次添加 香港、日本…"><button class="keyword-add-button" data-keyword-add type="button" aria-label="添加优先级关键词">＋</button></div></div>
+            <input name="sortPriorityKeywords" type="hidden"><div class="keyword-chips" data-keyword-chips hidden></div>
+          </div>
         </div></section>
         <section class="editor-section"><h3>代理属性</h3><div class="editor-group">
           <label class="form-row"><span>UDP Relay</span><select name="udpRelay"><option value="inherit">跟随订阅</option><option value="enabled">开启</option><option value="disabled">关闭</option></select></label>
           <label class="form-row"><span>TCP Fast Open</span><select name="tcpFastOpen"><option value="inherit">跟随订阅</option><option value="enabled">开启</option><option value="disabled">关闭</option></select></label>
           <label class="form-row"><span>跳过证书验证</span><select name="skipCertificateVerification"><option value="inherit">跟随订阅</option><option value="enabled">开启</option><option value="disabled">关闭</option></select></label>
-          <p class="form-hint">仅对支持该参数的代理协议生效。</p>
-        </div></section>
+        </div><p class="section-footer">仅对支持该参数的代理协议生效；“跟随订阅”不会修改原始值。</p></section>
         <section class="editor-section"><h3>可选参数</h3><div class="editor-group">
           <label class="form-row"><span>节点名称模板</span><input name="nodeNameTemplate" type="text" placeholder="例如 {airport} - {name}"></label>
-          <p class="form-hint">使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。</p>
-          <label class="form-row"><span>图标地址</span><input name="iconURL" type="url" placeholder="https://example.com/icon.png"></label>
-        </div></section>
+          <label class="form-row"><span>图标地址</span><input name="iconURL" type="url" placeholder="https://…"></label>
+        </div><p class="section-footer">使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。</p></section>
         <section class="editor-section"><h3>节点名称优化</h3><div class="editor-group">
           <label class="form-row switch-row"><span>自动优化节点名称</span><input name="optimizeNodeNames" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
-          <label class="form-row switch-row"><span>移除 Emoji 与国旗</span><input name="removeNodeNameEmoji" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
-          <label class="form-row"><span>移除关键词</span><input name="nodeNameRemovalTerms" type="text" placeholder="IEPL, IPEL, 专线" value="IEPL, IPEL, 专线"></label>
-          <p class="form-hint">使用逗号分隔，不区分大小写；重名节点会自动追加序号。</p>
-        </div></section>
+          <label class="form-row switch-row" data-airport-optimization-dependent><span>移除 Emoji 与国旗</span><input name="removeNodeNameEmoji" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+          <label class="form-row" data-airport-optimization-dependent><span>移除关键词</span><input name="nodeNameRemovalTerms" type="text" placeholder="IEPL, IPEL, 专线" value="IEPL, IPEL, 专线"></label>
+          <div class="form-row airport-name-example" data-airport-optimization-dependent><span>效果示例</span><div><span data-airport-example-original>🇭🇰 香港实验性 IEPL 专线 1</span><strong data-airport-example-optimized>香港实验性 1</strong></div></div>
+        </div><p class="section-footer">使用逗号分隔，不区分大小写；重名节点会自动追加序号。</p></section>
       </div>
       <div class="dialog-message" id="airport-dialog-message" role="alert" hidden></div>
       <div class="dialog-actions"><button class="button secondary close-airport-dialog" type="button">取消</button><button class="button primary" type="submit" id="save-airport-button">添加</button></div>
