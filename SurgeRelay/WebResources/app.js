@@ -2110,7 +2110,7 @@ async function deleteConfiguration(id) {
 }
 
 async function writeAirportConfigurations(button) {
-  if (!await askConfirmation('写入 Surge 配置？', '现有配置会保留，并在写入前创建备份。', '写入')) return;
+  if (!await askConfirmation('写入 Surge 配置？', '现有配置中的其他内容不会被修改。', '写入')) return;
   button.disabled = true;
   try {
     const result = await api('/api/airports/write', { method: 'POST' });

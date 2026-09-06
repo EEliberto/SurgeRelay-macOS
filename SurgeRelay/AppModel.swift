@@ -171,6 +171,10 @@ final class AppModel {
             reloadConfigurationFromSelectedDirectory()
         }
 
+        if deviceMode == .server {
+            removeLegacyAirportConfigurationBackups()
+        }
+
         let needsWelcome = !PersistenceStore.hasCompletedInitialSetup
             || (deviceMode == .client && !hasConfiguredRemoteServer)
 

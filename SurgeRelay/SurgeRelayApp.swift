@@ -94,6 +94,7 @@ final class SurgeRelayAppDelegate: NSObject, NSApplicationDelegate {
     private var launchedAsLoginItem = false
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.removeObject(forKey: "NSWindow Frame SurgeRelay.MainWindow")
         launchedAsLoginItem = Self.currentLaunchIsLoginItem
         NSApp.setActivationPolicy(launchedAsLoginItem ? .accessory : .regular)
         MenuBarStatusController.shared.prepare(isEnabled: RelayDeviceConfiguration.mode == .server)
@@ -192,6 +193,7 @@ struct SurgeRelayApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1100, height: 720)
+        .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.presented)
         .commands {
             SurgeRelayAppInfoCommands()

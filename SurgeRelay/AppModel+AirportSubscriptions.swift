@@ -306,10 +306,21 @@ extension AppModel {
             legacyHeader: "# 机场订阅汇总"
         )
 
-        let backupURL = configurationURL.appendingPathExtension("surge-relay-backup")
-        try Data(original.utf8).write(to: backupURL, options: .atomic)
         try Data(updated.utf8).write(to: configurationURL, options: .atomic)
+        try? FileManager.default.removeItem(at: legacyAirportConfigurationBackupURL(for: configurationURL))
         statusMessage = "已写入 \(configurationURL.lastPathComponent)"
+    }
+
+    func removeLegacyAirportConfigurationBackups() {
+        for target in surgeConfigurationTargets {
+            try? FileManager.default.removeItem(
+                at: legacyAirportConfigurationBackupURL(for: target.url)
+            )
+        }
+    }
+
+    private func legacyAirportConfigurationBackupURL(for configurationURL: URL) -> URL {
+        configurationURL.appendingPathExtension("surge-relay-backup")
     }
 
     private func apply(_ draft: AirportSubscriptionDraft, to subscription: inout AirportSubscription) {
