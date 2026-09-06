@@ -411,36 +411,44 @@ private struct AirportSubscriptionPreview: View {
             .frame(minWidth: 720, minHeight: 520)
             .navigationTitle(subscription?.name ?? "订阅预览")
             .scrollEdgeEffectStyle(.hard, for: .vertical)
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                HStack(spacing: 12) {
-                    Picker("预览内容", selection: $previewMode) {
-                        Text("处理结果").tag(PreviewMode.changes)
-                        Text("原始订阅").tag(PreviewMode.source)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                previewControls
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .overlay(alignment: .top) {
+                        Divider()
                     }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .fixedSize()
-
-                    Button {
-                        Task { await refresh() }
-                    } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
-                    }
-                    .disabled(isRefreshing)
-
-                    Spacer(minLength: 0)
-
-                    Button("关闭") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
             }
         }
         .task {
             await loadPreview(refresh: !model.hasCachedAirportSubscription(id: subscriptionID))
         }
+    }
+
+    private var previewControls: some View {
+        HStack(spacing: 12) {
+            Picker("预览内容", selection: $previewMode) {
+                Text("处理结果").tag(PreviewMode.changes)
+                Text("原始订阅").tag(PreviewMode.source)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .fixedSize()
+
+            Button {
+                Task { await refresh() }
+            } label: {
+                Label("刷新", systemImage: "arrow.clockwise")
+            }
+            .disabled(isRefreshing)
+
+            Spacer(minLength: 0)
+
+            Button("关闭") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     private func refresh() async {
