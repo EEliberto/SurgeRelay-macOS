@@ -477,6 +477,7 @@ final class AppModel {
         guard deviceMode != mode else { return }
         deviceMode = mode
         RelayDeviceConfiguration.mode = mode
+        MenuBarStatusController.shared.setEnabled(mode == .server)
         if mode == .client {
             try? LaunchAtLoginService.setEnabled(false)
             settings.launchAtLogin = false

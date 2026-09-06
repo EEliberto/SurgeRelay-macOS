@@ -102,6 +102,8 @@ button { color: inherit; }
 }
 .brand-mark { background: transparent; }
 .app-icon, .module-icon img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.adaptive-brand-icon { width: 100%; height: 100%; display: block; }
+.adaptive-brand-icon > img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .summary-row .summary-icon,
 .summary-module-icon {
   overflow: visible;
@@ -1345,6 +1347,7 @@ body.initializing *, body.initializing *::before, body.initializing *::after {
   object-fit: contain;
   box-shadow: none;
 }
+.settings-about-hero .adaptive-brand-icon { width: 70px; height: 70px; }
 .settings-about-hero strong { font-size: 18px; }
 .settings-about-hero span { color: var(--secondary-label); font-size: 13px; }
 .settings-link-row {

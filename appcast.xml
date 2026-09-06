@@ -3,6 +3,29 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>260906</title>
+            <pubDate>Sun, 06 Sep 2026 10:35:28 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260906</link>
+            <sparkle:version>27090601</sparkle:version>
+            <sparkle:shortVersionString>260906</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## **感谢你使用 Surge Relay！**
+
+本次更新针对 macOS 27 Golden Gate 进行了全面适配，图标也焕然一新！同时重点改善了使用体验。此次更新内容：
+
+1. 已为 macOS 27 Golden Gate 做好准备。
+2. 新增机场订阅与节点名称优化，支持移除 Emoji、国旗及 IPEL、IEPL、专线等关键词。
+3. 优化机场订阅预览与 Web 管理界面，使桌面端和 Web 端保持一致。
+4. 改进客户端与服务器端模式切换，服务器模式下菜单栏图标会立即显示。
+5. 调整本地数据存储方式，减少 iCloud 云盘中的无用文件。
+6. 修复菜单栏启动、工具栏显示、选中状态错位及其他已知 UI 问题。
+
+如果你在使用 Surge Relay 时遇到任何问题，请在 GitHub 中提交 Issue！
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260906/Surge-Relay-260906-build-27090601.dmg" length="28154391" type="application/octet-stream" sparkle:edSignature="nZXvr9M7HVxK1dCJ55vUr4VyuVVpMw6dDV8xrK5dgnFO/5rz9JauKfPH48+/2no6jjkC/ySg7BEP1hJF/1WRAA=="/>
+        </item>
+        <item>
             <title>260905</title>
             <pubDate>Sat, 05 Sep 2026 18:58:28 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260905</link>

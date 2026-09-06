@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "repeat.svg",
+      "filename" : "custom.sensor.tag.radiowaves.forward.fill.png",
       "idiom" : "universal"
     }
   ],
@@ -10,7 +10,6 @@
     "version" : 1
   },
   "properties" : {
-    "preserves-vector-representation" : true,
     "template-rendering-intent" : "template"
   }
 }

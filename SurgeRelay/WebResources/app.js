@@ -61,6 +61,11 @@ const ui = {
   ,airportPreviewRows: document.querySelector('#airport-preview-rows')
 };
 
+function brandIconMarkup(imageClass = '') {
+  const classAttribute = imageClass ? ` class="${escapeAttribute(imageClass)}"` : '';
+  return `<picture class="adaptive-brand-icon"><source media="(prefers-color-scheme: dark)" srcset="/brand-icon-dark.png?v=8"><img${classAttribute} src="/brand-icon.png?v=8" alt=""></picture>`;
+}
+
 const scriptHubDefaults = {
   scriptConversionKeywords: '', convertAllScripts: false,
   responseScriptConversionKeywords: '', convertAllResponseScripts: false,
@@ -592,7 +597,7 @@ function renderDetail(animate = true) {
   if (selectedID === 'airports') {
     ui.mobileTitle.textContent = '订阅汇总';
     if (ui.mobileTitleIcon) {
-      setTemplateHTML(ui.mobileTitleIcon, '<img src="/brand-icon.png?v=7" alt="">');
+      setTemplateHTML(ui.mobileTitleIcon, brandIconMarkup());
       ui.mobileTitleIcon.style.display = 'block';
     }
     ui.desktopTitle.textContent = '订阅汇总';
@@ -603,7 +608,7 @@ function renderDetail(animate = true) {
     const name = `Surge Relay 汇总 (${currentPlatform.displayName})`;
     ui.mobileTitle.textContent = name;
     if (ui.mobileTitleIcon) {
-      setTemplateHTML(ui.mobileTitleIcon, '<img src="/brand-icon.png?v=7" alt="">');
+      setTemplateHTML(ui.mobileTitleIcon, brandIconMarkup());
       ui.mobileTitleIcon.style.display = 'block';
     }
     ui.desktopTitle.textContent = name;
@@ -614,7 +619,7 @@ function renderDetail(animate = true) {
     if (module) {
       ui.mobileTitle.textContent = module.name;
       if (ui.mobileTitleIcon) {
-        setTemplateHTML(ui.mobileTitleIcon, '<img src="/brand-icon.png?v=7" alt="">');
+        setTemplateHTML(ui.mobileTitleIcon, brandIconMarkup());
         ui.mobileTitleIcon.style.display = 'block';
       }
       ui.desktopTitle.textContent = module.name;
@@ -2259,7 +2264,7 @@ function diagnosticsSettingsMarkup(settings) {
 
 function aboutSettingsMarkup(settings) {
   return `
-    <section class="editor-section"><div class="settings-about-hero"><img src="/brand-icon.png?v=7" alt=""><strong>Surge Relay</strong><span>版本 ${escapeHTML(settings.appVersion || '—')}</span></div></section>
+    <section class="editor-section"><div class="settings-about-hero">${brandIconMarkup()}<strong>Surge Relay</strong><span>版本 ${escapeHTML(settings.appVersion || '—')}</span></div></section>
     <section class="editor-section"><h3>项目</h3><div class="editor-group">
       ${settingsLinkRow('/github-icon.png?v=2', 'Surge Relay', 'EEliberto/SurgeRelay-macOS', 'https://github.com/EEliberto/SurgeRelay-macOS')}
       ${settingsLinkRow('/script-hub-icon.png?v=2', 'Script Hub', 'github.com/Script-Hub-Org', 'https://github.com/Script-Hub-Org')}

@@ -18,8 +18,18 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
     /// Installs the status item before SwiftUI creates a window scene. Login-item
     /// launches can otherwise remain dormant until the user activates the Dock icon.
     func prepare(isEnabled: Bool) {
-        guard isEnabled else { return }
-        installStatusItemIfNeeded()
+        setEnabled(isEnabled)
+    }
+
+    /// Keeps the AppKit status item in sync even when a device-mode change is
+    /// initiated from a different SwiftUI scene, such as the Settings window.
+    func setEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            installStatusItemIfNeeded()
+        } else if let statusItem {
+            NSStatusBar.system.removeStatusItem(statusItem)
+            self.statusItem = nil
+        }
     }
 
     func configure(
@@ -34,25 +44,16 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         openMainWindowAction = openMainWindow
         openSettingsWindowAction = openSettingsWindow
 
-        guard isEnabled else {
-            if let statusItem {
-                NSStatusBar.system.removeStatusItem(statusItem)
-                self.statusItem = nil
-            }
-            return
-        }
-        installStatusItemIfNeeded()
+        setEnabled(isEnabled)
     }
 
     private func installStatusItemIfNeeded() {
         guard statusItem == nil else { return }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-        let image = NSImage(
-            systemSymbolName: "dot.radiowaves.left.and.right",
-            accessibilityDescription: "Surge Relay"
-        )?.withSymbolConfiguration(configuration)
+        let image = NSImage(named: "MenuBarIcon")
+        image?.size = NSSize(width: 18, height: 12)
+        image?.accessibilityDescription = "Surge Relay"
         image?.isTemplate = true
         item.button?.image = image
         item.button?.toolTip = "Surge Relay"
