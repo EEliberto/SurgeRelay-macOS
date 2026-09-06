@@ -51,9 +51,11 @@ final class MenuBarStatusController: NSObject, NSMenuDelegate {
         guard statusItem == nil else { return }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let image = NSImage(named: "MenuBarIcon")
-        image?.size = NSSize(width: 18, height: 12)
-        image?.accessibilityDescription = "Surge Relay"
+        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        let image = NSImage(
+            systemSymbolName: "sensor.tag.radiowaves.forward.fill",
+            accessibilityDescription: "Surge Relay"
+        )?.withSymbolConfiguration(configuration)
         image?.isTemplate = true
         item.button?.image = image
         item.button?.toolTip = "Surge Relay"
