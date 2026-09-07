@@ -4,8 +4,6 @@
 
 > 整个过程大约需要 10–15 分钟。GitHub 与 Cloudflare 的界面文字可能随版本略有变化，但设置名称和逻辑不变。
 
-![Surge Relay、GitHub 私有仓库与 Cloudflare Worker 的工作流程](images/github-cloudflare-flow.svg)
-
 ## 快捷操作入口
 
 以下页面可以直接打开。建议按表格顺序操作，并把本教程保留在另一个浏览器标签页中。
@@ -44,8 +42,6 @@
 4. 勾选 **Add a README file**。这一步会创建 `main` 分支；空仓库无法通过 Surge Relay 完成首次发布。
 5. 点击 **Create repository**。
 
-![创建 GitHub 私有仓库时需要选择的选项](images/github-private-repository.svg)
-
 创建后，复制浏览器地址栏中的仓库地址，例如：
 
 ```text
@@ -66,8 +62,6 @@ https://github.com/your-name/Surge-Relay
 6. `Repository access` 选择 **Only select repositories**，只勾选 `Surge-Relay`。
 7. 展开 `Repository permissions`，把 **Contents** 设置为 **Read and write**；其他权限保持默认。
 8. 点击 **Generate token**，立即复制生成的 Token。
-
-![为 Surge Relay 创建可写 Fine-grained Token](images/github-token-permissions.svg)
 
 Token 通常以 `github_pat_` 开头。GitHub 只会完整显示一次；如果丢失，请删除旧 Token 后重新创建。
 
@@ -194,8 +188,6 @@ export default {
 
 `GITHUB_OWNER` 是 GitHub 用户名，不是邮箱或昵称。`GITHUB_TOKEN` 必须选择 **Secret** 类型。
 
-![Cloudflare Worker 需要配置的变量与 Secret](images/cloudflare-worker-settings.svg)
-
 添加完成后点击 **Deploy**。Cloudflare 会提供一个类似下面的公共地址：
 
 ```text
@@ -221,8 +213,6 @@ https://surge-relay.your-subdomain.workers.dev
 5. `GitHub Token` 填写第二步创建的可写 Token。
 6. `公共地址` 填写 Cloudflare 提供的 `workers.dev` 地址，不要在末尾添加文件名。
 7. 点击 **验证并切换到 GitHub**。
-
-![在 Surge Relay 中填写 GitHub 与 Cloudflare 信息](images/surge-relay-github-settings.svg)
 
 验证过程中，Surge Relay 会依次确认：
 
