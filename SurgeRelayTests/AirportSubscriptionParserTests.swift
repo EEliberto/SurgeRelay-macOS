@@ -29,6 +29,53 @@ struct AirportSubscriptionParserTests {
         #expect(entries.map(\.originalName) == ["Node A", "Node B"])
     }
 
+    @Test func decodesAnyTLSSubscriptionWithMissingPaddingAndWhitespace() throws {
+        let uri = "anytls://secret@example.com:443?sni=tls.example.com&insecure=1#香港%2001"
+        let encoded = Data(uri.utf8).base64EncodedString().replacingOccurrences(of: "=", with: "")
+        let wrapped = "\u{FEFF}  " + encoded.prefix(20) + "\r\n" + encoded.dropFirst(20) + "\n"
+        let entries = try AirportSubscriptionParser.proxyEntries(from: Data(wrapped.utf8))
+        #expect(entries.count == 1)
+        #expect(entries[0].originalName == "香港 01")
+        #expect(entries[0].definition == "anytls, \"example.com\", 443, password=\"secret\", sni=\"tls.example.com\", skip-cert-verify=true")
+    }
+
+    @Test func decodesURLSafeAndNestedBase64WithoutEqualsInDecodedText() throws {
+        let uri = "anytls://secret@example.com:443#节点😀"
+        let inner = Data(uri.utf8).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        for text in [inner, Data(inner.utf8).base64EncodedString()] {
+            let entries = try AirportSubscriptionParser.proxyEntries(from: Data(text.utf8))
+            #expect(entries.count == 1)
+            #expect(entries[0].originalName == "节点😀")
+        }
+    }
+
+    @Test func parsesPlainTrojanIPv6AndEscapesDecodedCredentials() throws {
+        let uri = "trojan://a%2Cb%22c%5Cd@[2001:db8::1]:443?insecure=0#Node%2C%3D%0AName"
+        let entries = try AirportSubscriptionParser.proxyEntries(from: Data(uri.utf8))
+        #expect(entries[0].definition.contains(#"password="a,b\"c\\d""#))
+        #expect(entries[0].definition.contains("skip-cert-verify=false"))
+        #expect(entries[0].originalName == "Node，＝ Name")
+    }
+
+    @Test func rejectsUnsupportedMalformedAndNonProxyContent() {
+        for text in [
+            "vless://secret@example.com:443?security=tls#Node",
+            "anytls://secret@example.com:0#Node",
+            "anytls://example.com:443#Node",
+            "anytls://secret@example.com:443?insecure=maybe",
+            "trojan://secret@example.com:443?type=grpc",
+            "anytls://secret%0Ainjected@example.com:443",
+            "<!DOCTYPE html><html>error=invalid token</html>",
+            "[General]\nloglevel = warning",
+        ] {
+            #expect(throws: (any Error).self) {
+                try AirportSubscriptionParser.proxyEntries(from: Data(text.utf8))
+            }
+        }
+    }
+
     @Test func filtersEnglishMetadataWithChineseAliases() {
         let pattern = #"^((?!(流量|重置|到期)).)*$"#
 

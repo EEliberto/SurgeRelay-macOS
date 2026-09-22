@@ -28,7 +28,12 @@ enum AirportSubscriptionParser {
         guard let initial = decodedText(data) else {
             throw RelayError.invalidOutput("订阅内容不是可识别的文本或 Base64 文本。")
         }
-        let text = decodedBase64TextIfNeeded(initial) ?? initial
+        var text = initial.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
+        // Some subscription providers wrap an already encoded response again.
+        for _ in 0..<3 {
+            guard let decoded = decodedBase64TextIfNeeded(text) else { break }
+            text = decoded.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
+        }
         let lines = text.components(separatedBy: .newlines)
         let proxyLines: ArraySlice<String>
 
@@ -44,19 +49,32 @@ enum AirportSubscriptionParser {
         }
 
         var seen = Set<String>()
-        let entries = proxyLines.compactMap { line -> AirportProxyEntry? in
+        let entries = try proxyLines.enumerated().compactMap { index, line -> AirportProxyEntry? in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), !trimmed.hasPrefix("//"),
-                  let equals = trimmed.firstIndex(of: "=") else { return nil }
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), !trimmed.hasPrefix("//") else { return nil }
+            // Dispatch URI lines before looking for '=' in query strings or Base64 padding.
+            if trimmed.range(of: #"^[A-Za-z][A-Za-z0-9+.-]*://"#, options: .regularExpression) != nil {
+                let entry = try proxyEntry(fromURI: trimmed, lineNumber: index + 1)
+                guard seen.insert(entry.originalName).inserted else { return nil }
+                return entry
+            }
+            guard let equals = trimmed.firstIndex(of: "=") else { return nil }
             let rawName = String(trimmed[..<equals]).trimmingCharacters(in: .whitespaces)
             let name = rawName.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
             let definition = String(trimmed[trimmed.index(after: equals)...])
                 .trimmingCharacters(in: .whitespaces)
-            guard !name.isEmpty, !definition.isEmpty, seen.insert(name).inserted else { return nil }
+            let type = definition.split(separator: ",", maxSplits: 1).first?
+                .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+            let policyTypes: Set<String> = [
+                "direct", "reject", "reject-tinygif", "reject-drop", "ss", "vmess", "trojan",
+                "snell", "http", "https", "socks5", "socks5-tls", "h2-connect", "ssh",
+                "tuic", "tuic-v5", "hysteria2", "anytls", "wireguard", "masque", "trust-tunnel", "external",
+            ]
+            guard !name.isEmpty, policyTypes.contains(type), seen.insert(name).inserted else { return nil }
             return AirportProxyEntry(originalName: name, definition: definition)
         }
         guard !entries.isEmpty else {
-            throw RelayError.invalidOutput("订阅中没有找到 Surge [Proxy] 代理条目。")
+            throw RelayError.invalidOutput("订阅中没有找到可识别的代理节点，请使用 Surge 配置或 Base64 编码的 AnyTLS / Trojan 节点链接。")
         }
         return entries
     }
@@ -386,11 +404,74 @@ enum AirportSubscriptionParser {
     }
 
     private static func decodedBase64TextIfNeeded(_ text: String) -> String? {
-        guard !text.contains("[Proxy]"), !text.contains(" = ") else { return nil }
-        let compact = text.components(separatedBy: .whitespacesAndNewlines).joined()
-        guard let data = Data(base64Encoded: compact), let decoded = decodedText(data), decoded.contains("=") else {
-            return nil
-        }
+        var compact = text.components(separatedBy: .whitespacesAndNewlines).joined()
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        guard !compact.isEmpty else { return nil }
+        compact += String(repeating: "=", count: (4 - compact.count % 4) % 4)
+        guard let data = Data(base64Encoded: compact),
+              let decoded = String(data: data, encoding: .utf8),
+              !decoded.isEmpty else { return nil }
         return decoded
+    }
+
+    private static func proxyEntry(fromURI text: String, lineNumber: Int) throws -> AirportProxyEntry {
+        func invalid(_ reason: String) -> RelayError {
+            // Never include the original URI: it contains subscription credentials.
+            .invalidOutput("订阅第 \(lineNumber) 行：\(reason)")
+        }
+        // Normalize raw Unicode without re-encoding existing % escapes. Foundation's
+        // automatic repair otherwise turns mixed "香港%2001" into "香港%252001".
+        let uriCharacters = CharacterSet.urlFragmentAllowed.union(CharacterSet(charactersIn: "%#[]"))
+        guard let encodedURI = text.addingPercentEncoding(withAllowedCharacters: uriCharacters),
+              let url = URLComponents(string: encodedURI), let scheme = url.scheme?.lowercased() else {
+            throw invalid("节点链接无效。")
+        }
+        guard ["anytls", "trojan"].contains(scheme) else {
+            throw invalid("暂不支持 \(scheme) 节点链接，请向服务商获取 Surge 格式订阅。")
+        }
+        guard let host = url.host, !host.isEmpty,
+              let port = url.port, (1...65535).contains(port),
+              let user = url.user, !user.isEmpty else {
+            throw invalid("节点缺少服务器、有效端口或密码。")
+        }
+        func quotedValue(_ value: String) throws -> String {
+            guard !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+                throw invalid("节点参数包含控制字符。")
+            }
+            return "\"" + value.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }
+        let password = user + (url.password.map { ":" + $0 } ?? "")
+        var tokens = [scheme, try quotedValue(host), String(port), "password=\(try quotedValue(password))"]
+        for item in url.queryItems ?? [] {
+            let key = item.name.lowercased()
+            let value = item.value ?? ""
+            switch key {
+            case "sni", "peer", "alpn":
+                if !value.isEmpty {
+                    tokens.append("\(key == "peer" ? "sni" : key)=\(try quotedValue(value))")
+                }
+            case "insecure", "allowinsecure", "skip-cert-verify":
+                guard ["0", "1", "true", "false"].contains(value.lowercased()) else {
+                    throw invalid("证书验证参数无效。")
+                }
+                tokens.append("skip-cert-verify=\(["1", "true"].contains(value.lowercased()) ? "true" : "false")")
+            case "type", "security":
+                guard value.isEmpty || (key == "type" ? value == "tcp" : value == "tls") else {
+                    throw invalid("暂不支持该节点传输方式，请使用 Surge 格式订阅。")
+                }
+            default:
+                throw invalid("节点包含暂不支持的参数，请使用 Surge 格式订阅。")
+            }
+        }
+        let originalName = url.fragment.flatMap { $0.isEmpty ? nil : $0 } ?? "\(scheme)-\(host)-\(port)"
+        // Names are written on the left of '=' and referenced in comma-separated groups.
+        let name = originalName.components(separatedBy: .controlCharacters).joined(separator: " ")
+            .replacingOccurrences(of: ",", with: "，")
+            .replacingOccurrences(of: "=", with: "＝")
+            .replacingOccurrences(of: "\"", with: "＂")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return AirportProxyEntry(originalName: name.isEmpty ? "节点 \(lineNumber)" : name, definition: tokens.joined(separator: ", "))
     }
 }

@@ -1,0 +1,76 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : {
+        "linear-gradient" : [
+          "display-p3:0.97852,0.98340,0.99463,1.00000",
+          "display-p3:0.79889,0.88260,0.99854,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 1
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0
+          }
+        }
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : "system-dark"
+    }
+  ],
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill-specializations" : [
+            {
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.16064,0.16626,0.95801,1.00000",
+                  "display-p3:0.38062,0.72852,0.97461,1.00000"
+                ]
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.41187,0.50961,0.98389,1.00000",
+                  "display-p3:0.21851,0.50635,0.99414,1.00000"
+                ]
+              }
+            }
+          ],
+          "image-name" : "custom.sensor.tag.radiowaves.forward.fill.png",
+          "name" : "custom.sensor.tag.radiowaves.forward.fill",
+          "position" : {
+            "scale" : 0.85,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

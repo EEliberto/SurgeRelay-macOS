@@ -7,15 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0776FD312CBA703F0F12104A /* SummaryMacOSIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 9AD826474B108A4B11DBB9AE /* SummaryMacOSIcon.png */; };
 		089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
+		09963F7C27F50239539AC123 /* IOSRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08432C8BC307878B262CBDD /* IOSRootView.swift */; };
 		0AEAD1701B3D76B37D6C6023 /* AppModel+AirportSubscriptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */; };
+		0ED8B6A3101C108CDF223475 /* SummaryIOSIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 30CAC050230F7FF8A61CB38A /* SummaryIOSIcon.png */; };
 		151D10C88D70BA93DD14C7FB /* MainWindowCloseBehavior.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */; };
 		18F9C44DFE83F37483900625 /* RemoteConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */; };
 		1AECEBD32D966A1910B3A007 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53C80368CE81330FB2D723A /* SettingsView.swift */; };
+		2149A25A8A01ED2C310347B6 /* IOSModuleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC3C93E1514E67395BDD45D4 /* IOSModuleDetailView.swift */; };
+		225119CB28726F7E61DCBF0B /* SummaryVisionOSIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 2347C0D194EEBC08036D1861 /* SummaryVisionOSIcon.png */; };
 		27AF5D3F446A25299DC890B3 /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 13871D2C902AAF75BBD033C6 /* JavaScriptCore.framework */; };
 		280C7E38DAD9F18ED8090287 /* ModuleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */; };
+		2A6B4A5BA52A4871EA66C391 /* RelayModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */; };
 		2AD845464760705F3E0982BE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3AE70978C59AAF84436C3194 /* Assets.xcassets */; };
 		2ADF1ADFE70E63FE334C1B5C /* SurgeRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A632A09F875AFE2F6ADC7A42 /* SurgeRelayTests.swift */; };
+		2B405188D87D7410D7EFB113 /* AppIconDisplay.png in Resources */ = {isa = PBXBuildFile; fileRef = 8FC73BFC36A5D09C7204FE6A /* AppIconDisplay.png */; };
 		2C0D2BE2BB1618A76902635E /* AirportSubscriptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */; };
 		2DE2729D489CC5CF5737F164 /* ModulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02309DE998787F453FD1166 /* ModulesView.swift */; };
 		307EBCC9173DAEC6727856BD /* ModuleMetadataParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEEA07D7884F801CEDBF10E /* ModuleMetadataParser.swift */; };
@@ -28,9 +35,13 @@
 		401D479CF6D06ED825897F88 /* Surge Relay.icon in Resources */ = {isa = PBXBuildFile; fileRef = E07D52108B30F9447A500E3D /* Surge Relay.icon */; };
 		407E672ECAD57CD270BB44B7 /* FilenameSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */; };
 		428F3605819F521142B80066 /* ModuleOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532731E293DA280A8A42D96 /* ModuleOrdering.swift */; };
+		49E2959CFB254F9C3EE714FD /* IOSModulesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904D08A580397F6863097068 /* IOSModulesListView.swift */; };
 		4B5E934EB9AC34C451301F50 /* WebManagementAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */; };
+		52ED80DA0750AE19E2D1485E /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */; };
 		540136DA3B34EAD959E5B5F7 /* WebManagementServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */; };
+		5614C311CC95A7F448FCDD1A /* FilenameSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */; };
 		6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */; };
+		682CD5C810F31C374B735F93 /* IOSSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DD0EE176E7E55B6FC8ABF5 /* IOSSettingsView.swift */; };
 		6C8F8E71624D2151BFA675ED /* ServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */; };
 		6FD484283175DC8133118FF1 /* ModuleMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */; };
 		709FF80593ADF6216AF25D9D /* RelayModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */; };
@@ -38,6 +49,8 @@
 		73DA0C1D67BF5603F9D67A2D /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 635792E0623514DF6232A5D1 /* Sparkle */; };
 		74EC897C29E5F3DF32C57812 /* WebResources in Resources */ = {isa = PBXBuildFile; fileRef = 1F700D434F8EB4A3091FD216 /* WebResources */; };
 		75B5F5E0E0AF845CD0C5FACE /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B63578065A9F7B8CC166FF2 /* KeychainStore.swift */; };
+		7EA04F2F96B7AAB19061180C /* ScriptHubOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */; };
+		8279C7E91046567CBD296A2A /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
 		8375967E58B7560C4A7FE4B4 /* EmbeddedScriptHubEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */; };
 		867673A7795057E6FE20DEB2 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A01030FABE46B093E69E06 /* NetworkPathMonitor.swift */; };
 		8DA26E8693FBA37A8D155709 /* ScriptHubUpstreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098EA18AE40BB22B02102431 /* ScriptHubUpstreamService.swift */; };
@@ -45,22 +58,42 @@
 		93D45771DAD23A3F8AD5473F /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */; };
 		9457731342986CF96B53EA0F /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */; };
 		96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */; };
+		A9E1153BAC14A9F4D7B34347 /* AppIcon-1024.png in Resources */ = {isa = PBXBuildFile; fileRef = 4D55E18AA9819C58E2CC4B0D /* AppIcon-1024.png */; };
+		AA54DC6E1A0D21BA18530B13 /* IOSWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F752D7117673110398FF61 /* IOSWelcomeView.swift */; };
 		AA8F7B5F28379ACDB4DDEDB9 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD7A6C8082510469A2FA843 /* RootView.swift */; };
+		AB8317D4C898AA045FA71157 /* SummaryTVOSIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = B25C8C96113A817EDBF3C1B3 /* SummaryTVOSIcon.png */; };
+		ABCA99010C8453EE7EE2012B /* AirportSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */; };
 		AFF297E85AC53B6A6291EE70 /* AppModel+RemoteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */; };
+		B0AAD20B161865620FD1DAFC /* ServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */; };
 		B46911120F2F5BB4C736DCDE /* ModuleIconStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */; };
 		B8555D3D9FEACB351D53EBC9 /* ScriptHubOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */; };
 		C577752A7FA64D5E4749D52B /* DataHash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31722F50C6C17A7F74F3A1BC /* DataHash.swift */; };
 		C8840CD5E15DB62F96AFA533 /* AirportSubscriptionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */; };
+		CA56B1E9BB8BD917C35F9690 /* SurgeRelayIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424E593A2CAE9868C74A2484 /* SurgeRelayIOSApp.swift */; };
 		CA5FB083B1568EEEEA50DBAF /* GitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */; };
+		CF4577583E2823C53D23B446 /* ClientAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCBC2B09DBBA4793E7C9B49 /* ClientAppModel.swift */; };
 		D00571D70301FFF75C0BACFE /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */; };
 		D596D087CB06F13BD28D7510 /* SurgeRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */; };
+		D6CA6F4361DF130377A8609E /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */; };
 		E52CE366B20E07E670D9E6E8 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DAE6646C847419124DE9BB /* Components.swift */; };
 		E80FCFFEF9B58FC6A20F81FB /* AppModel+WebServerLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */; };
+		ED99CF0D14C41E2E0FF5F84C /* IOSComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33476ABE39D098EAE0993C2A /* IOSComponents.swift */; };
 		EE031356FF14CAB55365F007 /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */; };
+		F4631345955C8A0781830AD6 /* IOSModuleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF99AA8470C4BCD58A7553D /* IOSModuleEditorView.swift */; };
+		F755D8A6C7CA18ACA117209F /* ClientAppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F350AB87B079EB40C733016 /* ClientAppModelTests.swift */; };
+		F8C1BADE896F32DDB2C3263D /* BundleImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF93E61A6A0350DB31C0E027 /* BundleImage.swift */; };
 		FC75AF5CF098DE5C35C3572B /* EngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354B1BF761ABD7AADD982A17 /* EngineStore.swift */; };
+		FD10474332777F2ECE3A836F /* RemoteConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		313E824F8BBB415C05A64C80 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 95062978F1F4A19EA710F4CB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CA0E50C4E8B87D6889CD2083;
+			remoteInfo = "Surge Relay iOS";
+		};
 		F684E4D89A35A80E65AE76AC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 95062978F1F4A19EA710F4CB /* Project object */;
@@ -81,25 +114,37 @@
 		188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+AirportSubscriptions.swift"; sourceTree = "<group>"; };
 		1BEEA07D7884F801CEDBF10E /* ModuleMetadataParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMetadataParser.swift; sourceTree = "<group>"; };
 		1F700D434F8EB4A3091FD216 /* WebResources */ = {isa = PBXFileReference; lastKnownFileType = folder; name = WebResources; path = SurgeRelay/WebResources; sourceTree = SOURCE_ROOT; };
+		2347C0D194EEBC08036D1861 /* SummaryVisionOSIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SummaryVisionOSIcon.png; sourceTree = "<group>"; };
 		254A83429BCA625706A87254 /* ScriptHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubClient.swift; sourceTree = "<group>"; };
+		276674BB04AF334EFBC3F6C9 /* Surge Relay iOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = "Surge Relay iOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Surge RelayTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2968E247012225719D2FF9D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2B29AA0AD818A5D7F67A7471 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscription.swift; sourceTree = "<group>"; };
+		30CAC050230F7FF8A61CB38A /* SummaryIOSIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SummaryIOSIcon.png; sourceTree = "<group>"; };
 		31722F50C6C17A7F74F3A1BC /* DataHash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataHash.swift; sourceTree = "<group>"; };
+		33476ABE39D098EAE0993C2A /* IOSComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSComponents.swift; sourceTree = "<group>"; };
 		33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebManagementServer.swift; sourceTree = "<group>"; };
 		35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionStore.swift; sourceTree = "<group>"; };
 		354B1BF761ABD7AADD982A17 /* EngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStore.swift; sourceTree = "<group>"; };
+		38F752D7117673110398FF61 /* IOSWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWelcomeView.swift; sourceTree = "<group>"; };
 		3AE70978C59AAF84436C3194 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowCloseBehavior.swift; sourceTree = "<group>"; };
 		41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubAdvancedOptionsView.swift; sourceTree = "<group>"; };
 		41A01030FABE46B093E69E06 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
+		424E593A2CAE9868C74A2484 /* SurgeRelayIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeRelayIOSApp.swift; sourceTree = "<group>"; };
 		48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+RemoteClient.swift"; sourceTree = "<group>"; };
+		4D55E18AA9819C58E2CC4B0D /* AppIcon-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon-1024.png"; sourceTree = "<group>"; };
+		4F350AB87B079EB40C733016 /* ClientAppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientAppModelTests.swift; sourceTree = "<group>"; };
 		51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebManagementAPI.swift; sourceTree = "<group>"; };
 		6B63578065A9F7B8CC166FF2 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubClient.swift; sourceTree = "<group>"; };
 		8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
 		87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionsView.swift; sourceTree = "<group>"; };
+		8FC73BFC36A5D09C7204FE6A /* AppIconDisplay.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppIconDisplay.png; sourceTree = "<group>"; };
+		904D08A580397F6863097068 /* IOSModulesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSModulesListView.swift; sourceTree = "<group>"; };
+		9AD826474B108A4B11DBB9AE /* SummaryMacOSIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SummaryMacOSIcon.png; sourceTree = "<group>"; };
+		9BCBC2B09DBBA4793E7C9B49 /* ClientAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientAppModel.swift; sourceTree = "<group>"; };
 		A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceModels.swift; sourceTree = "<group>"; };
 		A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteManagementClient.swift; sourceTree = "<group>"; };
 		A532731E293DA280A8A42D96 /* ModuleOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleOrdering.swift; sourceTree = "<group>"; };
@@ -107,14 +152,22 @@
 		A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilenameSanitizer.swift; sourceTree = "<group>"; };
 		AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParser.swift; sourceTree = "<group>"; };
 		AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedScriptHubEngine.swift; sourceTree = "<group>"; };
+		AF93E61A6A0350DB31C0E027 /* BundleImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleImage.swift; sourceTree = "<group>"; };
+		B25C8C96113A817EDBF3C1B3 /* SummaryTVOSIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SummaryTVOSIcon.png; sourceTree = "<group>"; };
+		B2E68894CBE65F256E48F7B6 /* Surge Relay iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Surge Relay iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3D9950B64DCDB2C88D8980C /* MenuBarStatusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusController.swift; sourceTree = "<group>"; };
 		B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeRelayApp.swift; sourceTree = "<group>"; };
 		B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		B7DAE6646C847419124DE9BB /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		BC3C93E1514E67395BDD45D4 /* IOSModuleDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSModuleDetailView.swift; sourceTree = "<group>"; };
+		BCF99AA8470C4BCD58A7553D /* IOSModuleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSModuleEditorView.swift; sourceTree = "<group>"; };
 		BDD7A6C8082510469A2FA843 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		D6DD0EE176E7E55B6FC8ABF5 /* IOSSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSSettingsView.swift; sourceTree = "<group>"; };
 		D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
 		DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMerger.swift; sourceTree = "<group>"; };
+		DE40812E4611BA95EE1B5E2F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E07D52108B30F9447A500E3D /* Surge Relay.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "Surge Relay.icon"; sourceTree = "<group>"; };
+		E08432C8BC307878B262CBDD /* IOSRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSRootView.swift; sourceTree = "<group>"; };
 		E1070DB686AADF6D51CF6CDB /* ModuleFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleFileStore.swift; sourceTree = "<group>"; };
 		E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleEditorView.swift; sourceTree = "<group>"; };
 		E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParserTests.swift; sourceTree = "<group>"; };
@@ -224,6 +277,32 @@
 			path = Utilities;
 			sourceTree = "<group>";
 		};
+		58C81C63884DDBCCEB7F8BAD /* SurgeRelayIOS */ = {
+			isa = PBXGroup;
+			children = (
+				6688B4D449B9386BE0592D88 /* Views */,
+				AF93E61A6A0350DB31C0E027 /* BundleImage.swift */,
+				9BCBC2B09DBBA4793E7C9B49 /* ClientAppModel.swift */,
+				DE40812E4611BA95EE1B5E2F /* Info.plist */,
+				424E593A2CAE9868C74A2484 /* SurgeRelayIOSApp.swift */,
+			);
+			path = SurgeRelayIOS;
+			sourceTree = "<group>";
+		};
+		6688B4D449B9386BE0592D88 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				33476ABE39D098EAE0993C2A /* IOSComponents.swift */,
+				BC3C93E1514E67395BDD45D4 /* IOSModuleDetailView.swift */,
+				BCF99AA8470C4BCD58A7553D /* IOSModuleEditorView.swift */,
+				904D08A580397F6863097068 /* IOSModulesListView.swift */,
+				E08432C8BC307878B262CBDD /* IOSRootView.swift */,
+				D6DD0EE176E7E55B6FC8ABF5 /* IOSSettingsView.swift */,
+				38F752D7117673110398FF61 /* IOSWelcomeView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		992FBA5B9AB9596787D9E76C /* SurgeRelayTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -236,13 +315,38 @@
 		AF1FE33584D1B17BD84BEBB9 = {
 			isa = PBXGroup;
 			children = (
+				B6CDB359D2FF7B5818E407B1 /* Resources */,
 				05D6584CC9473A8BC0B12784 /* SurgeRelay */,
+				58C81C63884DDBCCEB7F8BAD /* SurgeRelayIOS */,
+				C32927BC631D1DFB807DD541 /* SurgeRelayIOSTests */,
 				992FBA5B9AB9596787D9E76C /* SurgeRelayTests */,
 				E07D52108B30F9447A500E3D /* Surge Relay.icon */,
 				1F700D434F8EB4A3091FD216 /* WebResources */,
 				CB4D56D73372720752898C57 /* Frameworks */,
 				ED167BD0BF30B186951E9664 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		B6CDB359D2FF7B5818E407B1 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4D55E18AA9819C58E2CC4B0D /* AppIcon-1024.png */,
+				8FC73BFC36A5D09C7204FE6A /* AppIconDisplay.png */,
+				30CAC050230F7FF8A61CB38A /* SummaryIOSIcon.png */,
+				9AD826474B108A4B11DBB9AE /* SummaryMacOSIcon.png */,
+				B25C8C96113A817EDBF3C1B3 /* SummaryTVOSIcon.png */,
+				2347C0D194EEBC08036D1861 /* SummaryVisionOSIcon.png */,
+			);
+			name = Resources;
+			path = SurgeRelayIOS/Resources;
+			sourceTree = "<group>";
+		};
+		C32927BC631D1DFB807DD541 /* SurgeRelayIOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				4F350AB87B079EB40C733016 /* ClientAppModelTests.swift */,
+			);
+			path = SurgeRelayIOSTests;
 			sourceTree = "<group>";
 		};
 		CB4D56D73372720752898C57 /* Frameworks */ = {
@@ -256,6 +360,8 @@
 		ED167BD0BF30B186951E9664 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				B2E68894CBE65F256E48F7B6 /* Surge Relay iOS.app */,
+				276674BB04AF334EFBC3F6C9 /* Surge Relay iOSTests.xctest */,
 				FB702CBBD9181A2CF6940B32 /* Surge Relay.app */,
 				280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */,
 			);
@@ -265,6 +371,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		CA0E50C4E8B87D6889CD2083 /* Surge Relay iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8F364B47B609CAF0C76F4068 /* Build configuration list for PBXNativeTarget "Surge Relay iOS" */;
+			buildPhases = (
+				8451CB581CA2AB971B2B6E8B /* Sources */,
+				9092AC2DB8DC29223CA805A8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Surge Relay iOS";
+			packageProductDependencies = (
+			);
+			productName = "Surge Relay iOS";
+			productReference = B2E68894CBE65F256E48F7B6 /* Surge Relay iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 		DE7344B3299D1D2C889AAAA3 /* Surge Relay */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B4E763B23F95F8A87096A529 /* Build configuration list for PBXNativeTarget "Surge Relay" */;
@@ -303,6 +427,24 @@
 			productReference = 280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		F9044CA9F55E01F1483FA822 /* Surge Relay iOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CA54E47EE9CBFE63F70C6510 /* Build configuration list for PBXNativeTarget "Surge Relay iOSTests" */;
+			buildPhases = (
+				10AB52F2C3A4971A8AE17337 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C5DA24CD086372CD7BD2F603 /* PBXTargetDependency */,
+			);
+			name = "Surge Relay iOSTests";
+			packageProductDependencies = (
+			);
+			productName = "Surge Relay iOSTests";
+			productReference = 276674BB04AF334EFBC3F6C9 /* Surge Relay iOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -312,10 +454,18 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					CA0E50C4E8B87D6889CD2083 = {
+						DevelopmentTeam = W47VS6J7BV;
+						ProvisioningStyle = Automatic;
+					};
 					DE7344B3299D1D2C889AAAA3 = {
 						ProvisioningStyle = Automatic;
 					};
 					E31BDA64018EEFC05D12E6D5 = {
+						ProvisioningStyle = Automatic;
+					};
+					F9044CA9F55E01F1483FA822 = {
+						DevelopmentTeam = W47VS6J7BV;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -338,7 +488,9 @@
 			projectRoot = "";
 			targets = (
 				DE7344B3299D1D2C889AAAA3 /* Surge Relay */,
+				CA0E50C4E8B87D6889CD2083 /* Surge Relay iOS */,
 				E31BDA64018EEFC05D12E6D5 /* Surge RelayTests */,
+				F9044CA9F55E01F1483FA822 /* Surge Relay iOSTests */,
 			);
 		};
 /* End PBXProject section */
@@ -354,15 +506,62 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9092AC2DB8DC29223CA805A8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A9E1153BAC14A9F4D7B34347 /* AppIcon-1024.png in Resources */,
+				2B405188D87D7410D7EFB113 /* AppIconDisplay.png in Resources */,
+				0ED8B6A3101C108CDF223475 /* SummaryIOSIcon.png in Resources */,
+				0776FD312CBA703F0F12104A /* SummaryMacOSIcon.png in Resources */,
+				AB8317D4C898AA045FA71157 /* SummaryTVOSIcon.png in Resources */,
+				225119CB28726F7E61DCBF0B /* SummaryVisionOSIcon.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		10AB52F2C3A4971A8AE17337 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F755D8A6C7CA18ACA117209F /* ClientAppModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		80D88AE2DCBE8E83CB9E4C62 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				C8840CD5E15DB62F96AFA533 /* AirportSubscriptionParserTests.swift in Sources */,
 				2ADF1ADFE70E63FE334C1B5C /* SurgeRelayTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8451CB581CA2AB971B2B6E8B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABCA99010C8453EE7EE2012B /* AirportSubscription.swift in Sources */,
+				52ED80DA0750AE19E2D1485E /* AppSettings.swift in Sources */,
+				F8C1BADE896F32DDB2C3263D /* BundleImage.swift in Sources */,
+				CF4577583E2823C53D23B446 /* ClientAppModel.swift in Sources */,
+				5614C311CC95A7F448FCDD1A /* FilenameSanitizer.swift in Sources */,
+				ED99CF0D14C41E2E0FF5F84C /* IOSComponents.swift in Sources */,
+				2149A25A8A01ED2C310347B6 /* IOSModuleDetailView.swift in Sources */,
+				F4631345955C8A0781830AD6 /* IOSModuleEditorView.swift in Sources */,
+				49E2959CFB254F9C3EE714FD /* IOSModulesListView.swift in Sources */,
+				09963F7C27F50239539AC123 /* IOSRootView.swift in Sources */,
+				682CD5C810F31C374B735F93 /* IOSSettingsView.swift in Sources */,
+				AA54DC6E1A0D21BA18530B13 /* IOSWelcomeView.swift in Sources */,
+				2A6B4A5BA52A4871EA66C391 /* RelayModule.swift in Sources */,
+				FD10474332777F2ECE3A836F /* RemoteConnectionState.swift in Sources */,
+				D6CA6F4361DF130377A8609E /* RemoteManagementClient.swift in Sources */,
+				8279C7E91046567CBD296A2A /* ScriptHubAdvancedOptionsView.swift in Sources */,
+				7EA04F2F96B7AAB19061180C /* ScriptHubOptions.swift in Sources */,
+				B0AAD20B161865620FD1DAFC /* ServiceModels.swift in Sources */,
+				CA56B1E9BB8BD917C35F9690 /* SurgeRelayIOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -425,6 +624,11 @@
 			target = DE7344B3299D1D2C889AAAA3 /* Surge Relay */;
 			targetProxy = F684E4D89A35A80E65AE76AC /* PBXContainerItemProxy */;
 		};
+		C5DA24CD086372CD7BD2F603 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CA0E50C4E8B87D6889CD2083 /* Surge Relay iOS */;
+			targetProxy = 313E824F8BBB415C05A64C80 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -463,7 +667,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27090605;
+				CURRENT_PROJECT_VERSION = 27092201;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -476,17 +680,45 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 260906;
+				MARKETING_VERSION = 260922;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
+		};
+		33363CF75298981CF75AB843 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = W47VS6J7BV;
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_ON_DEMAND_RESOURCES = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SurgeRelayIOS/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Surge Relay";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.allenmiao.SurgeRelay.client;
+				PRODUCT_MODULE_NAME = SurgeRelayIOS;
+				PRODUCT_NAME = SurgeRelay;
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		38338A9B3FAB23832830242E /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -526,6 +758,26 @@
 			};
 			name = Release;
 		};
+		4030CF0C993E82D4D2A6A175 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = W47VS6J7BV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.allenmiao.SurgeRelay.clientTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Surge Relay iOS.app/Surge Relay iOS";
+			};
+			name = Release;
+		};
 		6154134C4599EAAD5A7D9422 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -561,7 +813,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27090605;
+				CURRENT_PROJECT_VERSION = 27092201;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -580,16 +832,36 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 260906;
+				MARKETING_VERSION = 260922;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		C8A0D0733E482AAA10CAF54C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = W47VS6J7BV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.allenmiao.SurgeRelay.clientTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Surge Relay iOS.app/Surge Relay iOS";
 			};
 			name = Debug;
 		};
@@ -631,6 +903,34 @@
 			};
 			name = Debug;
 		};
+		F5E1D5E3206AFD21CADD7ECA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = W47VS6J7BV;
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_ON_DEMAND_RESOURCES = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SurgeRelayIOS/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Surge Relay";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.allenmiao.SurgeRelay.client;
+				PRODUCT_MODULE_NAME = SurgeRelayIOS;
+				PRODUCT_NAME = SurgeRelay;
+				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -639,6 +939,15 @@
 			buildConfigurations = (
 				E0C8D69C629E748BBDCE49C0 /* Debug */,
 				38DEC6C492CF4BAABDD23E00 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8F364B47B609CAF0C76F4068 /* Build configuration list for PBXNativeTarget "Surge Relay iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				33363CF75298981CF75AB843 /* Debug */,
+				F5E1D5E3206AFD21CADD7ECA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -657,6 +966,15 @@
 			buildConfigurations = (
 				D90271269BFB871E4CCA0996 /* Debug */,
 				38338A9B3FAB23832830242E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CA54E47EE9CBFE63F70C6510 /* Build configuration list for PBXNativeTarget "Surge Relay iOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C8A0D0733E482AAA10CAF54C /* Debug */,
+				4030CF0C993E82D4D2A6A175 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

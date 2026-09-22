@@ -4,14 +4,16 @@ options:
   developmentLanguage: zh-Hans
   deploymentTarget:
     macOS: "26.0"
+    iOS: "26.0"
   groupSortPosition: top
   generateEmptyDirectories: true
 settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
-    CURRENT_PROJECT_VERSION: 27090605
-    MARKETING_VERSION: 260906
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    CURRENT_PROJECT_VERSION: 27092201
+    MARKETING_VERSION: 260922
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 packages:
@@ -23,6 +25,7 @@ targets:
     type: application
     platform: macOS
     deploymentTarget: "26.0"
+    scheme: {}
     info:
       path: SurgeRelay/Info.plist
       properties:
@@ -59,6 +62,64 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: Surge Relay
         ENABLE_APP_SANDBOX: NO
         SWIFT_STRICT_CONCURRENCY: complete
+  Surge Relay iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    scheme: {}
+    info:
+      path: SurgeRelayIOS/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: zh-Hans
+        CFBundleLocalizations:
+          - zh-Hans
+        CFBundleDisplayName: Surge Relay
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleIcons:
+          CFBundlePrimaryIcon:
+            CFBundleIconFiles:
+              - AppIcon-1024
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Surge Relay 需要访问本地网络，以便通过 Surge Ponte 连接你的 Mac 服务器。
+    sources:
+      - path: SurgeRelayIOS
+        excludes:
+          - Assets.xcassets
+          - Resources
+      - path: SurgeRelay/Models
+      - path: SurgeRelay/Services/RemoteManagementClient.swift
+      - path: SurgeRelay/Utilities/FilenameSanitizer.swift
+      - path: SurgeRelay/Views/ScriptHubAdvancedOptionsView.swift
+      - path: SurgeRelayIOS/Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.allenmiao.SurgeRelay.client
+        PRODUCT_NAME: SurgeRelay
+        PRODUCT_MODULE_NAME: SurgeRelayIOS
+        DEVELOPMENT_TEAM: W47VS6J7BV
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_ON_DEMAND_RESOURCES: NO
+        ENABLE_DEBUG_DYLIB: NO
+        SWIFT_STRICT_CONCURRENCY: complete
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        INFOPLIST_KEY_CFBundleDisplayName: Surge Relay
+        GENERATE_INFOPLIST_FILE: NO
   Surge RelayTests:
     type: bundle.unit-test
     platform: macOS
@@ -70,4 +131,18 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.allenmiao.SurgeRelayTests
+        GENERATE_INFOPLIST_FILE: YES
+  Surge Relay iOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: SurgeRelayIOSTests
+    dependencies:
+      - target: Surge Relay iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.allenmiao.SurgeRelay.clientTests
+        DEVELOPMENT_TEAM: W47VS6J7BV
+        CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
