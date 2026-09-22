@@ -3,6 +3,39 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>260922</title>
+            <pubDate>Tue, 22 Sep 2026 11:01:41 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260922</link>
+            <sparkle:version>27092201</sparkle:version>
+            <sparkle:shortVersionString>260922</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## Surge Relay 260922
+
+### 机场订阅兼容性
+- 支持直接解析 AnyTLS / Trojan 节点链接，以及 Base64 编码的节点列表。
+- 兼容缺少填充、包含换行、URL-safe 和多层 Base64 的订阅内容。
+- 正确处理中文节点名称、百分号转义、IPv6 地址与特殊字符密码，保留 SNI 和证书验证设置。
+- 改进无效订阅和不支持的节点格式提示，避免将参数或错误页面识别为代理节点。
+
+### 订阅直连规则自动管理
+- 自动从所有已保存的机场订阅 URL 生成直连规则，放在 Surge 配置的 [Rule] 顶部。
+- 新增、更换链接或删除订阅时自动同步已启用的配置，无需等待节点缓存；服务器启动及下载订阅前也会同步。
+- 合并以“# 直连策略 机场名”标注的旧机场域名规则、去除重复项，并随当前订阅链接重建，保留其他用途的规则。
+- 支持域名、IPv4 与 IPv6；配置预览同步展示生成的直连规则。
+
+### 工程与资源
+- 同步当前工程、图标资源及 iOS 客户端源码；本次发布的安装包为 macOS 版。
+- 补充订阅解析回归测试，保留旧版 Web 图标和清单路径兼容性。
+
+### 更新说明
+- 版本：260922，构建号：27092201。
+- 系统要求保持为 macOS 26.0 及以上、Apple silicon。
+- 沿用现有 Sparkle 更新地址与签名公钥，已启用自动更新的兼容版本可检查并获取本次更新。
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v260922/Surge-Relay-260922-build-27092201.dmg" length="29409589" type="application/octet-stream" sparkle:edSignature="fEphoNnupOSkgoYsoCoh6l++uIs2uL7+46kF6KYeNqU31bqxuF6LPFRhzuFkaHPp4VwIXFozg7cllPU/B6IaBg=="/>
+        </item>
+        <item>
             <title>260906</title>
             <pubDate>Sun, 06 Sep 2026 20:54:51 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260906</link>
