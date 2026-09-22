@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A92200000000000000000001 /* AirportSubscriptionDirectRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92200000000000000000002 /* AirportSubscriptionDirectRules.swift */; };
 		0776FD312CBA703F0F12104A /* SummaryMacOSIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 9AD826474B108A4B11DBB9AE /* SummaryMacOSIcon.png */; };
 		089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
 		09963F7C27F50239539AC123 /* IOSRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08432C8BC307878B262CBDD /* IOSRootView.swift */; };
@@ -104,6 +105,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A92200000000000000000002 /* AirportSubscriptionDirectRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionDirectRules.swift; sourceTree = "<group>"; };
 		005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionState.swift; sourceTree = "<group>"; };
 		00FF1B0D1608D65FBA6451BE /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubOptions.swift; sourceTree = "<group>"; };
@@ -232,6 +234,7 @@
 		25F381528CBA8FEE25E4A139 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A92200000000000000000002 /* AirportSubscriptionDirectRules.swift */,
 				AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */,
 				35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */,
 				AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */,
@@ -570,6 +573,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				37663EE9F9B7ADDBC0A7F484 /* AirportSubscription.swift in Sources */,
+				A92200000000000000000001 /* AirportSubscriptionDirectRules.swift in Sources */,
 				96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */,
 				6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */,
 				2C0D2BE2BB1618A76902635E /* AirportSubscriptionsView.swift in Sources */,

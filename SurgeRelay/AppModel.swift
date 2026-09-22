@@ -225,6 +225,7 @@ final class AppModel {
 
     private func startRuntime() async {
         guard deviceMode == .server else { return }
+        synchronizeAirportSubscriptionDirectRulesReportingErrors()
         applyWebServerSettings(persist: false)
         restartScheduler()
         if settings.storageMode == .gitHub {

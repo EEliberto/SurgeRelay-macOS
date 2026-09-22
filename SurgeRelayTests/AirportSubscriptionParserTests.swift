@@ -228,3 +228,86 @@ struct AirportSubscriptionParserTests {
         #expect(result.included[1].definition.contains("skip-cert-verify=true"))
     }
 }
+
+struct AirportSubscriptionDirectRulesTests {
+    private func subscription(_ url: String) -> AirportSubscription {
+        subscription("Airport", url)
+    }
+
+    private func subscription(_ name: String, _ url: String) -> AirportSubscription {
+        AirportSubscription(name: name, sourceURL: url)
+    }
+
+    @Test func extractsUniqueHostsWithoutTokensAndKeepsDisabledSubscriptions() {
+        var disabled = subscription("https://Sub.Example.com:8443/path?token=private")
+        disabled.isEnabled = false
+        let rules = AirportSubscriptionDirectRules.rules(for: [
+            disabled, subscription("https://sub.example.com/another"),
+            subscription("https://192.0.2.5/sub"), subscription("https://[2001:db8::5]/sub"),
+        ])
+        #expect(rules == ["DOMAIN,sub.example.com,DIRECT", "IP-CIDR,192.0.2.5/32,DIRECT,no-resolve", "IP-CIDR6,2001:db8::5/128,DIRECT,no-resolve"])
+        #expect(!rules.joined().contains("private"))
+    }
+
+    @Test func replacesLegacyAirportGroupsAndDeduplicatesWithoutTouchingOtherRules() throws {
+        let source = """
+        [Proxy]
+        Node = direct
+        [Rule]
+        # 直连策略 FlowerCloud
+        DOMAIN-SUFFIX,flowercloud.net,DIRECT
+        DOMAIN-SUFFIX,api-flowercloud.com,DIRECT
+        DOMAIN-SUFFIX,aws-agent.com,DIRECT
+        # 直连策略 ImmTelecom
+        DOMAIN-SUFFIX,pz970qdiyh.sbs,DIRECT
+        DOMAIN-SUFFIX,fau7rbjl64.sbs,DIRECT
+        # Other rules
+        DOMAIN,sub.example.com,DIRECT
+        DOMAIN,sub.example.com,DIRECT
+        DOMAIN-SUFFIX,stun.playstation.net,DIRECT
+        DOMAIN-SUFFIX,myhome,DEVICE:MACMINI
+        FINAL,Proxy
+        [Host]
+        localhost = 127.0.0.1
+        """
+        let subscriptions = [subscription("FlowerCloud", "https://new.example.com/sub"), subscription("ImmTelecom", "https://sub.example.com/sub")]
+        let updated = try AirportSubscriptionDirectRules.updating(source, subscriptions: subscriptions)
+        #expect(updated.contains("[Rule]\n# >>> Surge Relay 机场订阅直连\n"))
+        #expect(!updated.contains("flowercloud.net"))
+        #expect(!updated.contains("pz970qdiyh.sbs"))
+        #expect(!updated.contains("# 直连策略"))
+        #expect(updated.components(separatedBy: "DOMAIN,sub.example.com,DIRECT").count == 2)
+        #expect(updated.contains("DOMAIN-SUFFIX,stun.playstation.net,DIRECT\nDOMAIN-SUFFIX,myhome,DEVICE:MACMINI\nFINAL,Proxy\n[Host]\nlocalhost = 127.0.0.1"))
+        #expect(try AirportSubscriptionDirectRules.updating(updated, subscriptions: subscriptions) == updated)
+    }
+
+    @Test func updatesChangedURLsAndRemovesDeletedSubscriptionRules() throws {
+        let original = "[Rule]\r\nFINAL,Proxy\r\n"
+        let first = try AirportSubscriptionDirectRules.updating(original, subscriptions: [subscription("https://old.example/sub")])
+        let next = try AirportSubscriptionDirectRules.updating(first, subscriptions: [subscription("https://new.example/sub")])
+        #expect(!next.contains("old.example"))
+        #expect(next.contains("DOMAIN,new.example,DIRECT\r\n"))
+        #expect(try AirportSubscriptionDirectRules.updating(next, subscriptions: []) == original)
+    }
+
+    @Test func insertsMissingRuleSectionAndMovesManagedRulesAboveFinal() throws {
+        let subscription = subscription("https://example.com/sub")
+        let missing = try AirportSubscriptionDirectRules.updating("[General]\nloglevel = warning\n", subscriptions: [subscription])
+        #expect(missing.contains("[Rule]\n# >>> Surge Relay 机场订阅直连"))
+        let misplaced = "[Rule]\nFINAL,Proxy\n" + AirportSubscriptionDirectRules.block(for: [subscription]) + "\n"
+        let updated = try AirportSubscriptionDirectRules.updating(misplaced, subscriptions: [subscription])
+        #expect(updated.range(of: "DOMAIN,example.com,DIRECT")!.lowerBound < updated.range(of: "FINAL")!.lowerBound)
+    }
+
+    @Test func refusesBrokenOrCrossSectionMarkers() {
+        for source in [
+            "[Rule]\n# >>> Surge Relay 机场订阅直连\nFINAL,Proxy",
+            "[Rule]\n# >>> Surge Relay 机场订阅直连\n[Host]\n# <<< Surge Relay 机场订阅直连",
+            "[Rule]\n# <<< Surge Relay 机场订阅直连\n# >>> Surge Relay 机场订阅直连",
+        ] {
+            #expect(throws: (any Error).self) {
+                try AirportSubscriptionDirectRules.updating(source, subscriptions: [subscription("https://example.com")])
+            }
+        }
+    }
+}

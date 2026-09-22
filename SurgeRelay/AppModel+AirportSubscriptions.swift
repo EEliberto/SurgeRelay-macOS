@@ -8,6 +8,7 @@ extension AppModel {
         airportSubscriptions.append(subscription)
         invalidateAirportConfigurationPreview()
         try persistAirportSubscriptions()
+        try synchronizeAirportSubscriptionDirectRules()
         statusMessage = "已添加 \(subscription.name)"
     }
 
@@ -26,6 +27,7 @@ extension AppModel {
         airportSubscriptions[index] = updated
         invalidateAirportConfigurationPreview()
         try persistAirportSubscriptions()
+        try synchronizeAirportSubscriptionDirectRules()
         statusMessage = sourceChanged
             ? "已更新 \(updated.name) 的订阅链接"
             : "已更新 \(updated.name) 的过滤与显示设置"
@@ -36,6 +38,7 @@ extension AppModel {
         invalidateAirportConfigurationPreview()
         AirportSubscriptionStore.remove(for: id)
         try? persistAirportSubscriptions()
+        synchronizeAirportSubscriptionDirectRulesReportingErrors()
         statusMessage = "机场订阅已移除"
     }
 
@@ -44,6 +47,7 @@ extension AppModel {
         airportSubscriptions[index].isEnabled = enabled
         invalidateAirportConfigurationPreview()
         try? persistAirportSubscriptions()
+        synchronizeAirportSubscriptionDirectRulesReportingErrors()
     }
 
     func refreshAirportSubscription(id: UUID) async throws {
@@ -52,6 +56,8 @@ extension AppModel {
             throw RelayError.invalidOutput("机场订阅地址无效。")
         }
         do {
+            // Install direct rules before the first request, even without cached nodes.
+            try synchronizeAirportSubscriptionDirectRules()
             var request = URLRequest(
                 url: url,
                 cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
@@ -225,6 +231,7 @@ extension AppModel {
             .map { SurgeConfigurationTarget(path: $0.path) }
         surgeConfigurationTargets.append(contentsOf: additions)
         try? persistSurgeConfigurationTargets()
+        synchronizeAirportSubscriptionDirectRulesReportingErrors()
     }
 
     func addSurgeConfigurationTarget(path: String) throws {
@@ -234,6 +241,7 @@ extension AppModel {
         }
         surgeConfigurationTargets.append(SurgeConfigurationTarget(path: url.path))
         try persistSurgeConfigurationTargets()
+        try synchronizeAirportSubscriptionDirectRules()
         statusMessage = "已添加 \(url.lastPathComponent)"
     }
 
@@ -245,6 +253,7 @@ extension AppModel {
         guard let index = surgeConfigurationTargets.firstIndex(where: { $0.id == id }) else { return }
         surgeConfigurationTargets[index].path = url.path
         try persistSurgeConfigurationTargets()
+        try synchronizeAirportSubscriptionDirectRules()
         statusMessage = "已更新 \(url.lastPathComponent)"
     }
 
@@ -252,11 +261,13 @@ extension AppModel {
         guard let index = surgeConfigurationTargets.firstIndex(where: { $0.id == id }) else { return }
         surgeConfigurationTargets[index].isEnabled = enabled
         try? persistSurgeConfigurationTargets()
+        synchronizeAirportSubscriptionDirectRulesReportingErrors()
     }
 
     func removeSurgeConfigurationTarget(id: UUID) {
         surgeConfigurationTargets.removeAll { $0.id == id }
         try? persistSurgeConfigurationTargets()
+        synchronizeAirportSubscriptionDirectRulesReportingErrors()
     }
 
     func writeAirportSubscriptionsToEnabledConfigurations() throws -> Int {
@@ -276,8 +287,10 @@ extension AppModel {
     var airportConfigurationPreview: String {
         _ = airportConfigurationPreviewRevision
         if let airportConfigurationPreviewCache { return airportConfigurationPreviewCache }
+        let directPreview = AirportSubscriptionDirectRules.rules(for: airportSubscriptions).isEmpty
+            ? "" : "\n\n[Rule]\n" + AirportSubscriptionDirectRules.block(for: airportSubscriptions)
         let preview = (try? generatedAirportConfiguration().preview)
-            ?? "请先刷新所有已启用机场，以生成 [Proxy] 与 [Proxy Group] 预览。"
+            ?? ("请先刷新所有已启用机场，以生成 [Proxy] 与 [Proxy Group] 预览。" + directPreview)
         airportConfigurationPreviewCache = preview
         return preview
     }
@@ -306,9 +319,37 @@ extension AppModel {
             legacyHeader: "# 机场订阅汇总"
         )
 
+        updated = try AirportSubscriptionDirectRules.updating(updated, subscriptions: airportSubscriptions)
         try Data(updated.utf8).write(to: configurationURL, options: .atomic)
         try? FileManager.default.removeItem(at: legacyAirportConfigurationBackupURL(for: configurationURL))
         statusMessage = "已写入 \(configurationURL.lastPathComponent)"
+    }
+
+    func synchronizeAirportSubscriptionDirectRules() throws {
+        guard !isClientMode else { return }
+        var failures: [String] = []
+        for target in surgeConfigurationTargets where target.isEnabled {
+            do {
+                let original = try String(contentsOf: target.url, encoding: .utf8)
+                let updated = try AirportSubscriptionDirectRules.updating(original, subscriptions: airportSubscriptions)
+                if updated != original {
+                    try Data(updated.utf8).write(to: target.url, options: .atomic)
+                }
+            } catch {
+                failures.append("\(target.url.lastPathComponent)：\(error.localizedDescription)")
+            }
+        }
+        if !failures.isEmpty {
+            throw RelayError.invalidOutput("机场设置已保存，但订阅直连规则同步失败：\n" + failures.joined(separator: "\n"))
+        }
+    }
+
+    func synchronizeAirportSubscriptionDirectRulesReportingErrors() {
+        do {
+            try synchronizeAirportSubscriptionDirectRules()
+        } catch {
+            presentedError = error.localizedDescription
+        }
     }
 
     func removeLegacyAirportConfigurationBackups() {
@@ -426,7 +467,8 @@ extension AppModel {
         groupLines.append("# <<< Surge Relay 机场分组")
         let proxyBlock = proxyLines.joined(separator: "\n")
         let groupBlock = groupLines.joined(separator: "\n")
-        return (proxyBlock, groupBlock, "[Proxy]\n\(proxyBlock)\n\n[Proxy Group]\n\(groupBlock)")
+        let directBlock = AirportSubscriptionDirectRules.block(for: airportSubscriptions)
+        return (proxyBlock, groupBlock, "[Proxy]\n\(proxyBlock)\n\n[Proxy Group]\n\(groupBlock)\n\n[Rule]\n\(directBlock)")
     }
 
     private func replacingManagedBlock(
