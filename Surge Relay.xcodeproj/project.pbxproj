@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A92200000000000000000001 /* AirportSubscriptionDirectRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92200000000000000000002 /* AirportSubscriptionDirectRules.swift */; };
 		0776FD312CBA703F0F12104A /* SummaryMacOSIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 9AD826474B108A4B11DBB9AE /* SummaryMacOSIcon.png */; };
 		089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
 		09963F7C27F50239539AC123 /* IOSRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08432C8BC307878B262CBDD /* IOSRootView.swift */; };
@@ -74,12 +73,14 @@
 		CA5FB083B1568EEEEA50DBAF /* GitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */; };
 		CF4577583E2823C53D23B446 /* ClientAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BCBC2B09DBBA4793E7C9B49 /* ClientAppModel.swift */; };
 		D00571D70301FFF75C0BACFE /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */; };
+		D2980143B8F0A5202298FC53 /* AirportSubscriptionDirectRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD39E2AB65C955478BA36E0 /* AirportSubscriptionDirectRules.swift */; };
 		D596D087CB06F13BD28D7510 /* SurgeRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */; };
 		D6CA6F4361DF130377A8609E /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */; };
 		E52CE366B20E07E670D9E6E8 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DAE6646C847419124DE9BB /* Components.swift */; };
 		E80FCFFEF9B58FC6A20F81FB /* AppModel+WebServerLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */; };
 		ED99CF0D14C41E2E0FF5F84C /* IOSComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33476ABE39D098EAE0993C2A /* IOSComponents.swift */; };
 		EE031356FF14CAB55365F007 /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */; };
+		F26D37A67A65C911D54DC6AB /* AirportPolicyFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A0EABD866AEC95147719C3 /* AirportPolicyFileStore.swift */; };
 		F4631345955C8A0781830AD6 /* IOSModuleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF99AA8470C4BCD58A7553D /* IOSModuleEditorView.swift */; };
 		F755D8A6C7CA18ACA117209F /* ClientAppModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F350AB87B079EB40C733016 /* ClientAppModelTests.swift */; };
 		F8C1BADE896F32DDB2C3263D /* BundleImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF93E61A6A0350DB31C0E027 /* BundleImage.swift */; };
@@ -105,7 +106,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A92200000000000000000002 /* AirportSubscriptionDirectRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionDirectRules.swift; sourceTree = "<group>"; };
 		005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionState.swift; sourceTree = "<group>"; };
 		00FF1B0D1608D65FBA6451BE /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubOptions.swift; sourceTree = "<group>"; };
@@ -135,6 +135,7 @@
 		41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubAdvancedOptionsView.swift; sourceTree = "<group>"; };
 		41A01030FABE46B093E69E06 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
 		424E593A2CAE9868C74A2484 /* SurgeRelayIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeRelayIOSApp.swift; sourceTree = "<group>"; };
+		47A0EABD866AEC95147719C3 /* AirportPolicyFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportPolicyFileStore.swift; sourceTree = "<group>"; };
 		48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+RemoteClient.swift"; sourceTree = "<group>"; };
 		4D55E18AA9819C58E2CC4B0D /* AppIcon-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon-1024.png"; sourceTree = "<group>"; };
 		4F350AB87B079EB40C733016 /* ClientAppModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientAppModelTests.swift; sourceTree = "<group>"; };
@@ -174,6 +175,7 @@
 		E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleEditorView.swift; sourceTree = "<group>"; };
 		E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParserTests.swift; sourceTree = "<group>"; };
 		EB516C20A3C981278B9C7766 /* WelcomeWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWizardView.swift; sourceTree = "<group>"; };
+		ECD39E2AB65C955478BA36E0 /* AirportSubscriptionDirectRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionDirectRules.swift; sourceTree = "<group>"; };
 		EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WebServerLifecycle.swift"; sourceTree = "<group>"; };
 		EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		F02309DE998787F453FD1166 /* ModulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulesView.swift; sourceTree = "<group>"; };
@@ -234,7 +236,8 @@
 		25F381528CBA8FEE25E4A139 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				A92200000000000000000002 /* AirportSubscriptionDirectRules.swift */,
+				47A0EABD866AEC95147719C3 /* AirportPolicyFileStore.swift */,
+				ECD39E2AB65C955478BA36E0 /* AirportSubscriptionDirectRules.swift */,
 				AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */,
 				35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */,
 				AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */,
@@ -572,8 +575,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F26D37A67A65C911D54DC6AB /* AirportPolicyFileStore.swift in Sources */,
 				37663EE9F9B7ADDBC0A7F484 /* AirportSubscription.swift in Sources */,
-				A92200000000000000000001 /* AirportSubscriptionDirectRules.swift in Sources */,
+				D2980143B8F0A5202298FC53 /* AirportSubscriptionDirectRules.swift in Sources */,
 				96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */,
 				6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */,
 				2C0D2BE2BB1618A76902635E /* AirportSubscriptionsView.swift in Sources */,
@@ -671,7 +675,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27092201;
+				CURRENT_PROJECT_VERSION = 27092202;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -817,7 +821,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27092201;
+				CURRENT_PROJECT_VERSION = 27092202;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

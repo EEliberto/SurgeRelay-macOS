@@ -245,8 +245,56 @@ struct AirportSubscriptionDirectRulesTests {
             disabled, subscription("https://sub.example.com/another"),
             subscription("https://192.0.2.5/sub"), subscription("https://[2001:db8::5]/sub"),
         ])
-        #expect(rules == ["DOMAIN,sub.example.com,DIRECT", "IP-CIDR,192.0.2.5/32,DIRECT,no-resolve", "IP-CIDR6,2001:db8::5/128,DIRECT,no-resolve"])
+        #expect(rules == ["DOMAIN-SUFFIX,sub.example.com,DIRECT", "IP-CIDR,192.0.2.5/32,DIRECT,no-resolve", "IP-CIDR6,2001:db8::5/128,DIRECT,no-resolve"])
         #expect(!rules.joined().contains("private"))
+    }
+
+    @Test func includesEveryProxyServerHostAlongsideSubscriptionHosts() {
+        let entries = [
+            AirportProxyEntry(originalName: "HK", definition: "ss, hk.flowercloud.net, 443, password=secret"),
+            AirportProxyEntry(originalName: "API", definition: "anytls, \"api-flowercloud.com\", 443, password=secret"),
+            AirportProxyEntry(originalName: "IP", definition: "trojan, 192.0.2.8, 443, password=secret"),
+            AirportProxyEntry(originalName: "DIRECT", definition: "direct"),
+        ]
+        let rules = AirportSubscriptionDirectRules.rules(
+            for: [subscription("https://api-huacloud.dev/sub")],
+            proxyEntries: entries
+        )
+        #expect(rules == [
+            "DOMAIN-SUFFIX,api-flowercloud.com,DIRECT",
+            "DOMAIN-SUFFIX,api-huacloud.dev,DIRECT",
+            "DOMAIN-SUFFIX,hk.flowercloud.net,DIRECT",
+            "IP-CIDR,192.0.2.8/32,DIRECT,no-resolve",
+        ])
+    }
+
+    @Test func coversFlowerCloudAndImmTelecomSubscriptionAndNodeDomains() {
+        let subscriptions = [
+            subscription("FlowerCloud", "https://api-flowercloud.com/sub"),
+            subscription("ImmTelecom", "https://api-huacloud.dev/sub"),
+        ]
+        let entries = [
+            AirportProxyEntry(originalName: "Flower", definition: "ss, flowercloud.net, 443"),
+            AirportProxyEntry(originalName: "Hua", definition: "trojan, api-huacloud.com, 443"),
+            AirportProxyEntry(originalName: "CDN", definition: "anytls, xmancdn.com, 443"),
+            AirportProxyEntry(originalName: "Agent", definition: "https, aws-agent.com, 443"),
+            AirportProxyEntry(originalName: "Imm 1", definition: "socks5, pz970qdiyh.sbs, 443"),
+            AirportProxyEntry(originalName: "Imm 2", definition: "hysteria2, fau7rbjl64.sbs, 443"),
+        ]
+
+        #expect(Set(AirportSubscriptionDirectRules.rules(
+            for: subscriptions,
+            proxyEntries: entries
+        )) == Set([
+            "DOMAIN-SUFFIX,flowercloud.net,DIRECT",
+            "DOMAIN-SUFFIX,api-flowercloud.com,DIRECT",
+            "DOMAIN-SUFFIX,api-huacloud.com,DIRECT",
+            "DOMAIN-SUFFIX,api-huacloud.dev,DIRECT",
+            "DOMAIN-SUFFIX,xmancdn.com,DIRECT",
+            "DOMAIN-SUFFIX,aws-agent.com,DIRECT",
+            "DOMAIN-SUFFIX,pz970qdiyh.sbs,DIRECT",
+            "DOMAIN-SUFFIX,fau7rbjl64.sbs,DIRECT",
+        ]))
     }
 
     @Test func replacesLegacyAirportGroupsAndDeduplicatesWithoutTouchingOtherRules() throws {
@@ -276,7 +324,7 @@ struct AirportSubscriptionDirectRulesTests {
         #expect(!updated.contains("flowercloud.net"))
         #expect(!updated.contains("pz970qdiyh.sbs"))
         #expect(!updated.contains("# 直连策略"))
-        #expect(updated.components(separatedBy: "DOMAIN,sub.example.com,DIRECT").count == 2)
+        #expect(updated.components(separatedBy: "sub.example.com,DIRECT").count == 2)
         #expect(updated.contains("DOMAIN-SUFFIX,stun.playstation.net,DIRECT\nDOMAIN-SUFFIX,myhome,DEVICE:MACMINI\nFINAL,Proxy\n[Host]\nlocalhost = 127.0.0.1"))
         #expect(try AirportSubscriptionDirectRules.updating(updated, subscriptions: subscriptions) == updated)
     }
@@ -286,7 +334,7 @@ struct AirportSubscriptionDirectRulesTests {
         let first = try AirportSubscriptionDirectRules.updating(original, subscriptions: [subscription("https://old.example/sub")])
         let next = try AirportSubscriptionDirectRules.updating(first, subscriptions: [subscription("https://new.example/sub")])
         #expect(!next.contains("old.example"))
-        #expect(next.contains("DOMAIN,new.example,DIRECT\r\n"))
+        #expect(next.contains("DOMAIN-SUFFIX,new.example,DIRECT\r\n"))
         #expect(try AirportSubscriptionDirectRules.updating(next, subscriptions: []) == original)
     }
 
@@ -296,7 +344,7 @@ struct AirportSubscriptionDirectRulesTests {
         #expect(missing.contains("[Rule]\n# >>> Surge Relay 机场订阅直连"))
         let misplaced = "[Rule]\nFINAL,Proxy\n" + AirportSubscriptionDirectRules.block(for: [subscription]) + "\n"
         let updated = try AirportSubscriptionDirectRules.updating(misplaced, subscriptions: [subscription])
-        #expect(updated.range(of: "DOMAIN,example.com,DIRECT")!.lowerBound < updated.range(of: "FINAL")!.lowerBound)
+        #expect(updated.range(of: "DOMAIN-SUFFIX,example.com,DIRECT")!.lowerBound < updated.range(of: "FINAL")!.lowerBound)
     }
 
     @Test func refusesBrokenOrCrossSectionMarkers() {
@@ -309,5 +357,36 @@ struct AirportSubscriptionDirectRulesTests {
                 try AirportSubscriptionDirectRules.updating(source, subscriptions: [subscription("https://example.com")])
             }
         }
+    }
+}
+
+struct AirportPolicyFileStoreTests {
+    @Test func producesReadableLocalNames() {
+        let subscription = AirportSubscription(
+            id: UUID(uuidString: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA")!,
+            name: "Flower/Cloud"
+        )
+        #expect(AirportPolicyFileStore.fileNames(for: [subscription])[subscription.id] == "Flower-Cloud.proxies")
+    }
+
+    @Test func localWriterCleansOnlyOwnedObsoletePolicyFiles() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let profile = directory.appending(path: "Gateway.conf")
+        try Data().write(to: profile)
+        try Data("# Generated by Surge Relay; subscription-id=old\n".utf8)
+            .write(to: directory.appending(path: "Old.proxies.txt"))
+        try Data("user content\n".utf8).write(to: directory.appending(path: "User.proxies"))
+
+        try AirportPolicyFileStore.write(
+            files: ["FlowerCloud.proxies": "# Generated by Surge Relay; subscription-id=new\nNode = direct\n"],
+            beside: profile
+        )
+
+        #expect(FileManager.default.fileExists(atPath: directory.appending(path: "FlowerCloud.proxies").path))
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "Old.proxies.txt").path))
+        #expect(FileManager.default.fileExists(atPath: directory.appending(path: "User.proxies").path))
     }
 }

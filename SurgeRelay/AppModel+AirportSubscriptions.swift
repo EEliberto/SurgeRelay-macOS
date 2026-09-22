@@ -79,6 +79,7 @@ extension AppModel {
             airportSubscriptions[currentIndex].lastUpdatedAt = .now
             airportSubscriptions[currentIndex].lastError = nil
             try persistAirportSubscriptions()
+            try synchronizeAirportSubscriptionDirectRules()
             statusMessage = "已刷新 \(airportSubscriptions[currentIndex].name) 的预览"
         } catch {
             if let currentIndex = airportSubscriptions.firstIndex(where: { $0.id == id }) {
@@ -287,8 +288,14 @@ extension AppModel {
     var airportConfigurationPreview: String {
         _ = airportConfigurationPreviewRevision
         if let airportConfigurationPreviewCache { return airportConfigurationPreviewCache }
-        let directPreview = AirportSubscriptionDirectRules.rules(for: airportSubscriptions).isEmpty
-            ? "" : "\n\n[Rule]\n" + AirportSubscriptionDirectRules.block(for: airportSubscriptions)
+        let cachedEntries = cachedAirportProxyEntries()
+        let directPreview = AirportSubscriptionDirectRules.rules(
+            for: airportSubscriptions,
+            proxyEntries: cachedEntries
+        ).isEmpty ? "" : "\n\n[Rule]\n" + AirportSubscriptionDirectRules.block(
+            for: airportSubscriptions,
+            proxyEntries: cachedEntries
+        )
         let preview = (try? generatedAirportConfiguration().preview)
             ?? ("请先刷新所有已启用机场，以生成 [Proxy] 与 [Proxy Group] 预览。" + directPreview)
         airportConfigurationPreviewCache = preview
@@ -303,6 +310,7 @@ extension AppModel {
     func writeAirportSubscriptions(to configurationURL: URL) throws {
         let original = try String(contentsOf: configurationURL, encoding: .utf8)
         let generated = try generatedAirportConfiguration()
+        try AirportPolicyFileStore.write(files: generated.policyFiles, beside: configurationURL)
         var updated = try replacingManagedBlock(
             in: original,
             section: "Proxy",
@@ -319,7 +327,11 @@ extension AppModel {
             legacyHeader: "# 机场订阅汇总"
         )
 
-        updated = try AirportSubscriptionDirectRules.updating(updated, subscriptions: airportSubscriptions)
+        updated = try AirportSubscriptionDirectRules.updating(
+            updated,
+            subscriptions: airportSubscriptions,
+            proxyEntries: cachedAirportProxyEntries()
+        )
         try Data(updated.utf8).write(to: configurationURL, options: .atomic)
         try? FileManager.default.removeItem(at: legacyAirportConfigurationBackupURL(for: configurationURL))
         statusMessage = "已写入 \(configurationURL.lastPathComponent)"
@@ -328,10 +340,15 @@ extension AppModel {
     func synchronizeAirportSubscriptionDirectRules() throws {
         guard !isClientMode else { return }
         var failures: [String] = []
+        let entries = cachedAirportProxyEntries()
         for target in surgeConfigurationTargets where target.isEnabled {
             do {
                 let original = try String(contentsOf: target.url, encoding: .utf8)
-                let updated = try AirportSubscriptionDirectRules.updating(original, subscriptions: airportSubscriptions)
+                let updated = try AirportSubscriptionDirectRules.updating(
+                    original,
+                    subscriptions: airportSubscriptions,
+                    proxyEntries: entries
+                )
                 if updated != original {
                     try Data(updated.utf8).write(to: target.url, options: .atomic)
                 }
@@ -434,12 +451,27 @@ extension AppModel {
         "\"\(value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\""
     }
 
-    private func generatedAirportConfiguration() throws -> (proxyBlock: String, groupBlock: String, preview: String) {
+    private func cachedAirportProxyEntries() -> [AirportProxyEntry] {
+        airportSubscriptions.flatMap { subscription -> [AirportProxyEntry] in
+            guard let data = try? AirportSubscriptionStore.data(for: subscription.id) else { return [] }
+            return (try? AirportSubscriptionParser.proxyEntries(from: data)) ?? []
+        }
+    }
+
+    private func generatedAirportConfiguration() throws -> (
+        proxyBlock: String,
+        groupBlock: String,
+        preview: String,
+        policyFiles: [String: String]
+    ) {
         let subscriptions = airportSubscriptions.filter { $0.isEnabled && $0.isConfigured }
         guard !subscriptions.isEmpty else { throw RelayError.invalidOutput("没有已启用的机场。") }
         var proxyLines = ["# >>> Surge Relay 机场代理"]
         var groupLines = ["# >>> Surge Relay 机场分组"]
+        var policyFiles: [String: String] = [:]
+        var policyPreviews: [String] = []
         var usedProxyNames = Set<String>()
+        let localFileNames = AirportPolicyFileStore.fileNames(for: subscriptions)
 
         for subscription in subscriptions {
             let entries = try AirportSubscriptionParser.proxyEntries(
@@ -453,12 +485,17 @@ extension AppModel {
             guard !processingResult.included.isEmpty else {
                 throw RelayError.invalidOutput("\(subscription.name) 的节点在过滤后为空。")
             }
-            let names = processingResult.included.map { entry -> String in
-                let name = entry.name
-                proxyLines.append("\(name) = \(entry.definition)")
-                return quoted(name)
+            guard let fileName = localFileNames[subscription.id] else {
+                throw RelayError.invalidOutput("无法生成 \(subscription.name) 的外部策略文件名。")
             }
-            var groupMembers = names
+            let policyPath = AirportPolicyFileStore.relativePath(fileName: fileName)
+            let content = AirportPolicyFileStore.content(
+                subscriptionID: subscription.id,
+                entries: processingResult.included
+            )
+            policyFiles[fileName] = content
+            policyPreviews.append("# \(policyPath)\n\(content.trimmingCharacters(in: .newlines))")
+            var groupMembers = ["policy-path=\(quoted(policyPath))"]
             let icon = subscription.iconURL.trimmingCharacters(in: .whitespacesAndNewlines)
             if !icon.isEmpty { groupMembers.append("icon-url=\(icon)") }
             groupLines.append("\(subscription.trimmedName) = select, \(groupMembers.joined(separator: ", "))")
@@ -467,8 +504,14 @@ extension AppModel {
         groupLines.append("# <<< Surge Relay 机场分组")
         let proxyBlock = proxyLines.joined(separator: "\n")
         let groupBlock = groupLines.joined(separator: "\n")
-        let directBlock = AirportSubscriptionDirectRules.block(for: airportSubscriptions)
-        return (proxyBlock, groupBlock, "[Proxy]\n\(proxyBlock)\n\n[Proxy Group]\n\(groupBlock)\n\n[Rule]\n\(directBlock)")
+        let cachedEntries = cachedAirportProxyEntries()
+        let directBlock = AirportSubscriptionDirectRules.block(
+            for: airportSubscriptions,
+            proxyEntries: cachedEntries
+        )
+        let externalPreview = policyPreviews.joined(separator: "\n\n")
+        let preview = "[Proxy]\n\(proxyBlock)\n\n# 外部策略文件\n\(externalPreview)\n\n[Proxy Group]\n\(groupBlock)\n\n[Rule]\n\(directBlock)"
+        return (proxyBlock, groupBlock, preview, policyFiles)
     }
 
     private func replacingManagedBlock(

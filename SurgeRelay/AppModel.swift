@@ -1773,14 +1773,22 @@ final class AppModel {
         var lines = normalized.components(separatedBy: "\n")
         let name = lines.first { $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("#!name=") }
         let desc = lines.first { $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("#!desc=") }
+        let additionalMetadata = lines.filter {
+            let lower = $0.trimmingCharacters(in: .whitespaces).lowercased()
+            return lower.hasPrefix("#!")
+                && !lower.hasPrefix("#!name=")
+                && !lower.hasPrefix("#!desc=")
+                && !lower.hasPrefix("#!category=")
+        }
         lines.removeAll {
             let lower = $0.trimmingCharacters(in: .whitespaces).lowercased()
-            return lower.hasPrefix("#!name=") || lower.hasPrefix("#!desc=") || lower.hasPrefix("#!category=")
+            return lower.hasPrefix("#!")
         }
         let body = lines.joined(separator: "\n").trimmingCharacters(in: CharacterSet(charactersIn: "\n"))
         var header = [name, desc].compactMap { $0 }
         header.append("#!category=Surge Relay")
-        return (header + [body]).filter { !$0.isEmpty }.joined(separator: "\n") + "\n"
+        header.append(contentsOf: additionalMetadata)
+        return (header + ["", body]).joined(separator: "\n") + "\n"
     }
 
     private func removeExportedIndividualFiles(moduleID: UUID, outputFileName: String) async throws {

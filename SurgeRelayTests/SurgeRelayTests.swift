@@ -660,6 +660,9 @@ private final class SourceRevisionURLProtocol: URLProtocol, @unchecked Sendable 
 
 private final class GitHubPublishURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var expectedBlobSHA = ""
+    nonisolated(unsafe) static let expectedManifestSHA = Data(
+        #"{"paths":["Surge-Relay.sgmodule"],"version":1}"#.utf8
+    ).gitBlobSHA1
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -678,7 +681,12 @@ private final class GitHubPublishURLProtocol: URLProtocol, @unchecked Sendable {
             body = Data(#"{"sha":"head","tree":{"sha":"tree"}}"#.utf8)
             status = 200
         } else if path == "/repos/owner/relay/git/trees/tree" {
-            body = Data("{\"tree\":[{\"path\":\"modules/Surge-Relay.sgmodule\",\"type\":\"blob\",\"sha\":\"\(Self.expectedBlobSHA)\"}]}".utf8)
+            body = Data("{\"tree\":[{\"path\":\"modules/Surge-Relay.sgmodule\",\"type\":\"blob\",\"sha\":\"\(Self.expectedBlobSHA)\"},{\"path\":\"modules/.surge-relay-manifest.json\",\"type\":\"blob\",\"sha\":\"\(Self.expectedManifestSHA)\"}]}".utf8)
+            status = 200
+        } else if path == "/repos/owner/relay/git/blobs/\(Self.expectedManifestSHA)" {
+            let manifest = Data(#"{"paths":["Surge-Relay.sgmodule"],"version":1}"#.utf8)
+                .base64EncodedString()
+            body = Data("{\"content\":\"\(manifest)\",\"encoding\":\"base64\"}".utf8)
             status = 200
         } else {
             body = Data(#"{"message":"unexpected request"}"#.utf8)
