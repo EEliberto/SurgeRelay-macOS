@@ -3,6 +3,23 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>261002</title>
+            <pubDate>Fri, 02 Oct 2026 23:45:50 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261002</link>
+            <sparkle:version>27100201</sparkle:version>
+            <sparkle:shortVersionString>261002</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## Surge Relay 261002
+
+### Script Hub 引擎
+- 修复测试版脚本文件名导致的更新失败，同时兼容稳定版与测试版。
+- 新增“稳定版／测试版”渠道切换，切换后自动检查更新。
+- 更新失败时继续使用已有引擎，并仅在失败时显示提示。
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261002/Surge-Relay-261002-build-27100201.dmg" length="29470246" type="application/octet-stream" sparkle:edSignature="i56dfxq/CC39gvpdh+8nikr2mNufn85uSp5NRQQHm3ZmuVu1fP5B1JiKQk2OzYIjzFVQbZxe5NJEWDHiAcAAAg=="/>
+        </item>
+        <item>
             <title>260922</title>
             <pubDate>Tue, 22 Sep 2026 17:18:00 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v260922</link>
