@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "E31BDA64018EEFC05D12E6D5"
+               BuildableName = "Surge RelayTests.xctest"
+               BlueprintName = "Surge RelayTests"
+               ReferencedContainer = "container:Surge Relay.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

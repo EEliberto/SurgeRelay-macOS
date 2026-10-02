@@ -134,6 +134,28 @@ struct PlatformSettings: Codable, Equatable, Sendable {
     }
 }
 
+enum ScriptHubChannel: String, CaseIterable, Identifiable, Sendable {
+    case stable, beta, custom
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .stable: "稳定版"
+        case .beta: "测试版"
+        case .custom: "自定义"
+        }
+    }
+    var moduleURL: String {
+        let root = "https://raw.githubusercontent.com/Script-Hub-Org/Script-Hub/main/modules/"
+        return root + (self == .beta ? "script-hub.beta.surge.sgmodule" : "script-hub.surge.sgmodule")
+    }
+    static func detect(_ source: String) -> Self {
+        let source = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if source == Self.stable.moduleURL { return .stable }
+        if source == Self.beta.moduleURL { return .beta }
+        return .custom
+    }
+}
+
 struct AppSettings: Codable, Equatable, Sendable {
     static let fixedCombinedModuleFileName = "Surge-Relay.sgmodule"
 
@@ -339,6 +361,7 @@ enum RelayDeviceConfiguration {
 
 struct ScriptHubUpstreamState: Codable, Equatable, Sendable {
     var revision: String?
+    var sourceURL: String?
     var lastCheckedAt: Date?
     var lastUpdatedAt: Date?
     var lastError: String?

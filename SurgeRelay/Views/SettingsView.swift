@@ -465,65 +465,123 @@ struct SettingsView: View {
         )
     }
 
+    private var scriptHubUpdateTitle: String {
+        if isCheckingUpdate { return "正在检查更新…" }
+        if model.upstreamState.lastError != nil { return "无法检查 Script Hub 更新。" }
+        if model.upstreamState.revision == nil { return "尚未加载 Script Hub 引擎。" }
+        if model.upstreamState.sourceURL != model.settings.scriptHubModuleURL {
+            return "更新渠道已更改。"
+        }
+        return "Script Hub 引擎已是最新版本。"
+    }
+
     private var scriptHubSettings: some View {
         Form {
-            Section("上游引擎") {
-                LabeledContent("版本") {
-                    Text(model.upstreamState.revision.map { String($0.prefix(7)) } ?? "—")
-                        .monospaced()
-                }
-                LabeledContent("上次检查") {
-                    Text(model.upstreamState.lastCheckedAt?.formatted(Date.FormatStyle(
-                        date: .abbreviated,
-                        time: .shortened,
-                        locale: Locale(identifier: "zh_CN")
-                    )) ?? "尚未检查")
-                        .foregroundStyle(.secondary)
-                }
-                TextField("上游模块", text: Binding(
-                    get: { model.settings.scriptHubModuleURL },
-                    set: {
-                        model.settings.scriptHubModuleURL = $0
-                        if model.isClientMode {
-                            Task { await model.pushRemoteScriptHubSettings() }
-                        } else {
-                            model.saveSettings()
-                        }
+            Section {
+                if isCheckingUpdate {
+                    HStack {
+                        Text("正在检查更新…").font(.body.weight(.medium))
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel("正在检查更新")
                     }
-                ))
-                Toggle("自动更新", isOn: Binding(
-                    get: { model.settings.automaticallyUpdateScriptHub },
-                    set: {
-                        model.settings.automaticallyUpdateScriptHub = $0
-                        if model.isClientMode {
-                            Task { await model.pushRemoteScriptHubSettings() }
-                        } else {
-                            model.saveSettings()
+                } else {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(model.upstreamState.lastError != nil ? Color.orange : model.upstreamState.revision == nil ? Color.secondary : Color.green)
+                            Image(systemName: model.upstreamState.lastError != nil ? "exclamationmark.circle.fill" : model.upstreamState.revision == nil ? "arrow.down.circle.fill" : "checkmark.circle.fill")
+                                .font(.system(size: 19, weight: .medium))
+                                .foregroundStyle(.white)
+                                .accessibilityHidden(true)
                         }
-                    }
-                ))
-                HStack(spacing: 8) {
-                    Button("检查更新", systemImage: "arrow.clockwise") {
-                        Task {
+                        .frame(width: 32, height: 32)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(scriptHubUpdateTitle).font(.body.weight(.medium))
+                            Text(model.upstreamState.revision.map { _ in
+                                "Script Hub · \(model.upstreamState.sourceURL.map { ScriptHubChannel.detect($0).title } ?? "渠道未知")"
+                            } ?? "选择更新渠道以下载转换引擎")
+                            .foregroundStyle(.secondary).font(.caption).textSelection(.enabled)
+                        }
+                        Spacer(minLength: 12)
+                        Button("检查更新") {
                             isCheckingUpdate = true
-                            await model.refreshScriptHub(showProgress: false)
-                            isCheckingUpdate = false
+                            Task {
+                                defer { isCheckingUpdate = false }
+                                await model.refreshScriptHub(showProgress: false)
+                            }
                         }
+                        .disabled(isCheckingUpdate)
                     }
-                    .disabled(isCheckingUpdate)
-                    if isCheckingUpdate {
-                        ProgressView().controlSize(.small)
-                        Text("正在检查…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if let error = model.upstreamState.lastError {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .textSelection(.enabled)
                 }
             }
+            if isCheckingUpdate {
+                Section {
+                    LabeledContent("已加载", value: model.upstreamState.sourceURL.map {
+                        "Script Hub · \(ScriptHubChannel.detect($0).title)"
+                    } ?? "尚未加载")
+                }
+            }
+
+
+            Section {
+                HStack {
+                    Text("自动更新")
+                    Spacer()
+                    Toggle("自动更新", isOn: Binding(
+                        get: { model.settings.automaticallyUpdateScriptHub },
+                        set: {
+                            model.settings.automaticallyUpdateScriptHub = $0
+                            if model.isClientMode {
+                                Task { await model.pushRemoteScriptHubSettings() }
+                            } else { model.saveSettings() }
+                        }
+                    ))
+                    .labelsHidden().toggleStyle(.switch)
+                }
+
+                HStack {
+                    Text("更新渠道")
+                    Spacer()
+                    Picker("更新渠道", selection: Binding(
+                        get: { ScriptHubChannel.detect(model.settings.scriptHubModuleURL) },
+                        set: { channel in
+                            guard channel != .custom else { return }
+                            model.settings.scriptHubModuleURL = channel.moduleURL
+                            isCheckingUpdate = true
+                            Task {
+                                defer { isCheckingUpdate = false }
+                                if model.isClientMode {
+                                    await model.pushRemoteScriptHubSettings()
+                                } else { model.saveSettings() }
+                                await model.refreshScriptHub(showProgress: false)
+                            }
+                        }
+                    )) {
+                        Text("稳定版").tag(ScriptHubChannel.stable)
+                        Text("测试版").tag(ScriptHubChannel.beta)
+                    }
+                    .labelsHidden().fixedSize().disabled(isCheckingUpdate)
+                }
+            }
+            Section {
+                if let error = model.upstreamState.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.callout).foregroundStyle(.orange).textSelection(.enabled)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.upstreamState.lastCheckedAt.map {
+                        "上次检查：" + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Locale(identifier: "zh_CN")))
+                    } ?? "尚未检查更新")
+                    if model.upstreamState.lastError != nil, model.upstreamState.revision != nil {
+                        Text("更新失败，继续使用已加载的引擎。")
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .listRowBackground(Color.clear)
         }
         .formStyle(.grouped)
     }

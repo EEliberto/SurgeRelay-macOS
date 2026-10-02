@@ -167,6 +167,7 @@ enum WebManagementAPI {
             scriptHubModuleURL: model.settings.scriptHubModuleURL,
             automaticallyUpdateScriptHub: model.settings.automaticallyUpdateScriptHub,
             scriptHubRevision: model.upstreamState.revision,
+            scriptHubSourceURL: model.upstreamState.sourceURL,
             scriptHubLastCheckedAt: model.upstreamState.lastCheckedAt,
             scriptHubLastError: model.upstreamState.lastError,
             storageMode: model.settings.storageMode.rawValue,
@@ -847,6 +848,7 @@ private struct WebSettingsPayload: Encodable {
     let scriptHubModuleURL: String
     let automaticallyUpdateScriptHub: Bool
     let scriptHubRevision: String?
+    let scriptHubSourceURL: String?
     let scriptHubLastCheckedAt: Date?
     let scriptHubLastError: String?
     let storageMode: String

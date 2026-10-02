@@ -1326,8 +1326,9 @@ final class AppModel {
     private func refreshScriptHubInternal(updatesStatus: Bool) async {
         if updatesStatus { statusMessage = "正在更新 App 内置 Script Hub 引擎…" }
         do {
+            let source = settings.scriptHubModuleURL
             let result = try await upstreamService.fetchManagedModule(
-                from: settings.scriptHubModuleURL,
+                from: source,
                 previousRevision: upstreamState.revision
             )
             let missing = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
@@ -1335,6 +1336,7 @@ final class AppModel {
                 try await engineStore.save(scripts: result.scripts)
                 upstreamState.lastUpdatedAt = .now
             }
+            upstreamState.sourceURL = source
             upstreamState.revision = result.revision
             upstreamState.lastCheckedAt = .now
             upstreamState.lastError = nil

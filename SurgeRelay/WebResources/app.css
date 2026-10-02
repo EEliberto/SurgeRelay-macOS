@@ -1499,3 +1499,31 @@ body.initializing *, body.initializing *::before, body.initializing *::after {
     border-radius: 12px;
   }
 }
+
+/* Match the native Script Hub grouped form at every viewport width. */
+.script-hub-update-layout { display: grid; gap: 10px; margin: 0; color: var(--label); font-size: 14px; }
+.script-hub-update-card { display: flex; align-items: center; gap: 10px; padding: 10px; min-height: 54px; border-radius: 12px; background: var(--settings-fill); }
+.script-hub-status-icon { display: block; flex: 0 0 32px; width: 32px; height: 32px; border-radius: 8px; background: #34c759; }
+.script-hub-status-icon svg { display: block; width: 32px; height: 32px; }
+.script-hub-status-icon path { fill: none; stroke: #34c759; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.script-hub-status-icon.has-error { background: var(--orange); }
+.script-hub-status-icon.has-error path { stroke: var(--orange); }
+.script-hub-update-copy { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.script-hub-update-copy strong { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.script-hub-update-copy span { color: var(--secondary-label); font-size: 12px; line-height: 1.35; }
+.settings-pane .script-hub-check-button { flex-shrink: 0; padding: 4px 11px; min-height: 24px; border-radius: 6px; border: 0; background: var(--settings-fill-strong); box-shadow: none; font-size: 14px; font-weight: 400; color: var(--label); }
+.settings-pane .script-hub-options { border-radius: 12px; padding: 0 10px; margin: 0; }
+.settings-pane .script-hub-options .form-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; min-height: 40px; padding: 8px 0; margin: 0; font-size: 14px; }
+.script-hub-channel-control { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; }
+.settings-pane .script-hub-channel-control select { appearance: none; -webkit-appearance: none; width: auto; min-width: 90px; min-height: 28px; padding: 3px 34px 3px 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--label); font: inherit; text-align: right; cursor: pointer; }
+.script-hub-channel-control svg { position: absolute; right: 0; width: 21px; height: 21px; padding: 4px; border-radius: 50%; background: var(--settings-fill-strong); pointer-events: none; }
+.script-hub-channel-control path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.script-hub-channel-control:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.script-hub-update-note { padding: 10px; border-radius: 12px; background: var(--settings-fill); color: var(--secondary-label); font-size: 12px; line-height: 1.5; }
+@media (max-width: 560px) {
+  .script-hub-update-layout { gap: 10px; }
+  .script-hub-update-card { gap: 8px; }
+  .script-hub-update-copy strong { font-size: 13px; }
+  .settings-pane .script-hub-check-button { padding: 4px 8px; font-size: 13px; }
+}
+.settings-pane .script-hub-options .form-row > span { font-weight: 400; }

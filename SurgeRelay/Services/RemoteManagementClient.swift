@@ -551,6 +551,7 @@ struct RemoteSettingsPayload: Codable, Sendable {
     var scriptHubModuleURL: String
     var automaticallyUpdateScriptHub: Bool
     var scriptHubRevision: String?
+    var scriptHubSourceURL: String?
     var scriptHubLastCheckedAt: Date?
     var scriptHubLastError: String?
     var storageMode: String

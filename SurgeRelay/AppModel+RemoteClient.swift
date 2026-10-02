@@ -308,6 +308,7 @@ extension AppModel {
         }
         applyRemoteSettings(state.settings, platforms: state.platforms)
         updateHistory = state.settings.updateHistory
+        upstreamState.sourceURL = state.settings.scriptHubSourceURL
         upstreamState.revision = state.settings.scriptHubRevision
         upstreamState.lastCheckedAt = state.settings.scriptHubLastCheckedAt
         upstreamState.lastError = state.settings.scriptHubLastError

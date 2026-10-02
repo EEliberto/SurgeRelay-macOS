@@ -2,6 +2,42 @@ import XCTest
 @testable import SurgeRelay
 
 final class SurgeRelayTests: XCTestCase {
+    func testStableAndBetaUpstreamsLoadBothEngineScripts() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ScriptHubFixtureURLProtocol.self]
+        let service = ScriptHubUpstreamService(session: URLSession(configuration: configuration))
+        for channel in [ScriptHubChannel.stable, .beta] {
+            let result = try await service.fetchManagedModule(from: channel.moduleURL, previousRevision: nil)
+            XCTAssertNotNil(result.scripts["Rewrite-Parser.js"])
+            XCTAssertNotNil(result.scripts["script-converter.js"])
+            XCTAssertFalse(result.scripts.keys.contains { $0.contains(".beta.") })
+            let unchanged = try await service.fetchManagedModule(from: channel.moduleURL, previousRevision: result.revision)
+            XCTAssertFalse(unchanged.changed)
+        }
+        let stable = try await service.fetchManagedModule(from: ScriptHubChannel.stable.moduleURL, previousRevision: nil)
+        let beta = try await service.fetchManagedModule(from: ScriptHubChannel.beta.moduleURL, previousRevision: stable.revision)
+        XCTAssertTrue(beta.changed)
+    }
+
+    func testScriptHubChannelsPreserveExistingAddresses() throws {
+        XCTAssertEqual(ScriptHubChannel.detect(ScriptHubChannel.stable.moduleURL), .stable)
+        XCTAssertEqual(ScriptHubChannel.detect(ScriptHubChannel.beta.moduleURL), .beta)
+        XCTAssertEqual(ScriptHubChannel.detect("https://example.com/custom.sgmodule"), .custom)
+        var settings = AppSettings()
+        settings.scriptHubModuleURL = ScriptHubChannel.beta.moduleURL
+        let restored = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(ScriptHubChannel.detect(restored.scriptHubModuleURL), .beta)
+    }
+
+    func testBetaScriptsUseCanonicalEngineNames() throws {
+        for name in ["Rewrite-Parser", "script-converter", "rule-parser", "script-hub"] {
+            let beta = try XCTUnwrap(URL(string: "https://raw.githubusercontent.com/org/repo/main/\(name).beta.js"))
+            let stable = try XCTUnwrap(URL(string: "https://raw.githubusercontent.com/org/repo/main/\(name).js"))
+            XCTAssertEqual(ScriptHubUpstreamService.engineFileName(for: beta), "\(name).js")
+            XCTAssertEqual(ScriptHubUpstreamService.engineFileName(for: stable), "\(name).js")
+        }
+    }
+
     func testFilenameSanitizerCreatesSurgeModuleExtension() {
         XCTAssertEqual(FilenameSanitizer.sgmoduleName(from: "YouTube Ads.sgmodule"), "YouTube-Ads.sgmodule")
         XCTAssertEqual(FilenameSanitizer.sgmoduleName(from: "folder/bad:name"), "folder-bad-name.sgmodule")
@@ -703,5 +739,22 @@ private final class GitHubPublishURLProtocol: URLProtocol, @unchecked Sendable {
         client?.urlProtocolDidFinishLoading(self)
     }
 
+    override func stopLoading() {}
+}
+
+private final class ScriptHubFixtureURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let url = request.url!
+        let suffix = url.lastPathComponent.contains(".beta.") ? ".beta" : ""
+        let body = url.pathExtension == "sgmodule"
+            ? "[Script]\nscript.hub = script-path=https://raw.githubusercontent.com/org/repo/main/Rewrite-Parser\(suffix).js\nconverter = script-path=https://raw.githubusercontent.com/org/repo/main/script-converter\(suffix).js"
+            : "// \(url.lastPathComponent)"
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
     override func stopLoading() {}
 }

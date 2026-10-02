@@ -32,14 +32,25 @@ actor ScriptHubUpstreamService {
                 throw RelayError.httpFailure(status: scriptStatus, message: "无法检查上游脚本 \(scriptURL.lastPathComponent)。")
             }
             revisionMaterial.append(scriptData)
-            scripts[scriptURL.lastPathComponent] = scriptData
+            scripts[Self.engineFileName(for: scriptURL)] = scriptData
         }
 
         let revision = String(revisionMaterial.sha256String.prefix(12))
-        guard scripts["Rewrite-Parser.js"] != nil else {
-            throw RelayError.invalidOutput("上游模块没有引用 Rewrite-Parser.js。")
+        guard scripts["Rewrite-Parser.js"] != nil, scripts["script-converter.js"] != nil else {
+            throw RelayError.invalidOutput("上游模块缺少重写解析器或脚本转换器（支持稳定版与 Beta）。")
         }
         return UpstreamUpdateResult(revision: revision, changed: revision != previousRevision, scripts: scripts)
+    }
+
+    // Keep the local engine interface independent of upstream channel filenames.
+    static func engineFileName(for url: URL) -> String {
+        switch url.lastPathComponent {
+        case "Rewrite-Parser.beta.js": "Rewrite-Parser.js"
+        case "script-converter.beta.js": "script-converter.js"
+        case "rule-parser.beta.js": "rule-parser.js"
+        case "script-hub.beta.js": "script-hub.js"
+        default: url.lastPathComponent
+        }
     }
 
     private func scriptURLs(in module: String) -> [URL] {

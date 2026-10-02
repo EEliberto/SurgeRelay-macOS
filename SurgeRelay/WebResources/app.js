@@ -2197,15 +2197,33 @@ function generalSettingsMarkup(settings) {
     </div></section>`;
 }
 
+const scriptHubChannels = [
+  { title: '稳定版', url: 'https://raw.githubusercontent.com/Script-Hub-Org/Script-Hub/main/modules/script-hub.surge.sgmodule' },
+  { title: '测试版', url: 'https://raw.githubusercontent.com/Script-Hub-Org/Script-Hub/main/modules/script-hub.beta.surge.sgmodule' }
+];
 function scriptHubSettingsMarkup(settings) {
+  const channels = [...scriptHubChannels];
+  const loadedChannel = settings.scriptHubSourceURL
+    ? (scriptHubChannels.find(channel => channel.url === settings.scriptHubSourceURL)?.title || '自定义')
+    : '渠道未知';
+  const title = settings.scriptHubLastError ? '无法检查 Script Hub 更新。'
+    : !settings.scriptHubRevision ? '尚未加载 Script Hub 引擎。'
+    : settings.scriptHubSourceURL !== settings.scriptHubModuleURL ? '更新渠道已更改。'
+    : 'Script Hub 引擎已是最新版本。';
   return `
-    <section class="editor-section"><h3>上游引擎</h3><div class="editor-group">
-      <div class="settings-info-row"><strong>版本</strong><span>${escapeHTML(settings.scriptHubRevision ? settings.scriptHubRevision.slice(0, 7) : '—')}</span><small>上次检查：${escapeHTML(formatDate(settings.scriptHubLastCheckedAt, '尚未检查'))}</small></div>
-      <label class="form-row"><span>上游模块</span><input type="url" data-settings-control="scriptHubModuleURL" value="${escapeAttribute(settings.scriptHubModuleURL)}"></label>
-      ${settingsSwitchRow('自动更新', 'automaticallyUpdateScriptHub', settings.automaticallyUpdateScriptHub)}
+    <section class="script-hub-update-layout">
+      <div class="script-hub-update-card">
+        <span class="script-hub-status-icon ${settings.scriptHubLastError ? 'has-error' : ''}" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.5" fill="white"/>${settings.scriptHubLastError ? '<path d="M16 9v9m0 4v.2"/>' : settings.scriptHubRevision ? '<path d="m11 16 3.5 4 6.5-9"/>' : '<path d="M16 9v13m-5-5 5 5 5-5"/>'}</svg></span>
+        <div class="script-hub-update-copy"><strong>${escapeHTML(title)}</strong><span>${escapeHTML(settings.scriptHubRevision ? `Script Hub · ${loadedChannel}` : '选择更新渠道以下载转换引擎')}</span></div>
+        <button class="button script-hub-check-button" data-settings-action="refresh-script-hub">检查更新</button>
+      </div>
+      <div class="editor-group script-hub-options">
+        ${settingsSwitchRow('自动更新', 'automaticallyUpdateScriptHub', settings.automaticallyUpdateScriptHub)}
+        <label class="form-row script-hub-channel-row"><span>更新渠道</span><span class="script-hub-channel-control"><select aria-label="更新渠道" data-settings-control="scriptHubModuleURL">${channels.map(channel => `<option value="${escapeAttribute(channel.url)}" ${channel.url === settings.scriptHubModuleURL ? 'selected' : ''}>${escapeHTML(channel.title)}</option>`).join('')}</select><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 6 3-3 3 3M5 10l3 3 3-3"/></svg></span></label>
+      </div>
       ${settings.scriptHubLastError ? `<div class="dialog-message settings-inline-message">${escapeHTML(settings.scriptHubLastError)}</div>` : ''}
-      <div class="settings-inline-actions"><button class="button" data-settings-action="refresh-script-hub"><span class="symbol" data-symbol="refresh"></span>检查更新</button></div>
-    </div></section>`;
+      <div class="script-hub-update-note"><div>上次检查：${escapeHTML(formatDate(settings.scriptHubLastCheckedAt, '尚未检查'))}</div>${settings.scriptHubLastError && settings.scriptHubRevision ? '<div>更新失败，继续使用已加载的引擎。</div>' : ''}</div>
+    </section>`;
 }
 
 function syncSettingsMarkup(settings) {
@@ -2389,7 +2407,9 @@ async function handleSettingsChange(event) {
       renderWebSettings();
     } else if (['scriptHubModuleURL', 'automaticallyUpdateScriptHub'].includes(key)) {
       await api('/api/settings/script-hub', { method: 'PUT', json: { scriptHubModuleURL: readSettingsControl('scriptHubModuleURL')?.value?.trim(), automaticallyUpdateScriptHub: readSettingsControl('automaticallyUpdateScriptHub')?.checked } });
+      if (key === 'scriptHubModuleURL') await api('/api/settings/script-hub/refresh', { method: 'POST' });
       await loadState(false, false);
+      renderWebSettings();
     }
   } catch (error) {
     showToast(error.message, true);
