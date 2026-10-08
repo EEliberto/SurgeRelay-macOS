@@ -1004,7 +1004,7 @@ function previewShell(label, editable) {
   previewSearchIndex = -1;
   previewEditorMirrorDirty = false;
   return `<section class="preview-shell">
-    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button copy-button" data-action="copy-preview"><span class="symbol" data-symbol="copy"></span>拷贝全部</button>${editable ? `<button class="button" data-action="compare-draft">比较服务器版本</button><button class="button" data-action="discard-draft">放弃草稿</button><button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
+    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button copy-button" data-action="copy-preview"><span class="symbol" data-symbol="copy"></span>拷贝全部</button>${editable ? `<button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
     <div class="preview-code-stage">
       <div class="preview-search-wrap">
         <div class="preview-search-field">
@@ -1017,7 +1017,7 @@ function previewShell(label, editable) {
           <button class="preview-search-button next" data-action="preview-search-next" type="button" aria-label="下一个结果" disabled><span class="symbol" data-symbol="chevron.right"></span></button>
         </div>
       </div>
-      ${editable ? '<div class="code-editor-stack"><pre class="code-editor-highlight-layer" id="code-editor-highlight-layer" aria-hidden="true"></pre><textarea class="code-editor" id="code-editor" spellcheck="false" aria-label="模块内容">正在载入…</textarea></div>' : '<pre class="code-view" id="code-view">正在载入…</pre>'}
+      ${editable ? '<div class="code-editor-stack"><pre class="code-editor-highlight-layer" id="code-editor-highlight-layer" aria-hidden="true">正在载入…</pre><textarea class="code-editor" id="code-editor" spellcheck="false" aria-label="模块内容">正在载入…</textarea></div>' : '<pre class="code-view" id="code-view">正在载入…</pre>'}
     </div>
   </section>`;
 }
@@ -1264,12 +1264,6 @@ async function handleDetailClick(event) {
   case 'edit': if (module) openEditor(module); break;
   case 'delete': if (module) await deleteModule(module); break;
   case 'copy': await copyText(source.dataset.value, source); break;
-  case 'compare-draft': if (module) await comparePreviewDraft(module); break;
-  case 'discard-draft':
-    if (module && !pendingPreviewWrites.has(previewPath) && await askConfirmation('放弃草稿？', '将重新载入服务器内容，尚未保存的输入会被丢弃。', '放弃草稿')) {
-      localStorage.removeItem(previewDraftKey(previewPath)); await loadPreview(previewPath, true);
-    }
-    break;
   case 'copy-preview': await copyText(previewText, source); break;
   case 'save-preview': if (module) await savePreview(module); break;
   case 'restore-preview': if (module) await restorePreview(module); break;
@@ -1413,12 +1407,7 @@ function paintPreviewSearchMatches() {
   if (!editor || !layer) return;
   if (previewEditorMirrorDirty) rebuildPreviewEditorMirror();
   else unwrapPreviewSearchMatches(layer);
-  const hasMatches = previewSearchMatches.length > 0;
-  editor.classList.toggle('search-highlighting', hasMatches);
-  layer.hidden = !hasMatches;
-  if (!hasMatches) {
-    return;
-  }
+  layer.hidden = false;
   wrapPreviewSearchMatches(layer);
   syncPreviewEditorHighlightScroll();
 }
@@ -2672,7 +2661,8 @@ function highlightCode(text) {
     const sourceAttributes = ` data-source-start="${lineStart}" data-source-length="${line.length}"`;
     const trimmed = line.trim();
     if (/^\[[^\]]+\]$/.test(trimmed)) return `<span class="code-line code-section"${sourceAttributes}>${escapeHTML(line)}</span>`;
-    if (/^(#|\/\/|;)/.test(trimmed)) return `<span class="code-line code-comment"${sourceAttributes}>${escapeHTML(line)}</span>`;
+    if (/^#!/.test(trimmed)) return `<span class="code-line code-metadata"${sourceAttributes}>${highlightInlineCode(line)}</span>`;
+    if (/^(#|\/\/|;)/.test(trimmed)) return `<span class="code-line code-comment"${sourceAttributes}>${highlightInlineCode(line)}</span>`;
     const value = highlightInlineCode(line);
     return `<span class="code-line"${sourceAttributes}>${value || '<br>'}</span>`;
   }).join('');
@@ -2681,24 +2671,14 @@ function highlightCode(text) {
 function highlightInlineCode(line) {
   let output = '';
   let cursor = 0;
-  const keyMatch = line.match(/^([A-Za-z][A-Za-z0-9_-]*)(\s*=)/);
-  if (keyMatch) {
-    output += `<span class="code-key">${escapeHTML(keyMatch[1])}</span>${escapeHTML(keyMatch[2])}`;
-    cursor = keyMatch[0].length;
-  }
-
-  const tokenPattern = /(https?:\/\/[^\s,<>&]+)|\b(\d+(?:\.\d+)?)\b/g;
-  tokenPattern.lastIndex = cursor;
+  const tokenPattern = /https?:\/\/[^\s,"]+/g;
   let match;
   while ((match = tokenPattern.exec(line)) !== null) {
     output += escapeHTML(line.slice(cursor, match.index));
-    output += match[1]
-      ? `<span class="code-url">${escapeHTML(match[0])}</span>`
-      : `<span class="code-number">${escapeHTML(match[0])}</span>`;
+    output += `<span class="code-url">${escapeHTML(match[0])}</span>`;
     cursor = match.index + match[0].length;
   }
-  output += escapeHTML(line.slice(cursor));
-  return output;
+  return output + escapeHTML(line.slice(cursor));
 }
 
 function showToast(message, isError = false) {
@@ -2717,30 +2697,6 @@ function showToast(message, isError = false) {
 function formatDate(value, fallback = '—') { if (!value) return fallback; const date = new Date(value); if (Number.isNaN(date.valueOf())) return fallback; return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'medium' }).format(date); }
 function escapeHTML(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]); }
 function escapeAttribute(value) { return escapeHTML(value); }
-
-async function comparePreviewDraft(module) {
-  const path = `/api/modules/${module.id}/preview`;
-  const generation = previewLoadGeneration;
-  if (pendingPreviewWrites.has(path)) return;
-  try {
-    const server = await api(path, { metadata: true });
-    if (previewPath !== path || generation !== previewLoadGeneration) return;
-    const dialog = document.createElement('dialog'); dialog.className = 'sheet-dialog draft-comparison-dialog';
-    setTemplateHTML(dialog, `<div class="dialog-header"><h2>比较草稿与服务器</h2><button class="button" data-close>取消</button></div><div class="draft-comparison-body"><p>确认后保留草稿，并以当前服务器版本作为保存基线；仍需点按“写入”。</p><div class="draft-comparison-columns"><section><h3>草稿</h3><pre data-draft></pre></section><section><h3>服务器</h3><pre data-server></pre></section></div></div><div class="dialog-actions"><button class="button primary" data-accept>保留草稿并确认基线</button></div>`);
-    dialog.querySelector('[data-draft]').textContent = previewText;
-    dialog.querySelector('[data-server]').textContent = server.data;
-    dialog.querySelector('[data-close]').onclick = () => dialog.close();
-    dialog.querySelector('[data-accept]').onclick = () => {
-      if (previewPath === path && generation === previewLoadGeneration) {
-        previewSavedText = server.data; previewETag = server.etag; persistPreviewDraft();
-        const save = document.querySelector('[data-action="save-preview"]'); if (save) save.disabled = previewText === previewSavedText;
-      }
-      dialog.close();
-    };
-    dialog.addEventListener('close', () => dialog.remove(), { once: true }); document.body.append(dialog); dialog.showModal();
-  } catch (error) { showToast(error.message, true); }
-}
-
 
 function editorKeywords(editor) {
   const raw = editor.querySelector(`input[name="${editor.dataset.keywordEditor}"]`).value;
