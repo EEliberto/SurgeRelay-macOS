@@ -4,9 +4,9 @@
         <title>Surge Relay</title>
         <item>
             <title>261008</title>
-            <pubDate>Thu, 08 Oct 2026 14:13:13 +0800</pubDate>
+            <pubDate>Thu, 08 Oct 2026 14:43:48 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261008</link>
-            <sparkle:version>27100801</sparkle:version>
+            <sparkle:version>27100802</sparkle:version>
             <sparkle:shortVersionString>261008</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -28,13 +28,13 @@
 
 7. 对 App 与 Web 端进行了多项 UI 调整：统一标题、输入框和底部按钮的布局，修复重复顶栏与分割线显示问题，并根据端口、名称、地址等不同内容调整输入框宽度。
 
-8. 优化 Web 设置和手机端体验，调整侧栏图标、按钮样式与分组间距，移除打开设置时多余的蓝色焦点框；通用设置同步显示 Surge 目录与图标。
+8. 优化 Web 设置和移动端体验，调整侧栏图标、按钮样式与分组间距，移除打开设置时多余的蓝色焦点框；通用设置同步显示 Surge 目录与图标。
 
 9. 修复客户端已保存的 GitHub Token 不显示的问题，支持直接查看和编辑；清理机场外部策略模式下遗留的空代理区块，并统一部分界面文案。
 
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你在使用中遇到任何问题，欢迎在 GitHub 提交 Issue。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261008/Surge-Relay-261008-build-27100801.dmg" length="29772552" type="application/octet-stream" sparkle:edSignature="KuHg6LMS4ce+Msjhd5O5tIy34DAp3/KIv1Tkrxm9yLmYV7OCsMibgOpBXF5KBsEE+zJEXmcB7pg9uX5BRBXPAA=="/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261008/Surge-Relay-261008-build-27100802.dmg" type="application/octet-stream" sparkle:edSignature="CBXqKs+WSjpcZkn1jHGUJUZi0U2114g0byvtOWDRcAuUR95T3Bk4KSyBnos105GPBMXlGDY+H+8u8nEPmuQCCA==" length="29785503"/>
         </item>
         <item>
             <title>261002</title>
