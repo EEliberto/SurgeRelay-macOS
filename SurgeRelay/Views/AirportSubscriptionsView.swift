@@ -313,9 +313,9 @@ private struct ConfigurationTargetEditor: View {
     }
 
     var body: some View {
-        NavigationStack {
+        RelaySheet(title: target == nil ? "添加 Surge 配置" : "编辑 Surge 配置") {
             Form {
-                TextField("配置文件", text: $path)
+                RelayTextField("配置文件", text: $path, stacked: true).multilineTextAlignment(.leading)
                 if !model.isClientMode {
                     Button("选择文件…") { chooseFile() }
                 }
@@ -324,19 +324,15 @@ private struct ConfigurationTargetEditor: View {
                         .foregroundStyle(.red)
                 }
             }
-            .formStyle(.grouped)
-            .navigationTitle(target == nil ? "添加 Surge 配置" : "编辑 Surge 配置")
+            .relaySheetForm()
             .frame(minWidth: 520, minHeight: 190)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(isSaving)
-                }
-            }
+        } actions: {
+            Spacer()
+            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("保存") { save() }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(isSaving)
         }
     }
 
@@ -386,7 +382,7 @@ private struct AirportSubscriptionPreview: View {
     }
 
     var body: some View {
-        NavigationStack {
+        RelaySheet(title: subscription?.name ?? "订阅预览", titleInset: 18) {
             Group {
                 if content.isEmpty, isRefreshing {
                     ProgressView("正在拉取订阅…")
@@ -409,15 +405,11 @@ private struct AirportSubscriptionPreview: View {
                 }
             }
             .frame(minWidth: 720, minHeight: 520)
-            .navigationTitle(subscription?.name ?? "订阅预览")
-            .scrollEdgeEffectStyle(.hard, for: .vertical)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                previewControls
-                    .background(Color(nsColor: .windowBackgroundColor))
-                    .overlay(alignment: .top) {
-                        Divider()
-                    }
-            }
+            .scrollEdgeEffectHidden()
+        } actions: {
+            previewControls
+            Spacer()
+            Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
         }
         .task {
             await loadPreview(refresh: !model.hasCachedAirportSubscription(id: subscriptionID))
@@ -441,14 +433,8 @@ private struct AirportSubscriptionPreview: View {
             }
             .disabled(isRefreshing)
 
-            Spacer(minLength: 0)
-
-            Button("关闭") { dismiss() }
-                .keyboardShortcut(.cancelAction)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+
     }
 
     private func refresh() async {
@@ -516,7 +502,7 @@ private struct AirportNodeChangesTable: View {
             Text("保留 \(includedCount) 个，过滤 \(records.count - includedCount) 个")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 10)
             Table(records) {
                 TableColumn("原始名称") { record in
@@ -604,23 +590,23 @@ private struct AirportSubscriptionEditor: View {
     }
 
     var body: some View {
-        NavigationStack {
+        RelaySheet(title: subscription == nil ? "添加机场" : "编辑机场") {
             Form {
                 Section("机场") {
-                    TextField("名称", text: $draft.name, prompt: Text("例如 FlowerCloud"))
+                    RelayTextField("名称", text: $draft.name, prompt: Text("例如 FlowerCloud"))
                     Toggle("写入 Surge 配置", isOn: $draft.isEnabled)
                 }
                 Section("订阅") {
-                    TextField("订阅链接", text: $draft.sourceURL, prompt: Text("https://…"))
+                    RelayTextField("订阅链接", text: $draft.sourceURL, prompt: Text("https://…"), stacked: true).multilineTextAlignment(.leading)
                 }
                 Section("节点筛选") {
                     Toggle("过滤流量、到期等订阅信息节点", isOn: $draft.nodeProcessing.filtersMetadataNodes)
-                    AirportKeywordListEditor(
+                    RelayKeywordListEditor(
                         title: "只保留包含",
                         prompt: "例如 香港",
                         keywords: $draft.nodeProcessing.includeKeywords
                     )
-                    AirportKeywordListEditor(
+                    RelayKeywordListEditor(
                         title: "排除包含",
                         prompt: "例如 倍率",
                         keywords: $draft.nodeProcessing.excludeKeywords
@@ -643,11 +629,11 @@ private struct AirportSubscriptionEditor: View {
                     .buttonStyle(.plain)
 
                     if isAdvancedRegexExpanded {
-                        TextField(
+                        RelayTextField(
                             "节点过滤正则",
                             text: $draft.policyRegexFilter,
                             prompt: Text("留空则不使用")
-                        )
+                        ).multilineTextAlignment(.leading)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
@@ -658,7 +644,7 @@ private struct AirportSubscriptionEditor: View {
                         }
                     }
                     if draft.nodeProcessing.sortOrder == .keywordPriority {
-                        AirportKeywordListEditor(
+                        RelayKeywordListEditor(
                             title: "优先级",
                             prompt: "依次添加 香港、日本…",
                             keywords: $draft.nodeProcessing.sortPriorityKeywords
@@ -673,8 +659,8 @@ private struct AirportSubscriptionEditor: View {
                     Text("仅对支持该参数的代理协议生效；“跟随订阅”不会修改原始值。")
                 }
                 Section {
-                    TextField("节点名称模板", text: $draft.nodeNameTemplate, prompt: Text("例如 {airport} - {name}"))
-                    TextField("图标地址", text: $draft.iconURL, prompt: Text("https://…"))
+                    RelayTextField("节点名称模板", text: $draft.nodeNameTemplate, prompt: Text("例如 {airport} - {name}")).multilineTextAlignment(.leading)
+                    RelayTextField("图标地址", text: $draft.iconURL, prompt: Text("https://…"), stacked: true).multilineTextAlignment(.leading)
                 } header: {
                     Text("可选参数")
                 } footer: {
@@ -686,7 +672,7 @@ private struct AirportSubscriptionEditor: View {
                     Text("节点名称优化")
                 } footer: {
                     if draft.nodeNameOptimization.isEnabled {
-                        Text("使用逗号分隔，不区分大小写；重名节点会自动追加序号。")
+                        Text("逐项添加关键词，不区分大小写；重名节点会自动追加序号。")
                     }
                 }
                 if let errorMessage {
@@ -696,19 +682,15 @@ private struct AirportSubscriptionEditor: View {
                     }
                 }
             }
-            .formStyle(.grouped)
-            .navigationTitle(subscription == nil ? "添加机场" : "编辑机场")
+            .relaySheetForm()
             .frame(minWidth: 580, minHeight: 650)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(isSaving)
-                }
-            }
+        } actions: {
+            Spacer()
+            Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
+            Button("保存") { save() }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(isSaving)
         }
     }
 
@@ -724,68 +706,6 @@ private struct AirportSubscriptionEditor: View {
                 errorMessage = error.localizedDescription
             }
         }
-    }
-}
-
-private struct AirportKeywordListEditor: View {
-    let title: String
-    let prompt: String
-    @Binding var keywords: [String]
-    @State private var pendingKeyword = ""
-
-    private var visibleKeywords: [String] {
-        var seen = Set<String>()
-        return keywords.filter { seen.insert($0.lowercased()).inserted }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            LabeledContent(title) {
-                HStack(spacing: 6) {
-                    TextField("", text: $pendingKeyword, prompt: Text(prompt))
-                        .labelsHidden()
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .onSubmit(addKeyword)
-                    Button("添加", systemImage: "plus", action: addKeyword)
-                        .labelStyle(.iconOnly)
-                        .disabled(pendingKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .frame(maxWidth: 300)
-            }
-            if !visibleKeywords.isEmpty {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 6) {
-                        ForEach(visibleKeywords, id: \.self) { keyword in
-                            HStack(spacing: 4) {
-                                Text(keyword)
-                                Button {
-                                    keywords.removeAll { $0.caseInsensitiveCompare(keyword) == .orderedSame }
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("移除关键词 \(keyword)")
-                            }
-                            .padding(.leading, 8)
-                            .padding(.trailing, 5)
-                            .padding(.vertical, 4)
-                            .background(.quaternary, in: Capsule())
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
-    }
-
-    private func addKeyword() {
-        let keyword = pendingKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty,
-              !keywords.contains(where: { $0.caseInsensitiveCompare(keyword) == .orderedSame }) else { return }
-        keywords.append(keyword)
-        pendingKeyword = ""
     }
 }
 
@@ -823,10 +743,12 @@ private struct AirportNodeNameOptimizationEditor: View {
         Toggle("自动优化节点名称", isOn: $optimization.isEnabled)
         if optimization.isEnabled {
             Toggle("移除 Emoji 与国旗", isOn: $optimization.removesEmoji)
-            TextField(
-                "移除关键词",
-                text: $optimization.removalTerms,
-                prompt: Text(AirportNodeNameOptimization.defaultRemovalTerms)
+            RelayKeywordListEditor(
+                title: "移除关键词", prompt: "例如 IEPL",
+                keywords: Binding(
+                    get: { optimization.removalTerms.components(separatedBy: CharacterSet(charactersIn: ",，\n")).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } },
+                    set: { optimization.removalTerms = $0.joined(separator: ", ") }
+                )
             )
             LabeledContent("效果示例") {
                 VStack(alignment: .trailing, spacing: 3) {

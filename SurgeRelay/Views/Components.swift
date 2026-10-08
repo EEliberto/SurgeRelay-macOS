@@ -334,18 +334,14 @@ private struct OverrideComparisonView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("上游与本地编辑").font(.headline)
-                Spacer()
-                Button("完成") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-            .padding()
-            Divider()
+        RelaySheet(title: "上游与本地编辑", titleInset: 10) {
             HSplitView {
                 comparisonColumn("最新上游", text: upstream)
                 comparisonColumn("当前本地编辑", text: local)
             }
+        } actions: {
+            Spacer()
+            Button("完成") { dismiss() }.keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 920, minHeight: 560)
         .task {
@@ -487,7 +483,7 @@ private struct CodePreviewSearchBar: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
 
-                TextField("搜索", text: $query)
+                TextField("搜索", text: $query).multilineTextAlignment(.leading)
                     .textFieldStyle(.plain)
                     .font(.callout)
                     .lineLimit(1)
@@ -826,5 +822,170 @@ private struct ModuleCodeTextView: NSViewRepresentable {
                 textStorage.addAttributes(attributes, range: match.range)
             }
         }
+    }
+}
+
+
+/// Single owner of sheet chrome. Do not wrap this in NavigationStack or attach
+/// navigationTitle/toolbars: macOS would reserve a second title/action region.
+struct RelaySheet<Content: View, Actions: View>: View {
+    let title: String
+    var titleInset: CGFloat = 30
+    @ViewBuilder var content: Content
+    @ViewBuilder var actions: Actions
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(title)
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, titleInset)
+                .padding(.vertical, 18)
+            separator
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scrollEdgeEffectHidden()
+            separator
+            HStack(spacing: 12) { actions }
+                .controlSize(.regular)
+                .buttonStyle(.bordered)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var separator: some View {
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor))
+            .frame(height: 1 / displayScale)
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    func relaySheetForm() -> some View {
+        self.formStyle(.grouped)
+            .textFieldStyle(.roundedBorder)
+            .scrollEdgeEffectHidden()
+    }
+}
+
+
+/// Keep the label outside TextField so grouped Form cannot apply its trailing
+/// value layout to the editable text or placeholder.
+struct RelayInputRow<Content: View>: View {
+    let title: String
+    var stacked = false
+    var inputWidth: CGFloat = 240
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if stacked {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                input
+            }
+        } else {
+            HStack(spacing: 16) {
+                Text(title)
+                Spacer(minLength: 0)
+                input.frame(maxWidth: inputWidth)
+            }
+        }
+    }
+
+    private var input: some View {
+        content
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct RelayTextField: View {
+    let title: String
+    @Binding var text: String
+    var prompt: Text?
+    var stacked: Bool
+
+    init(_ title: String, text: Binding<String>, prompt: Text? = nil, stacked: Bool = false) {
+        self.title = title
+        self._text = text
+        self.prompt = prompt
+        self.stacked = stacked
+    }
+
+    var body: some View {
+        RelayInputRow(title: title, stacked: stacked) {
+            TextField(title, text: $text, prompt: prompt)
+                .multilineTextAlignment(.leading)
+                .accessibilityLabel(title)
+        }
+    }
+}
+
+struct RelayKeywordListEditor: View {
+    let title: String
+    let prompt: String
+    @Binding var keywords: [String]
+    var caseSensitive = false
+    @State private var pendingKeyword = ""
+
+    private var visibleKeywords: [String] {
+        var seen = Set<String>()
+        return keywords.filter { seen.insert(caseSensitive ? $0 : $0.lowercased()).inserted }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RelayInputRow(title: title) {
+                HStack(spacing: 6) {
+                    TextField("", text: $pendingKeyword, prompt: Text(prompt)).multilineTextAlignment(.leading)
+                        .labelsHidden()
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .onSubmit(addKeyword)
+                    Button("添加", systemImage: "plus", action: addKeyword)
+                        .labelStyle(.iconOnly)
+                        .disabled(pendingKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .frame(maxWidth: 300)
+            }
+            if !visibleKeywords.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(visibleKeywords, id: \.self) { keyword in
+                            HStack(spacing: 4) {
+                                Text(keyword)
+                                Button {
+                                    keywords.removeAll { caseSensitive ? $0 == keyword : $0.caseInsensitiveCompare(keyword) == .orderedSame }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("移除关键词 \(keyword)")
+                            }
+                            .padding(.leading, 8)
+                            .padding(.trailing, 5)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private func addKeyword() {
+        let keyword = pendingKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty,
+              !keywords.contains(where: { caseSensitive ? $0 == keyword : $0.caseInsensitiveCompare(keyword) == .orderedSame }) else { return }
+        keywords.append(keyword)
+        pendingKeyword = ""
     }
 }

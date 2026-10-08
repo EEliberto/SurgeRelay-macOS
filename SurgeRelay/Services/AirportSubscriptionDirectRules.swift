@@ -10,11 +10,11 @@ enum AirportSubscriptionDirectRules {
         proxyEntries: [AirportProxyEntry] = []
     ) -> [String] {
         // Disabled node groups may still be refreshed, so include every saved subscription.
-        let sourceHosts = subscriptions.compactMap { subscription -> String? in
+        let sourceHosts = subscriptions.flatMap { subscription -> [String] in
             guard subscription.isConfigured,
                   let url = URL(string: subscription.sourceURL.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  let host = url.host else { return nil }
-            return host
+                  let host = url.host else { return [] }
+            return [host] + subscription.redirectHosts
         }
         let nodeHosts = proxyEntries.compactMap { proxyServerHost(from: $0.definition) }
         return Array(Set((sourceHosts + nodeHosts).compactMap(rule(forHost:)))).sorted()

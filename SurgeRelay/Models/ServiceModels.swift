@@ -154,3 +154,10 @@ enum RelayError: LocalizedError, Sendable {
         }
     }
 }
+
+struct PreparedModuleUpdate: Sendable {
+    var id: UUID
+    var startedAt: Date
+    var snapshot: SourceRevisionSnapshot?
+    var result: Result<ConversionResult?, Error>
+}

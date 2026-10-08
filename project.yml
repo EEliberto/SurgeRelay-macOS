@@ -10,8 +10,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
-    CURRENT_PROJECT_VERSION: 27100201
-    MARKETING_VERSION: 261002
+    CURRENT_PROJECT_VERSION: 27100801
+    MARKETING_VERSION: 261008
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 packages:
@@ -23,9 +23,6 @@ targets:
     type: application
     platform: macOS
     deploymentTarget: "26.0"
-    scheme:
-      testTargets:
-        - Surge RelayTests
     info:
       path: SurgeRelay/Info.plist
       properties:
@@ -54,6 +51,13 @@ targets:
     dependencies:
       - sdk: JavaScriptCore.framework
       - package: Sparkle
+      - target: SurgeRelayScriptWorker
+        embed: true
+        link: false
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.allenmiao.SurgeRelay
@@ -61,6 +65,29 @@ targets:
         PRODUCT_MODULE_NAME: SurgeRelay
         ASSETCATALOG_COMPILER_APPICON_NAME: Surge Relay
         ENABLE_APP_SANDBOX: NO
+        SWIFT_STRICT_CONCURRENCY: complete
+  SurgeRelayScriptWorker:
+    type: tool
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: SurgeRelayScriptWorker
+      - path: SurgeRelay/Services/ScriptHubNetworkPolicy.swift
+      - path: SurgeRelay/Services/ScriptHubWorkerFiles.swift
+      - path: SurgeRelay/Services/SourceRetryAfter.swift
+      - path: SurgeRelay/Models/StageMetric.swift
+    dependencies:
+      - sdk: JavaScriptCore.framework
+    settings:
+      base:
+        PRODUCT_NAME: SurgeRelayScriptWorker
+        PRODUCT_BUNDLE_IDENTIFIER: com.allenmiao.SurgeRelay.ScriptWorker
+        CODE_SIGN_ENTITLEMENTS: SurgeRelayScriptWorker/SurgeRelayScriptWorker.entitlements
+        INFOPLIST_FILE: SurgeRelayScriptWorker/Info.plist
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+        SKIP_INSTALL: YES
         SWIFT_STRICT_CONCURRENCY: complete
   Surge RelayTests:
     type: bundle.unit-test
@@ -74,3 +101,14 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.allenmiao.SurgeRelayTests
         GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Surge Relay:
+    build:
+      targets:
+        Surge Relay: all
+    test:
+      environmentVariables:
+        SURGE_RELAY_TEST_MODE: "1"
+      targets:
+        - Surge RelayTests

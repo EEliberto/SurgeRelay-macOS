@@ -86,7 +86,7 @@ const advancedGroups = [
     id: 'script-conversion', title: '启用脚本转换',
     description: '仅在脚本使用了来源 App 独有 API 时启用。启用后，App 会预先转换脚本并将辅助资源发布到 GitHub。',
     fields: [
-      textField('scriptConversionKeywords', '脚本转换 1 关键词', '例如：response-body.js+request.js', '多关键词使用 + 分隔。'),
+      textField('scriptConversionKeywords', '脚本转换 1 关键词', '例如：response-body.js+request.js', '输入关键词后点按 + 添加。'),
       toggleField('convertAllScripts', '脚本转换 1：全部转换'),
       textField('responseScriptConversionKeywords', '脚本转换 2 关键词', '例如：response.js+parser.js', '转换 2 会为 $done(body) 包装 response。'),
       toggleField('convertAllResponseScripts', '脚本转换 2：全部转换并包装 response'),
@@ -112,7 +112,7 @@ const advancedGroups = [
   { id: 'policy', title: '指定策略', description: '为未指定策略或使用非 Surge 内置策略的规则指定一个替代策略。', fields: [textField('policy', '策略', '例如：DIRECT、REJECT 或你的策略组名称')] },
   {
     id: 'mitm', title: '修改 MitM 主机名', fields: [
-      textField('mitmAdd', '添加主机名', '例如：api.example.com, *.example.com', '多个主机名使用英文逗号分隔。'),
+      textField('mitmAdd', '添加主机名', '例如：api.example.com, *.example.com', '每次添加一个主机名。'),
       textField('mitmRemove', '删除主机名', '例如：ads.example.com, track.example.com'),
       textField('mitmRemoveRegex', '按正则删除主机名', '例如：(^|\\.)ads\\.example\\.com$')
     ]
@@ -155,6 +155,20 @@ let moduleArgumentsState = null;
 let moduleArgumentsLoadToken = 0;
 let previewText = '';
 let previewSavedText = '';
+let previewPath = '';
+let previewETag = null;
+let previewLoadGeneration = 0;
+const pendingPreviewWrites = new Set();
+function previewDraftKey(path) { return `surge-relay:preview-draft:${path}`; }
+function persistPreviewDraft() {
+  if (!previewPath || !document.querySelector('#code-editor')) return;
+  try {
+    if (previewText === previewSavedText) localStorage.removeItem(previewDraftKey(previewPath));
+    else localStorage.setItem(previewDraftKey(previewPath), JSON.stringify({ text: previewText, base: previewSavedText, etag: previewETag }));
+  } catch (_) { showToast('浏览器无法保存草稿，请先拷贝内容备份。', true); }
+}
+window.addEventListener('pagehide', persistPreviewDraft);
+
 let previewSearchQuery = '';
 let previewSearchMatches = [];
 let previewSearchIndex = -1;
@@ -354,7 +368,7 @@ function textField(key, label, prompt = '', help = '', multiline = false) { retu
 function toggleField(key, label) { return { type: 'toggle', key, label }; }
 function headingField(label) { return { type: 'heading', label }; }
 function pairedGroup(id, title, firstKey, firstLabel, firstPrompt, secondKey, secondLabel, secondPrompt) {
-  return { id, title, description: '多项使用 + 分隔；目标和值需要一一对应。', fields: [textField(firstKey, firstLabel, firstPrompt), textField(secondKey, secondLabel, secondPrompt)] };
+  return { id, title, paired: true, description: '每行是一组目标和值，点按 + 添加一组。', fields: [textField(firstKey, firstLabel, firstPrompt), textField(secondKey, secondLabel, secondPrompt)] };
 }
 
 async function api(path, options = {}) {
@@ -376,7 +390,8 @@ async function api(path, options = {}) {
     throw new Error(message);
   }
   const contentType = response.headers.get('content-type') || '';
-  return contentType.includes('application/json') ? response.json() : response.text();
+  const data = await (contentType.includes('application/json') ? response.json() : response.text());
+  return options.metadata ? { data, etag: response.headers.get('etag') } : data;
 }
 
 async function loadState(initial = false, renderCurrentDetail = false) {
@@ -781,7 +796,7 @@ function renderModuleDetail(module, animate = true) {
   const headerSection = `
     <section class="form-section-view module-detail-header-section">
       <div class="group-box module-detail-header-card">
-        <div class="module-detail-icon-clickable" data-action="edit-icon" title="点击修改图标">
+        <div class="module-detail-icon-clickable" data-action="edit-icon" title="点按修改图标">
           ${iconHtml}
         </div>
         <div class="module-detail-copy">
@@ -989,7 +1004,7 @@ function previewShell(label, editable) {
   previewSearchIndex = -1;
   previewEditorMirrorDirty = false;
   return `<section class="preview-shell">
-    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button copy-button" data-action="copy-preview"><span class="symbol" data-symbol="copy"></span>拷贝全部</button>${editable ? `<button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
+    <div class="preview-toolbar"><span class="preview-label">${escapeHTML(label)}</span><button class="button copy-button" data-action="copy-preview"><span class="symbol" data-symbol="copy"></span>拷贝全部</button>${editable ? `<button class="button" data-action="compare-draft">比较服务器版本</button><button class="button" data-action="discard-draft">放弃草稿</button><button class="button" data-action="restore-preview"><span class="symbol" data-symbol="arrow.uturn.backward"></span>恢复</button><button class="button primary" data-action="save-preview" disabled>写入</button>` : ''}</div>
     <div class="preview-code-stage">
       <div class="preview-search-wrap">
         <div class="preview-search-field">
@@ -1008,33 +1023,53 @@ function previewShell(label, editable) {
 }
 
 async function loadPreview(path, editable) {
+  const generation = ++previewLoadGeneration;
+  previewPath = path;
+  const target = document.querySelector(editable ? '#code-editor' : '#code-view');
+  if (editable && target) target.disabled = true;
   try {
-    const text = await api(path);
+    const { data: text, etag } = await api(path, { metadata: true });
+    if (generation !== previewLoadGeneration || !target?.isConnected) return;
+    previewText = text; previewSavedText = text; previewETag = etag;
     if (editable) {
-      const editor = document.querySelector('#code-editor');
-      if (!editor) return;
-      previewText = text; previewSavedText = text; editor.value = text;
-      previewEditorMirrorDirty = true;
-      rebuildPreviewEditorMirror();
-      editor.addEventListener('input', () => { previewText = editor.value; previewEditorMirrorDirty = true; const save = document.querySelector('[data-action="save-preview"]'); if (save) save.disabled = previewText === previewSavedText; refreshPreviewSearch(false); });
-      editor.addEventListener('scroll', syncPreviewEditorHighlightScroll, { passive: true });
-    } else {
-      const view = document.querySelector('#code-view');
-      if (view) setTemplateHTML(view, highlightCode(text));
-      previewText = text; previewSavedText = text;
-    }
+      try {
+        const draft = JSON.parse(localStorage.getItem(previewDraftKey(path)) || 'null');
+        if (draft && typeof draft.text === 'string' && typeof draft.base === 'string' && draft.text !== text) {
+          previewText = draft.text; previewSavedText = draft.base; previewETag = draft.etag;
+          showToast(draft.base === text ? '已恢复未保存草稿' : '草稿已恢复；服务器内容已变化，保存前请拷贝草稿并重新载入比较。', draft.base !== text);
+        }
+      } catch (_) {}
+      target.value = previewText; target.disabled = false;
+      previewEditorMirrorDirty = true; rebuildPreviewEditorMirror();
+      const save = document.querySelector('[data-action="save-preview"]');
+      if (save) save.disabled = previewText === previewSavedText;
+      target.addEventListener('input', () => {
+        previewText = target.value; previewEditorMirrorDirty = true; persistPreviewDraft();
+        if (save) save.disabled = previewText === previewSavedText || pendingPreviewWrites.has(path);
+        refreshPreviewSearch(false);
+      });
+      target.addEventListener('scroll', syncPreviewEditorHighlightScroll, { passive: true });
+    } else { setTemplateHTML(target, highlightCode(text)); }
     refreshPreviewSearch(false);
-  } catch (error) { showToast(error.message, true); }
+  } catch (error) { if (generation === previewLoadGeneration) showToast(error.message, true); }
 }
 
 
 function advancedGroupMarkup(group) {
-  return `<details class="option-group" data-option-group="${group.id}"><summary><span class="symbol" data-symbol="chevron.right"></span>${escapeHTML(group.title)}</summary><div class="option-content">${group.description ? `<p class="option-description">${escapeHTML(group.description)}</p>` : ''}${group.fields.map(optionFieldMarkup).join('')}</div></details>`;
+  return `<details class="option-group" data-option-group="${group.id}"><summary><span class="symbol" data-symbol="chevron.right"></span>${escapeHTML(group.title)}</summary><div class="option-content">${group.description ? `<p class="option-description">${escapeHTML(group.description)}</p>` : ''}${group.paired ? pairedOptionsMarkup(group) : group.fields.map(optionFieldMarkup).join('')}</div></details>`;
 }
 
 function optionFieldMarkup(field) {
   if (field.type === 'heading') return `<div class="option-row"><strong>${escapeHTML(field.label)}</strong></div>`;
   if (field.type === 'toggle') return `<label class="option-row option-toggle"><span>${escapeHTML(field.label)}</span><input name="option_${field.key}" type="checkbox" role="switch"><span class="toggle-track" aria-hidden="true"></span></label>`;
+  const separators = { scriptConversionKeywords: '+', responseScriptConversionKeywords: '+', includeKeywords: '+', excludeKeywords: '+', mitmAdd: ',', mitmRemove: ',', sniKeywords: '+', preMatchingKeywords: '+' };
+  if (separators[field.key]) {
+    const name = `option_${field.key}`;
+    return `<div class="option-row keyword-editor" data-keyword-editor="${name}" data-separator="${separators[field.key]}">
+      <label>${escapeHTML(field.label)}</label><div class="keyword-entry"><input data-keyword-input type="text" placeholder="输入一项"><button type="button" class="keyword-add-button" data-keyword-add aria-label="添加${escapeAttribute(field.label)}">＋</button></div>
+      <input type="hidden" name="${name}"><div class="keyword-chips" data-keyword-chips hidden></div>
+      ${field.help && !field.help.includes('分隔') ? `<p class="option-help">${escapeHTML(field.help)}</p>` : ''}</div>`;
+  }
   const input = field.type === 'textarea'
     ? `<textarea name="option_${field.key}" rows="2" placeholder="${escapeAttribute(field.prompt)}"></textarea>`
     : `<input name="option_${field.key}" type="text" placeholder="${escapeAttribute(field.prompt)}">`;
@@ -1138,6 +1173,8 @@ function populateScriptHubOptions(values = scriptHubDefaults) {
     if (!field) return;
     if (typeof options[key] === 'boolean') field.checked = options[key]; else field.value = options[key] || '';
   });
+  ui.advancedOptions.querySelectorAll('[data-keyword-editor]').forEach(editor => { editor.querySelector('[data-keyword-input]').value = ''; renderAirportKeywordEditor(editor); });
+  ui.advancedOptions.querySelectorAll('[data-paired-editor]').forEach(populatePairedOptions);
   advancedGroups.forEach(group => {
     const configured = group.fields.some(field => field.key && options[field.key] !== scriptHubDefaults[field.key]);
     const element = ui.advancedOptions.querySelector(`[data-option-group="${group.id}"]`);
@@ -1227,6 +1264,12 @@ async function handleDetailClick(event) {
   case 'edit': if (module) openEditor(module); break;
   case 'delete': if (module) await deleteModule(module); break;
   case 'copy': await copyText(source.dataset.value, source); break;
+  case 'compare-draft': if (module) await comparePreviewDraft(module); break;
+  case 'discard-draft':
+    if (module && !pendingPreviewWrites.has(previewPath) && await askConfirmation('放弃草稿？', '将重新载入服务器内容，尚未保存的输入会被丢弃。', '放弃草稿')) {
+      localStorage.removeItem(previewDraftKey(previewPath)); await loadPreview(previewPath, true);
+    }
+    break;
   case 'copy-preview': await copyText(previewText, source); break;
   case 'save-preview': if (module) await savePreview(module); break;
   case 'restore-preview': if (module) await restorePreview(module); break;
@@ -1781,6 +1824,7 @@ function openEditor(module = null) {
   manualNameEdited = Boolean(module);
   form.sourceURL.value = module?.sourceURL || '';
   form.sourceFormat.value = module?.sourceFormat || 'automatic';
+  form.refreshIntervalMinutes.value = module?.refreshIntervalMinutes ?? -1;
   form.isEnabled.checked = module?.isEnabled ?? true;
   populateScriptHubOptions(module?.scriptHubOptions || scriptHubDefaults);
   setAdvancedExpanded(Boolean(module?.advancedSummary || hasAdvancedValues(module?.scriptHubOptions)));
@@ -1794,7 +1838,7 @@ function openEditor(module = null) {
 async function saveModule(event) {
   event.preventDefault();
   const form = ui.moduleForm.elements;
-  const payload = { name: form.name.value.trim(), sourceURL: form.sourceURL.value.trim(), sourceFormat: form.sourceFormat.value, isEnabled: form.isEnabled.checked, scriptHubOptions: collectScriptHubOptions() };
+  const payload = { name: form.name.value.trim(), sourceURL: form.sourceURL.value.trim(), sourceFormat: form.sourceFormat.value, refreshIntervalMinutes: Number(form.refreshIntervalMinutes.value), isEnabled: form.isEnabled.checked, scriptHubOptions: collectScriptHubOptions() };
   ui.saveModule.disabled = true;
   try {
     const path = editingID ? `/api/modules/${editingID}` : '/api/modules';
@@ -1830,7 +1874,7 @@ function openAirportEditor(airport = null) {
   form.skipCertificateVerification.value = processing.skipCertificateVerification || 'inherit';
   form.optimizeNodeNames.checked = airport?.nodeNameOptimization?.isEnabled ?? true;
   form.removeNodeNameEmoji.checked = airport?.nodeNameOptimization?.removesEmoji ?? true;
-  form.nodeNameRemovalTerms.value = airport?.nodeNameOptimization?.removalTerms || 'IEPL, IPEL, 专线';
+  setAirportKeywords('nodeNameRemovalTerms', airport?.nodeNameOptimization?.removalTerms ?? 'IEPL, IPEL, 专线');
   form.iconURL.value = airport?.iconURL || '';
   form.isEnabled.checked = airport?.isEnabled ?? true;
   syncAirportNameOptimizationControls();
@@ -1882,7 +1926,7 @@ function setAirportKeywords(name, keywords) {
 
 function renderAirportKeywordEditor(editor) {
   const name = editor.dataset.keywordEditor;
-  const values = splitAirportKeywords(editor.querySelector(`input[name="${name}"]`).value);
+  const values = editorKeywords(editor);
   const chips = editor.querySelector('[data-keyword-chips]');
   chips.hidden = values.length === 0;
   chips.innerHTML = values.map((value, index) => `
@@ -1898,9 +1942,11 @@ function addAirportKeyword(editor) {
   const input = editor.querySelector('[data-keyword-input]');
   const value = input.value.trim();
   if (!value) return;
-  const values = splitAirportKeywords(hiddenInput.value);
-  if (!values.some(item => item.localeCompare(value, undefined, { sensitivity: 'accent' }) === 0)) values.push(value);
-  hiddenInput.value = values.join(', ');
+  const values = editorKeywords(editor);
+  const additions = editor.dataset.separator ? value.split(editor.dataset.separator).map(item => item.trim()).filter(Boolean) : splitAirportKeywords(value);
+  for (const item of additions) if (!values.some(existing => editor.dataset.separator === '+' ? existing === item : existing.toLocaleLowerCase() === item.toLocaleLowerCase())) values.push(item);
+  hiddenInput.value = values.join(editor.dataset.separator || ', ');
+  hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
   input.value = '';
   renderAirportKeywordEditor(editor);
   input.focus();
@@ -1922,9 +1968,10 @@ function handleAirportKeywordClick(event) {
   if (!removeButton) return;
   const name = editor.dataset.keywordEditor;
   const hiddenInput = editor.querySelector(`input[name="${name}"]`);
-  const values = splitAirportKeywords(hiddenInput.value);
+  const values = editorKeywords(editor);
   values.splice(Number(removeButton.dataset.keywordRemove), 1);
-  hiddenInput.value = values.join(', ');
+  hiddenInput.value = values.join(editor.dataset.separator || ', ');
+  hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
   renderAirportKeywordEditor(editor);
 }
 
@@ -2142,11 +2189,15 @@ function renderWebSettings(animateResize = false) {
   }
   const beforeHeight = animateResize && ui.settingsDialog?.open ? ui.settingsDialog.getBoundingClientRect().height : null;
   if (!SETTINGS_PANES.some(([id]) => id === settingsPane)) settingsPane = 'general';
+  const paneTitle = SETTINGS_PANES.find(([id]) => id === settingsPane)?.[1] || '设置';
+  const heading = document.querySelector('#settings-dialog-title');
+  if (heading) heading.textContent = paneTitle;
   setTemplateHTML(ui.settingsContent, `
     <div class="settings-layout ${settingsMenuOpen ? 'menu-open' : ''}">
       <div class="settings-nav-backdrop" data-settings-action="close-settings-menu"></div>
       <nav class="settings-nav" aria-label="设置分类">
-        ${SETTINGS_PANES.map(([id, title, icon]) => `<button type="button" data-settings-pane="${id}" class="${settingsPane === id ? 'selected' : ''}"><span class="symbol" data-symbol="${icon}"></span>${title}</button>`).join('')}
+        <div class="settings-nav-brand">${brandIconMarkup()}<div><strong>Surge Relay</strong><span>Web 管理</span></div></div>
+        ${SETTINGS_PANES.map(([id, title, icon]) => `<button type="button" data-settings-pane="${id}" class="${settingsPane === id ? 'selected' : ''}" ${settingsPane === id ? 'aria-current="page"' : ''}><span class="symbol" data-symbol="${icon}"></span>${title}</button>`).join('')}
       </nav>
       <div class="settings-pane">${settingsPaneMarkup(settings)}</div>
     </div>`);
@@ -2180,7 +2231,14 @@ function settingsPaneMarkup(settings) {
 function generalSettingsMarkup(settings) {
   return `
     <section class="editor-section"><h3>配置目录</h3><div class="editor-group">
-      <div class="settings-info-row"><strong>配置与同步目录</strong><span>iCloud/Surge/Surge Relay</span><small>Surge Relay 的配置与同步状态保存在 iCloud 云盘中。</small></div>
+      <div class="settings-directory-row">
+        <img class="settings-directory-icon" src="/surge-directory-icon.png?v=1" alt="" width="48" height="48">
+        <div class="settings-directory-copy">
+          <strong>Surge 目录</strong>
+          <span>${escapeHTML(settings.localModuleDirectory || '由服务端 Mac 管理')}</span>
+          <small>Surge 使用的目录；通过 iCloud 同步的模块保存在这里。</small>
+        </div>
+      </div>
     </div></section>
     <section class="editor-section"><h3>自动化</h3><div class="editor-group">
       <label class="form-row compact-control-row"><span>刷新间隔</span><select data-settings-control="refreshIntervalMinutes">
@@ -2274,10 +2332,11 @@ function githubSyncSettingsMarkup(settings, tokenPlaceholder) {
 }
 
 function diagnosticsSettingsMarkup(settings) {
+  const lint = settings.publishLintIssues?.length ? `<section class="editor-section"><h3>最近发布检查</h3><div class="editor-group">${settings.publishLintIssues.map(issue => `<div class="settings-info-row"><strong>${issue.severity === 'error' ? '错误' : '提醒'} · ${escapeHTML(issue.filePath)}:${issue.line}</strong><small>${escapeHTML(issue.message)}</small></div>`).join('')}</div></section>` : '';
   const rows = settings.updateHistory?.length
     ? settings.updateHistory.map(entry => `<div class="settings-history-row"><div><strong>${escapeHTML(entry.moduleName || '—')}</strong><small>${escapeHTML(entry.message || localizedOutcome(entry.outcome) || '')}</small></div><span>${escapeHTML(localizedOutcome(entry.outcome))}</span></div>`).join('')
     : '<div class="settings-info-row"><strong>暂无更新记录</strong><small>完成一次同步后，结果会显示在这里。</small></div>';
-  return `<section class="editor-section"><h3>最近更新</h3><div class="editor-group">${rows}</div><div class="editor-group settings-action-group"><button class="button" data-settings-action="export-diagnostics"><span class="symbol" data-symbol="square.and.arrow.up"></span>导出诊断</button><button class="button destructive" data-settings-action="clear-diagnostics">清除历史</button></div></section>`;
+  return `${lint}<section class="editor-section"><h3>最近更新</h3><div class="editor-group">${rows}</div><div class="editor-group settings-action-group"><button class="button" data-settings-action="export-diagnostics"><span class="symbol" data-symbol="square.and.arrow.up"></span>导出诊断</button><button class="button destructive" data-settings-action="clear-diagnostics">清除历史</button></div></section>`;
 }
 
 function aboutSettingsMarkup(settings) {
@@ -2437,14 +2496,52 @@ async function deleteModule(module) {
 }
 
 async function savePreview(module) {
-  try { const result = await api(`/api/modules/${module.id}/preview`, { method: 'PUT', headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: previewText }); previewSavedText = previewText; document.querySelector('[data-action="save-preview"]').disabled = true; showToast(result.message); }
-  catch (error) { showToast(error.message, true); }
+  const path = `/api/modules/${module.id}/preview`;
+  if (path !== previewPath || pendingPreviewWrites.has(path)) return;
+  if (!previewETag) { showToast('缺少服务器内容版本，请拷贝草稿并重新载入。', true); return; }
+  const submitted = previewText, generation = previewLoadGeneration, etag = previewETag;
+  pendingPreviewWrites.add(path);
+  const save = document.querySelector('[data-action="save-preview"]');
+  if (save) save.disabled = true;
+  try {
+    const result = await api(path, { method: 'PUT', headers: { 'Content-Type': 'text/plain; charset=utf-8', 'If-Match': etag }, body: submitted });
+    // Reload the canonical saved value, without overwriting input typed during the request.
+    const server = { data: result.content, etag: result.etag };
+    if (previewPath === path && generation === previewLoadGeneration) {
+      previewSavedText = server.data; previewETag = server.etag;
+      if (previewText === submitted) {
+        previewText = server.data;
+        const editor = document.querySelector('#code-editor');
+        if (editor) editor.value = previewText;
+        previewEditorMirrorDirty = true;
+      }
+      persistPreviewDraft();
+    }
+    showToast(result.message);
+  } catch (error) { showToast(error.message, true); }
+  finally {
+    pendingPreviewWrites.delete(path);
+    if (save?.isConnected) save.disabled = previewText === previewSavedText;
+  }
 }
 
 async function restorePreview(module) {
+  const path = `/api/modules/${module.id}/preview`;
+  if (path !== previewPath || pendingPreviewWrites.has(path) || !previewETag) return;
   if (!await askConfirmation('恢复转换结果？', `“${module.name}”的手动修改会被丢弃。`, '恢复')) return;
-  try { const text = await api(`/api/modules/${module.id}/preview`, { method: 'DELETE' }); const editor = document.querySelector('#code-editor'); if (editor) editor.value = text; previewText = text; previewSavedText = text; previewEditorMirrorDirty = true; document.querySelector('[data-action="save-preview"]').disabled = true; refreshPreviewSearch(false); showToast('已恢复转换结果'); }
-  catch (error) { showToast(error.message, true); }
+  const submitted = previewText, generation = previewLoadGeneration, etag = previewETag;
+  pendingPreviewWrites.add(path);
+  try {
+    const response = await api(path, { method: 'DELETE', headers: { 'If-Match': etag }, metadata: true });
+    if (path === previewPath && generation === previewLoadGeneration) {
+      previewSavedText = response.data; previewETag = response.etag;
+      if (previewText === submitted) { previewText = response.data; document.querySelector('#code-editor').value = response.data; }
+      persistPreviewDraft(); previewEditorMirrorDirty = true; refreshPreviewSearch(false);
+      document.querySelector('[data-action="save-preview"]').disabled = previewText === previewSavedText;
+    }
+    showToast('已恢复转换结果');
+  } catch (error) { showToast(error.message, true); }
+  finally { pendingPreviewWrites.delete(path); }
 }
 
 
@@ -2453,6 +2550,11 @@ function openDialog(dialog) {
   dialog.classList.remove('is-closing');
   lockDialogScroll();
   dialog.showModal();
+  if (dialog.id === 'settings-dialog') {
+    // Focus the dialog heading, not the first (sidebar) button on touch opening.
+    // Tab still reaches the controls with their normal focus-visible styling.
+    dialog.querySelector('#settings-dialog-title')?.focus({ preventScroll: true });
+  }
 }
 function closeDialog(dialog) {
   return new Promise(resolve => {
@@ -2615,3 +2717,75 @@ function showToast(message, isError = false) {
 function formatDate(value, fallback = '—') { if (!value) return fallback; const date = new Date(value); if (Number.isNaN(date.valueOf())) return fallback; return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'medium' }).format(date); }
 function escapeHTML(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]); }
 function escapeAttribute(value) { return escapeHTML(value); }
+
+async function comparePreviewDraft(module) {
+  const path = `/api/modules/${module.id}/preview`;
+  const generation = previewLoadGeneration;
+  if (pendingPreviewWrites.has(path)) return;
+  try {
+    const server = await api(path, { metadata: true });
+    if (previewPath !== path || generation !== previewLoadGeneration) return;
+    const dialog = document.createElement('dialog'); dialog.className = 'sheet-dialog draft-comparison-dialog';
+    setTemplateHTML(dialog, `<div class="dialog-header"><h2>比较草稿与服务器</h2><button class="button" data-close>取消</button></div><div class="draft-comparison-body"><p>确认后保留草稿，并以当前服务器版本作为保存基线；仍需点按“写入”。</p><div class="draft-comparison-columns"><section><h3>草稿</h3><pre data-draft></pre></section><section><h3>服务器</h3><pre data-server></pre></section></div></div><div class="dialog-actions"><button class="button primary" data-accept>保留草稿并确认基线</button></div>`);
+    dialog.querySelector('[data-draft]').textContent = previewText;
+    dialog.querySelector('[data-server]').textContent = server.data;
+    dialog.querySelector('[data-close]').onclick = () => dialog.close();
+    dialog.querySelector('[data-accept]').onclick = () => {
+      if (previewPath === path && generation === previewLoadGeneration) {
+        previewSavedText = server.data; previewETag = server.etag; persistPreviewDraft();
+        const save = document.querySelector('[data-action="save-preview"]'); if (save) save.disabled = previewText === previewSavedText;
+      }
+      dialog.close();
+    };
+    dialog.addEventListener('close', () => dialog.remove(), { once: true }); document.body.append(dialog); dialog.showModal();
+  } catch (error) { showToast(error.message, true); }
+}
+
+
+function editorKeywords(editor) {
+  const raw = editor.querySelector(`input[name="${editor.dataset.keywordEditor}"]`).value;
+  return editor.dataset.separator ? raw.split(editor.dataset.separator).map(value => value.trim()).filter(Boolean) : splitAirportKeywords(raw);
+}
+
+function pairedOptionsMarkup(group) {
+  const [first, second] = group.fields;
+  return `<div class="option-row" data-paired-editor data-first="${first.key}" data-second="${second.key}" data-first-label="${escapeAttribute(first.label)}" data-second-label="${escapeAttribute(second.label)}">
+    <input type="hidden" name="option_${first.key}"><input type="hidden" name="option_${second.key}">
+    <div data-paired-rows></div><button type="button" class="button" data-paired-add>＋ 添加一组</button></div>`;
+}
+
+function appendPairedOption(editor, first = '', second = '') {
+  const row = document.createElement('div'); row.className = 'paired-option-row';
+  setTemplateHTML(row, `<label>${escapeHTML(editor.dataset.firstLabel)}<input type="text" data-pair-first></label><label>${escapeHTML(editor.dataset.secondLabel)}<input type="text" data-pair-second></label><button type="button" class="button" data-paired-remove aria-label="移除此组">−</button>`);
+  row.querySelector('[data-pair-first]').value = first;
+  row.querySelector('[data-pair-second]').value = second;
+  editor.querySelector('[data-paired-rows]').append(row);
+  return row;
+}
+
+function populatePairedOptions(editor) {
+  editor.querySelector('[data-paired-rows]').replaceChildren();
+  const read = key => { const value = editor.querySelector(`[name="option_${key}"]`).value; return value ? value.split('+') : []; };
+  const first = read(editor.dataset.first), second = read(editor.dataset.second);
+  for (let index = 0; index < Math.max(first.length, second.length); index++) appendPairedOption(editor, first[index] || '', second[index] || '');
+}
+
+function persistPairedOptions(editor) {
+  const rows = Array.from(editor.querySelectorAll('.paired-option-row')).map(row => [row.querySelector('[data-pair-first]').value, row.querySelector('[data-pair-second]').value]).filter(pair => pair.some(Boolean));
+  editor.querySelector(`[name="option_${editor.dataset.first}"]`).value = rows.map(pair => pair[0]).join('+');
+  editor.querySelector(`[name="option_${editor.dataset.second}"]`).value = rows.map(pair => pair[1]).join('+');
+}
+
+ui.advancedOptions.addEventListener('input', event => {
+  handleAirportKeywordInput(event);
+  const editor = event.target.closest('[data-paired-editor]');
+  if (editor) persistPairedOptions(editor);
+});
+ui.advancedOptions.addEventListener('keydown', handleAirportKeywordKeyDown);
+ui.advancedOptions.addEventListener('click', event => {
+  handleAirportKeywordClick(event);
+  const editor = event.target.closest('[data-paired-editor]');
+  if (!editor) return;
+  if (event.target.closest('[data-paired-add]')) appendPairedOption(editor).querySelector('input').focus();
+  if (event.target.closest('[data-paired-remove]')) { event.target.closest('.paired-option-row').remove(); persistPairedOptions(editor); }
+});

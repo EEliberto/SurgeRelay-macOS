@@ -264,30 +264,38 @@ struct SettingsView: View {
     private var generalSettings: some View {
         Form {
             Section("配置目录") {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("App 数据目录")
-                    HStack(spacing: 10) {
-                        Text("~/Library/Application Support/Surge Relay")
+                HStack(alignment: .center, spacing: 12) {
+                    Image("SurgeDirectoryIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Surge 目录")
+                            .font(.headline)
+                        Text(model.settings.localModuleDirectory)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
-                            .lineLimit(1)
-                        Spacer()
-                        Button {
-                            model.openConfigurationDirectory()
-                        } label: {
-                            Image(systemName: "folder")
-                                .font(.system(size: 14, weight: .medium))
-                                .frame(width: 30, height: 30)
-                                .contentShape(Circle())
-                                .glassEffect(.regular.interactive(), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("在 Finder 中显示")
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                        Text("Surge 使用的目录；通过 iCloud 同步的模块保存在这里。")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    Text("设置、缓存与历史记录保存在本机；iCloud 的 Surge 文件夹只保留生成的模块。")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        NSWorkspace.shared.open(URL(filePath: model.settings.localModuleDirectory, directoryHint: .isDirectory))
+                    } label: {
+                        Image(systemName: "folder")
+                            .font(.system(size: 14, weight: .medium))
+                            .frame(width: 30, height: 30)
+                            .contentShape(Circle())
+                            .glassEffect(.regular.interactive(), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("在 Finder 中显示")
+                    .accessibilityLabel("在 Finder 中打开 Surge 目录")
                 }
             }
 
@@ -353,10 +361,12 @@ struct SettingsView: View {
                             model.applyWebServerSettings()
                         }
                     ))
-                    TextField("端口", value: Binding(
-                        get: { model.settings.webServerPort },
-                        set: { model.settings.webServerPort = $0 }
-                    ), format: .number.grouping(.never))
+                    RelayInputRow(title: "端口", inputWidth: 84) {
+                        TextField("端口", value: Binding(
+                            get: { model.settings.webServerPort },
+                            set: { model.settings.webServerPort = $0 }
+                        ), format: .number.grouping(.never)).multilineTextAlignment(.leading)
+                    }
                     .onChange(of: model.settings.webServerPort) { _, _ in
                         if model.settings.webServerEnabled {
                             model.applyWebServerSettings()
@@ -406,7 +416,7 @@ struct SettingsView: View {
                 Section {
                     HStack(spacing: 12) {
                         Text("服务器地址")
-                        TextField("", text: $ponteServerAddressInput, prompt: Text("johnsmac.sgponte"))
+                        TextField("", text: $ponteServerAddressInput, prompt: Text("johnsmac.sgponte")).multilineTextAlignment(.leading)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: ponteServerAddressInput) { _, _ in
                             connectionResult = nil
@@ -625,16 +635,35 @@ struct SettingsView: View {
                             detail: "Surge Relay 会验证仓库权限，并通过 Cloudflare 提供设备可访问的稳定订阅。"
                         )
 
-                        TextField("仓库地址", text: $githubRepositoryInput)
-                            .onChange(of: githubRepositoryInput) { _, _ in connectionResult = nil }
-                        SecureField("GitHub Token", text: Binding(
-                            get: { model.githubToken },
-                            set: { model.githubToken = $0 }
-                        ))
-                        .onChange(of: model.githubToken) { _, _ in connectionResult = nil }
-
-                        TextField("公共地址", text: $githubCloudflareInput)
-                            .onChange(of: githubCloudflareInput) { _, _ in connectionResult = nil }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("仓库地址")
+                            TextField("仓库地址", text: $githubRepositoryInput,
+                                      prompt: Text("https://github.com/owner/repository"))
+                                .labelsHidden()
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.leading)
+                                .onChange(of: githubRepositoryInput) { _, _ in connectionResult = nil }
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("GitHub Token")
+                            TextField("GitHub Token", text: Binding(
+                                get: { model.githubToken },
+                                set: { model.githubToken = $0 }
+                            ))
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.leading)
+                            .onChange(of: model.githubToken) { _, _ in connectionResult = nil }
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("公共地址")
+                            TextField("公共地址", text: $githubCloudflareInput,
+                                      prompt: Text("https://example.workers.dev"))
+                                .labelsHidden()
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.leading)
+                                .onChange(of: githubCloudflareInput) { _, _ in connectionResult = nil }
+                        }
                         Text("用于生成可在 Surge 中长期使用的稳定订阅地址。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -711,6 +740,16 @@ struct SettingsView: View {
 
     private var diagnosticsSettings: some View {
         Form {
+            if !model.publishLintIssues.isEmpty {
+                Section("最近发布检查") {
+                    ForEach(model.publishLintIssues) { issue in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(issue.severity.title) · \(issue.filePath):\(issue.line)").font(.headline)
+                            Text(issue.message).textSelection(.enabled)
+                        }.foregroundStyle(issue.severity == .error ? Color.red : Color.secondary)
+                    }
+                }
+            }
             Section {
                 if model.updateHistory.isEmpty {
                     ContentUnavailableView(

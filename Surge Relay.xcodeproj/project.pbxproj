@@ -8,10 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
+		08F0450924697878DD139C34 /* ScriptHubWorkerFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C30378B89379C114F74BCFE /* ScriptHubWorkerFiles.swift */; };
 		0AEAD1701B3D76B37D6C6023 /* AppModel+AirportSubscriptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */; };
 		151D10C88D70BA93DD14C7FB /* MainWindowCloseBehavior.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */; };
+		18CA5F46DB7A8C9D62B56BA3 /* ModuleUpdatePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 441631FD1CED75BCF1CE0F36 /* ModuleUpdatePipeline.swift */; };
 		18F9C44DFE83F37483900625 /* RemoteConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */; };
+		1A535733A5D360EEE6E67E0C /* SourceRetryAfter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A75FBA90EF0944BA7E601E /* SourceRetryAfter.swift */; };
 		1AECEBD32D966A1910B3A007 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F53C80368CE81330FB2D723A /* SettingsView.swift */; };
+		221703641F51A06D60D684BC /* ModuleLint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE439499672B9E09D271C062 /* ModuleLint.swift */; };
+		244F19F25AA892D511C9683D /* ModuleLintPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B8AF2FE0FBB03CA986A4B3 /* ModuleLintPlanner.swift */; };
 		27AF5D3F446A25299DC890B3 /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 13871D2C902AAF75BBD033C6 /* JavaScriptCore.framework */; };
 		280C7E38DAD9F18ED8090287 /* ModuleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */; };
 		2AD845464760705F3E0982BE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3AE70978C59AAF84436C3194 /* Assets.xcassets */; };
@@ -24,13 +29,20 @@
 		37663EE9F9B7ADDBC0A7F484 /* AirportSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */; };
 		384BEBC6E1F8C9A0A53FB0FC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B29AA0AD818A5D7F67A7471 /* AppModel.swift */; };
 		3C9657629989C8164E64BD6D /* MenuBarStatusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D9950B64DCDB2C88D8980C /* MenuBarStatusController.swift */; };
+		3CEAFAFC1048302EB77C0E63 /* SourceRetryAfter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A75FBA90EF0944BA7E601E /* SourceRetryAfter.swift */; };
 		3EE4F5BD7D273B859D69002E /* ScriptHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254A83429BCA625706A87254 /* ScriptHubClient.swift */; };
 		401D479CF6D06ED825897F88 /* Surge Relay.icon in Resources */ = {isa = PBXBuildFile; fileRef = E07D52108B30F9447A500E3D /* Surge Relay.icon */; };
 		407E672ECAD57CD270BB44B7 /* FilenameSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */; };
 		428F3605819F521142B80066 /* ModuleOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = A532731E293DA280A8A42D96 /* ModuleOrdering.swift */; };
+		42DCFE98994FB244F58107EA /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 13871D2C902AAF75BBD033C6 /* JavaScriptCore.framework */; };
+		49E9D3F9B0CDC9BEBE9C9F78 /* ScriptHubWorkerMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928AD0A8B93F157296A37C3C /* ScriptHubWorkerMain.swift */; };
 		4B5E934EB9AC34C451301F50 /* WebManagementAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */; };
+		4FBE2BF17F1383273DD827A3 /* StageMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = 636A3A9965AE43F5D73DD6D8 /* StageMetric.swift */; };
 		540136DA3B34EAD959E5B5F7 /* WebManagementServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */; };
+		5DC18094DCC6880ED7AFB930 /* StageMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = 636A3A9965AE43F5D73DD6D8 /* StageMetric.swift */; };
+		5EF2B858DAA3B65CD18036FC /* ScriptHubNetworkPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DE260ACDDB916C04A96716 /* ScriptHubNetworkPolicy.swift */; };
 		6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */; };
+		6994627BA509C5C8CA8C9FC8 /* ScriptHubJavaScriptRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87214DC5C47E9DD56ACA4D75 /* ScriptHubJavaScriptRuntime.swift */; };
 		6C8F8E71624D2151BFA675ED /* ServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */; };
 		6FD484283175DC8133118FF1 /* ModuleMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */; };
 		709FF80593ADF6216AF25D9D /* RelayModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */; };
@@ -38,15 +50,20 @@
 		73DA0C1D67BF5603F9D67A2D /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 635792E0623514DF6232A5D1 /* Sparkle */; };
 		74EC897C29E5F3DF32C57812 /* WebResources in Resources */ = {isa = PBXBuildFile; fileRef = 1F700D434F8EB4A3091FD216 /* WebResources */; };
 		75B5F5E0E0AF845CD0C5FACE /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B63578065A9F7B8CC166FF2 /* KeychainStore.swift */; };
+		7C572FDC0AAFFA9B908BD3B8 /* AirportSubscriptionDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BF27187B8859AF1E45EBCB /* AirportSubscriptionDownload.swift */; };
 		8375967E58B7560C4A7FE4B4 /* EmbeddedScriptHubEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */; };
 		867673A7795057E6FE20DEB2 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A01030FABE46B093E69E06 /* NetworkPathMonitor.swift */; };
+		8B4A6618C4B777E26916662C /* WorkerError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1048039EB26DA1FBA3230C /* WorkerError.swift */; };
 		8DA26E8693FBA37A8D155709 /* ScriptHubUpstreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098EA18AE40BB22B02102431 /* ScriptHubUpstreamService.swift */; };
+		8F52FC991CFACFB97E7654F4 /* ScriptHubWorkerFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C30378B89379C114F74BCFE /* ScriptHubWorkerFiles.swift */; };
 		91BF72296DEE134A528EDF1B /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00FF1B0D1608D65FBA6451BE /* LaunchAtLoginService.swift */; };
 		93D45771DAD23A3F8AD5473F /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */; };
 		9457731342986CF96B53EA0F /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */; };
 		96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */; };
 		AA8F7B5F28379ACDB4DDEDB9 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD7A6C8082510469A2FA843 /* RootView.swift */; };
+		ADD72E1DAAC4AAA1EF532DB9 /* ScriptHubNetworkPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DE260ACDDB916C04A96716 /* ScriptHubNetworkPolicy.swift */; };
 		AFF297E85AC53B6A6291EE70 /* AppModel+RemoteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */; };
+		B0C3028D6D3E039F761C880D /* ModuleRefreshPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20788CB3D818DAC15E5231FA /* ModuleRefreshPlanner.swift */; };
 		B46911120F2F5BB4C736DCDE /* ModuleIconStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */; };
 		B8555D3D9FEACB351D53EBC9 /* ScriptHubOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */; };
 		C577752A7FA64D5E4749D52B /* DataHash.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31722F50C6C17A7F74F3A1BC /* DataHash.swift */; };
@@ -55,6 +72,7 @@
 		D00571D70301FFF75C0BACFE /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */; };
 		D2980143B8F0A5202298FC53 /* AirportSubscriptionDirectRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD39E2AB65C955478BA36E0 /* AirportSubscriptionDirectRules.swift */; };
 		D596D087CB06F13BD28D7510 /* SurgeRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */; };
+		E34379F53B10E48FC3326282 /* SurgeRelayScriptWorker in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 483CCF19A1FCC5AE9104DCB7 /* SurgeRelayScriptWorker */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E52CE366B20E07E670D9E6E8 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DAE6646C847419124DE9BB /* Components.swift */; };
 		E80FCFFEF9B58FC6A20F81FB /* AppModel+WebServerLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */; };
 		EE031356FF14CAB55365F007 /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */; };
@@ -63,6 +81,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		681CE589C9D79F541EE39F82 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 95062978F1F4A19EA710F4CB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A04FF582F9CE3A55B1FC986;
+			remoteInfo = SurgeRelayScriptWorker;
+		};
 		F684E4D89A35A80E65AE76AC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 95062978F1F4A19EA710F4CB /* Project object */;
@@ -72,17 +97,33 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		DA79265EEA055500657AB6CC /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				E34379F53B10E48FC3326282 /* SurgeRelayScriptWorker in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionState.swift; sourceTree = "<group>"; };
 		00FF1B0D1608D65FBA6451BE /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubOptions.swift; sourceTree = "<group>"; };
 		098EA18AE40BB22B02102431 /* ScriptHubUpstreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubUpstreamService.swift; sourceTree = "<group>"; };
 		0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleIconStore.swift; sourceTree = "<group>"; };
+		0C30378B89379C114F74BCFE /* ScriptHubWorkerFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubWorkerFiles.swift; sourceTree = "<group>"; };
 		0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayModule.swift; sourceTree = "<group>"; };
 		13871D2C902AAF75BBD033C6 /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+AirportSubscriptions.swift"; sourceTree = "<group>"; };
 		1BEEA07D7884F801CEDBF10E /* ModuleMetadataParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMetadataParser.swift; sourceTree = "<group>"; };
 		1F700D434F8EB4A3091FD216 /* WebResources */ = {isa = PBXFileReference; lastKnownFileType = folder; name = WebResources; path = SurgeRelay/WebResources; sourceTree = SOURCE_ROOT; };
+		20788CB3D818DAC15E5231FA /* ModuleRefreshPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleRefreshPlanner.swift; sourceTree = "<group>"; };
 		254A83429BCA625706A87254 /* ScriptHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubClient.swift; sourceTree = "<group>"; };
 		280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Surge RelayTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2968E247012225719D2FF9D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -92,21 +133,30 @@
 		33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebManagementServer.swift; sourceTree = "<group>"; };
 		35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionStore.swift; sourceTree = "<group>"; };
 		354B1BF761ABD7AADD982A17 /* EngineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStore.swift; sourceTree = "<group>"; };
+		38B8AF2FE0FBB03CA986A4B3 /* ModuleLintPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleLintPlanner.swift; sourceTree = "<group>"; };
 		3AE70978C59AAF84436C3194 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3E5E934A3C9248A1D3261702 /* MainWindowCloseBehavior.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowCloseBehavior.swift; sourceTree = "<group>"; };
 		41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubAdvancedOptionsView.swift; sourceTree = "<group>"; };
 		41A01030FABE46B093E69E06 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
+		441631FD1CED75BCF1CE0F36 /* ModuleUpdatePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleUpdatePipeline.swift; sourceTree = "<group>"; };
 		47A0EABD866AEC95147719C3 /* AirportPolicyFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportPolicyFileStore.swift; sourceTree = "<group>"; };
+		483CCF19A1FCC5AE9104DCB7 /* SurgeRelayScriptWorker */ = {isa = PBXFileReference; includeInIndex = 0; path = SurgeRelayScriptWorker; sourceTree = BUILT_PRODUCTS_DIR; };
 		48AA90716AD91DCBA578659B /* AppModel+RemoteClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+RemoteClient.swift"; sourceTree = "<group>"; };
 		51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebManagementAPI.swift; sourceTree = "<group>"; };
+		59BB1A565CF2C0A8E437F444 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		636A3A9965AE43F5D73DD6D8 /* StageMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageMetric.swift; sourceTree = "<group>"; };
 		6B63578065A9F7B8CC166FF2 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubClient.swift; sourceTree = "<group>"; };
+		797724D63F9FF75C26FA4009 /* SurgeRelayScriptWorker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SurgeRelayScriptWorker.entitlements; sourceTree = "<group>"; };
 		8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
+		87214DC5C47E9DD56ACA4D75 /* ScriptHubJavaScriptRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubJavaScriptRuntime.swift; sourceTree = "<group>"; };
 		87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionsView.swift; sourceTree = "<group>"; };
+		928AD0A8B93F157296A37C3C /* ScriptHubWorkerMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubWorkerMain.swift; sourceTree = "<group>"; };
 		A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceModels.swift; sourceTree = "<group>"; };
 		A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteManagementClient.swift; sourceTree = "<group>"; };
 		A532731E293DA280A8A42D96 /* ModuleOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleOrdering.swift; sourceTree = "<group>"; };
 		A632A09F875AFE2F6ADC7A42 /* SurgeRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeRelayTests.swift; sourceTree = "<group>"; };
+		A6A75FBA90EF0944BA7E601E /* SourceRetryAfter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceRetryAfter.swift; sourceTree = "<group>"; };
 		A7557CBE98837D8B326DBF9D /* FilenameSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilenameSanitizer.swift; sourceTree = "<group>"; };
 		AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParser.swift; sourceTree = "<group>"; };
 		AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedScriptHubEngine.swift; sourceTree = "<group>"; };
@@ -117,16 +167,20 @@
 		BDD7A6C8082510469A2FA843 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
 		DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMerger.swift; sourceTree = "<group>"; };
+		DE439499672B9E09D271C062 /* ModuleLint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleLint.swift; sourceTree = "<group>"; };
+		DF1048039EB26DA1FBA3230C /* WorkerError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerError.swift; sourceTree = "<group>"; };
 		E07D52108B30F9447A500E3D /* Surge Relay.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "Surge Relay.icon"; sourceTree = "<group>"; };
 		E1070DB686AADF6D51CF6CDB /* ModuleFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleFileStore.swift; sourceTree = "<group>"; };
 		E43B99091BF5C4100CE1DA0E /* ModuleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleEditorView.swift; sourceTree = "<group>"; };
 		E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionParserTests.swift; sourceTree = "<group>"; };
+		E7DE260ACDDB916C04A96716 /* ScriptHubNetworkPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubNetworkPolicy.swift; sourceTree = "<group>"; };
 		EB516C20A3C981278B9C7766 /* WelcomeWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWizardView.swift; sourceTree = "<group>"; };
 		ECD39E2AB65C955478BA36E0 /* AirportSubscriptionDirectRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionDirectRules.swift; sourceTree = "<group>"; };
 		EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WebServerLifecycle.swift"; sourceTree = "<group>"; };
 		EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		F02309DE998787F453FD1166 /* ModulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulesView.swift; sourceTree = "<group>"; };
 		F53C80368CE81330FB2D723A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F5BF27187B8859AF1E45EBCB /* AirportSubscriptionDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionDownload.swift; sourceTree = "<group>"; };
 		FB702CBBD9181A2CF6940B32 /* Surge Relay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Surge Relay.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -137,6 +191,14 @@
 			files = (
 				27AF5D3F446A25299DC890B3 /* JavaScriptCore.framework in Frameworks */,
 				73DA0C1D67BF5603F9D67A2D /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F907706AB3246FC9FA693F4E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				42DCFE98994FB244F58107EA /* JavaScriptCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,6 +221,18 @@
 				B5C730F372F40DAEB4E305EC /* SurgeRelayApp.swift */,
 			);
 			path = SurgeRelay;
+			sourceTree = "<group>";
+		};
+		18AAA4F0FAD4502E7A61ACCD /* SurgeRelayScriptWorker */ = {
+			isa = PBXGroup;
+			children = (
+				59BB1A565CF2C0A8E437F444 /* Info.plist */,
+				87214DC5C47E9DD56ACA4D75 /* ScriptHubJavaScriptRuntime.swift */,
+				928AD0A8B93F157296A37C3C /* ScriptHubWorkerMain.swift */,
+				797724D63F9FF75C26FA4009 /* SurgeRelayScriptWorker.entitlements */,
+				DF1048039EB26DA1FBA3230C /* WorkerError.swift */,
+			);
+			path = SurgeRelayScriptWorker;
 			sourceTree = "<group>";
 		};
 		25432D20905F79D6AE1E1480 /* Views */ = {
@@ -185,6 +259,7 @@
 			children = (
 				47A0EABD866AEC95147719C3 /* AirportPolicyFileStore.swift */,
 				ECD39E2AB65C955478BA36E0 /* AirportSubscriptionDirectRules.swift */,
+				F5BF27187B8859AF1E45EBCB /* AirportSubscriptionDownload.swift */,
 				AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */,
 				35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */,
 				AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */,
@@ -194,12 +269,18 @@
 				00FF1B0D1608D65FBA6451BE /* LaunchAtLoginService.swift */,
 				E1070DB686AADF6D51CF6CDB /* ModuleFileStore.swift */,
 				0C15061B43CE01B2548616E5 /* ModuleIconStore.swift */,
+				38B8AF2FE0FBB03CA986A4B3 /* ModuleLintPlanner.swift */,
 				DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */,
+				20788CB3D818DAC15E5231FA /* ModuleRefreshPlanner.swift */,
+				441631FD1CED75BCF1CE0F36 /* ModuleUpdatePipeline.swift */,
 				41A01030FABE46B093E69E06 /* NetworkPathMonitor.swift */,
 				D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */,
 				A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */,
 				254A83429BCA625706A87254 /* ScriptHubClient.swift */,
+				E7DE260ACDDB916C04A96716 /* ScriptHubNetworkPolicy.swift */,
 				098EA18AE40BB22B02102431 /* ScriptHubUpstreamService.swift */,
+				0C30378B89379C114F74BCFE /* ScriptHubWorkerFiles.swift */,
+				A6A75FBA90EF0944BA7E601E /* SourceRetryAfter.swift */,
 				51D9670C12C677CBC8D96FA4 /* WebManagementAPI.swift */,
 				33932BCF1BFE460CA55DF088 /* WebManagementServer.swift */,
 			);
@@ -211,10 +292,12 @@
 			children = (
 				30A11CC5AAB02F8351813E65 /* AirportSubscription.swift */,
 				EDC7CEA42FDCD13847E9AC0F /* AppSettings.swift */,
+				DE439499672B9E09D271C062 /* ModuleLint.swift */,
 				0EE985DC3F8F9E3172A8D062 /* RelayModule.swift */,
 				005134609F6BC9BEF6CB28E4 /* RemoteConnectionState.swift */,
 				0527CB5F1032EC43E9673F5D /* ScriptHubOptions.swift */,
 				A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */,
+				636A3A9965AE43F5D73DD6D8 /* StageMetric.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -243,6 +326,7 @@
 			isa = PBXGroup;
 			children = (
 				05D6584CC9473A8BC0B12784 /* SurgeRelay */,
+				18AAA4F0FAD4502E7A61ACCD /* SurgeRelayScriptWorker */,
 				992FBA5B9AB9596787D9E76C /* SurgeRelayTests */,
 				E07D52108B30F9447A500E3D /* Surge Relay.icon */,
 				1F700D434F8EB4A3091FD216 /* WebResources */,
@@ -264,6 +348,7 @@
 			children = (
 				FB702CBBD9181A2CF6940B32 /* Surge Relay.app */,
 				280D9149CE1820E1AE5F19C9 /* Surge RelayTests.xctest */,
+				483CCF19A1FCC5AE9104DCB7 /* SurgeRelayScriptWorker */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -271,6 +356,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4A04FF582F9CE3A55B1FC986 /* SurgeRelayScriptWorker */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EA56C19F11CC81C4271E8D13 /* Build configuration list for PBXNativeTarget "SurgeRelayScriptWorker" */;
+			buildPhases = (
+				7CB626F777582C1F9F38E679 /* Sources */,
+				F907706AB3246FC9FA693F4E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SurgeRelayScriptWorker;
+			packageProductDependencies = (
+			);
+			productName = SurgeRelayScriptWorker;
+			productReference = 483CCF19A1FCC5AE9104DCB7 /* SurgeRelayScriptWorker */;
+			productType = "com.apple.product-type.tool";
+		};
 		DE7344B3299D1D2C889AAAA3 /* Surge Relay */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B4E763B23F95F8A87096A529 /* Build configuration list for PBXNativeTarget "Surge Relay" */;
@@ -278,10 +381,12 @@
 				DABFCEDF4067E1D8475F2D50 /* Sources */,
 				8D40EF6810E24EB600001DFC /* Resources */,
 				C843CBAEA44BA96798A0CB69 /* Frameworks */,
+				DA79265EEA055500657AB6CC /* Embed Dependencies */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C782987759BBB40C031256EA /* PBXTargetDependency */,
 			);
 			name = "Surge Relay";
 			packageProductDependencies = (
@@ -318,6 +423,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					4A04FF582F9CE3A55B1FC986 = {
+						ProvisioningStyle = Automatic;
+					};
 					DE7344B3299D1D2C889AAAA3 = {
 						ProvisioningStyle = Automatic;
 					};
@@ -344,6 +452,7 @@
 			projectRoot = "";
 			targets = (
 				DE7344B3299D1D2C889AAAA3 /* Surge Relay */,
+				4A04FF582F9CE3A55B1FC986 /* SurgeRelayScriptWorker */,
 				E31BDA64018EEFC05D12E6D5 /* Surge RelayTests */,
 			);
 		};
@@ -363,6 +472,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7CB626F777582C1F9F38E679 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6994627BA509C5C8CA8C9FC8 /* ScriptHubJavaScriptRuntime.swift in Sources */,
+				5EF2B858DAA3B65CD18036FC /* ScriptHubNetworkPolicy.swift in Sources */,
+				8F52FC991CFACFB97E7654F4 /* ScriptHubWorkerFiles.swift in Sources */,
+				49E9D3F9B0CDC9BEBE9C9F78 /* ScriptHubWorkerMain.swift in Sources */,
+				1A535733A5D360EEE6E67E0C /* SourceRetryAfter.swift in Sources */,
+				5DC18094DCC6880ED7AFB930 /* StageMetric.swift in Sources */,
+				8B4A6618C4B777E26916662C /* WorkerError.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		80D88AE2DCBE8E83CB9E4C62 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -379,6 +502,7 @@
 				F26D37A67A65C911D54DC6AB /* AirportPolicyFileStore.swift in Sources */,
 				37663EE9F9B7ADDBC0A7F484 /* AirportSubscription.swift in Sources */,
 				D2980143B8F0A5202298FC53 /* AirportSubscriptionDirectRules.swift in Sources */,
+				7C572FDC0AAFFA9B908BD3B8 /* AirportSubscriptionDownload.swift in Sources */,
 				96756FCCA0FA61E8A9BD7D70 /* AirportSubscriptionParser.swift in Sources */,
 				6266E62BC73347969AC0F86A /* AirportSubscriptionStore.swift in Sources */,
 				2C0D2BE2BB1618A76902635E /* AirportSubscriptionsView.swift in Sources */,
@@ -402,9 +526,13 @@
 				280C7E38DAD9F18ED8090287 /* ModuleEditorView.swift in Sources */,
 				72BFC19A86A6433A42A41F75 /* ModuleFileStore.swift in Sources */,
 				B46911120F2F5BB4C736DCDE /* ModuleIconStore.swift in Sources */,
+				221703641F51A06D60D684BC /* ModuleLint.swift in Sources */,
+				244F19F25AA892D511C9683D /* ModuleLintPlanner.swift in Sources */,
 				6FD484283175DC8133118FF1 /* ModuleMerger.swift in Sources */,
 				307EBCC9173DAEC6727856BD /* ModuleMetadataParser.swift in Sources */,
 				428F3605819F521142B80066 /* ModuleOrdering.swift in Sources */,
+				B0C3028D6D3E039F761C880D /* ModuleRefreshPlanner.swift in Sources */,
+				18CA5F46DB7A8C9D62B56BA3 /* ModuleUpdatePipeline.swift in Sources */,
 				2DE2729D489CC5CF5737F164 /* ModulesView.swift in Sources */,
 				867673A7795057E6FE20DEB2 /* NetworkPathMonitor.swift in Sources */,
 				D00571D70301FFF75C0BACFE /* PersistenceStore.swift in Sources */,
@@ -414,10 +542,14 @@
 				AA8F7B5F28379ACDB4DDEDB9 /* RootView.swift in Sources */,
 				089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */,
 				3EE4F5BD7D273B859D69002E /* ScriptHubClient.swift in Sources */,
+				ADD72E1DAAC4AAA1EF532DB9 /* ScriptHubNetworkPolicy.swift in Sources */,
 				B8555D3D9FEACB351D53EBC9 /* ScriptHubOptions.swift in Sources */,
 				8DA26E8693FBA37A8D155709 /* ScriptHubUpstreamService.swift in Sources */,
+				08F0450924697878DD139C34 /* ScriptHubWorkerFiles.swift in Sources */,
 				6C8F8E71624D2151BFA675ED /* ServiceModels.swift in Sources */,
 				1AECEBD32D966A1910B3A007 /* SettingsView.swift in Sources */,
+				3CEAFAFC1048302EB77C0E63 /* SourceRetryAfter.swift in Sources */,
+				4FBE2BF17F1383273DD827A3 /* StageMetric.swift in Sources */,
 				D596D087CB06F13BD28D7510 /* SurgeRelayApp.swift in Sources */,
 				4B5E934EB9AC34C451301F50 /* WebManagementAPI.swift in Sources */,
 				540136DA3B34EAD959E5B5F7 /* WebManagementServer.swift in Sources */,
@@ -433,9 +565,36 @@
 			target = DE7344B3299D1D2C889AAAA3 /* Surge Relay */;
 			targetProxy = F684E4D89A35A80E65AE76AC /* PBXContainerItemProxy */;
 		};
+		C782987759BBB40C031256EA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A04FF582F9CE3A55B1FC986 /* SurgeRelayScriptWorker */;
+			targetProxy = 681CE589C9D79F541EE39F82 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		09F0A9D442BDAC51D8AE689B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SurgeRelayScriptWorker/SurgeRelayScriptWorker.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = SurgeRelayScriptWorker/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.allenmiao.SurgeRelay.ScriptWorker;
+				PRODUCT_NAME = SurgeRelayScriptWorker;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+			};
+			name = Release;
+		};
 		2D0D31CA9EBF11C84DC8CDE1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -471,7 +630,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27100201;
+				CURRENT_PROJECT_VERSION = 27100801;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -485,7 +644,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 261002;
+				MARKETING_VERSION = 261008;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -569,7 +728,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27100201;
+				CURRENT_PROJECT_VERSION = 27100801;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -589,7 +748,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 261002;
+				MARKETING_VERSION = 261008;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -598,6 +757,28 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		89E7CE389245E75748E131FB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SurgeRelayScriptWorker/SurgeRelayScriptWorker.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = SurgeRelayScriptWorker/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.allenmiao.SurgeRelay.ScriptWorker;
+				PRODUCT_NAME = SurgeRelayScriptWorker;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Debug;
 		};
@@ -665,6 +846,15 @@
 			buildConfigurations = (
 				D90271269BFB871E4CCA0996 /* Debug */,
 				38338A9B3FAB23832830242E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EA56C19F11CC81C4271E8D13 /* Build configuration list for PBXNativeTarget "SurgeRelayScriptWorker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				89E7CE389245E75748E131FB /* Debug */,
+				09F0A9D442BDAC51D8AE689B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

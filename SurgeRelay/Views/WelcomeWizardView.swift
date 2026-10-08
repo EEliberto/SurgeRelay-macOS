@@ -200,7 +200,7 @@ struct WelcomeWizardView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
-                    TextField("johnsmac.sgponte", text: $ponteServerAddressInput)
+                    TextField("johnsmac.sgponte", text: $ponteServerAddressInput).multilineTextAlignment(.leading)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: ponteServerAddressInput) { _, _ in
                             hasVerifiedPonteConnection = false
@@ -357,16 +357,16 @@ struct WelcomeWizardView: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 11) {
                 githubField("仓库地址（必填）") {
-                    TextField("https://github.com/owner/repository", text: $githubRepositoryInput)
+                    TextField("https://github.com/owner/repository", text: $githubRepositoryInput).multilineTextAlignment(.leading)
                 }
                 githubField("GitHub Token（必填）") {
                     SecureField("", text: Binding(
                         get: { model.githubToken },
                         set: { model.githubToken = $0 }
-                    ))
+                    )).multilineTextAlignment(.leading)
                 }
                 githubField("Cloudflare Worker 公共地址（必填）") {
-                    TextField("https://example.workers.dev", text: $githubCloudflareInput)
+                    TextField("https://example.workers.dev", text: $githubCloudflareInput).multilineTextAlignment(.leading)
                 }
             }
             .textFieldStyle(.roundedBorder)

@@ -1,6 +1,9 @@
 import Foundation
 
 enum PersistenceStore {
+    // The hosted test app must never migrate or synchronize the user's configuration.
+    static var isTesting: Bool { ProcessInfo.processInfo.environment["SURGE_RELAY_TEST_MODE"] == "1" }
+
     private final class CoordinationOutcome: @unchecked Sendable {
         var result: Result<Void, Error>?
     }
@@ -46,6 +49,11 @@ enum PersistenceStore {
     }
 
     static var configurationDirectoryURL: URL {
+        if isTesting {
+            let directory = FileManager.default.temporaryDirectory.appending(path: "SurgeRelayTests-\(ProcessInfo.processInfo.processIdentifier)")
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        }
         let directory = URL(filePath: AppSettings.defaultConfigurationDirectory, directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         migrateLegacyConfigurationIfNeeded(to: directory)
@@ -125,6 +133,7 @@ enum PersistenceStore {
         if let modules: [RelayModule] = decodeFile(at: registryURL) {
             return modules
         }
+        if isTesting { return [] }
         let legacyURL = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/Surge Relay/modules.json")
         guard let modules: [RelayModule] = decodeFile(at: legacyURL) else { return [] }
@@ -144,7 +153,7 @@ enum PersistenceStore {
             saveSettings(settings)
             return settings
         }
-        if let data = UserDefaults.standard.data(forKey: legacySettingsKey),
+        if !isTesting, let data = UserDefaults.standard.data(forKey: legacySettingsKey),
            let settings = try? decoder.decode(AppSettings.self, from: data) {
             saveSettings(settings)
             return settings
@@ -169,7 +178,7 @@ enum PersistenceStore {
         if let state: ScriptHubUpstreamState = decodeFile(at: upstreamStateURL) {
             return state
         }
-        if let data = UserDefaults.standard.data(forKey: legacyUpstreamKey),
+        if !isTesting, let data = UserDefaults.standard.data(forKey: legacyUpstreamKey),
            let state = try? decoder.decode(ScriptHubUpstreamState.self, from: data) {
             saveUpstreamState(state)
             return state

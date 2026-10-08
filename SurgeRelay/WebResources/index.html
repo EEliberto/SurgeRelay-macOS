@@ -93,6 +93,7 @@
           <h3>来源</h3>
           <div class="editor-group">
             <label class="form-row"><span>原始地址</span><input name="sourceURL" type="url" required placeholder="https://example.com/module.plugin"></label>
+            <label class="form-row"><span>刷新间隔</span><select name="refreshIntervalMinutes"><option value="-1">继承全局</option><option value="0">仅手动刷新</option><option value="15">每 15 分钟</option><option value="60">每小时</option><option value="360">每 6 小时</option><option value="1440">每天</option></select></label>
             <label class="form-row"><span>来源格式</span><select name="sourceFormat"><option value="automatic">自动识别</option><option value="quantumultX">Quantumult X 重写</option><option value="loon">Loon 插件</option><option value="surge">Surge 模块</option></select></label>
           </div>
         </section>
@@ -159,9 +160,12 @@
         <section class="editor-section"><h3>节点名称优化</h3><div class="editor-group">
           <label class="form-row switch-row"><span>自动优化节点名称</span><input name="optimizeNodeNames" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
           <label class="form-row switch-row" data-airport-optimization-dependent><span>移除 Emoji 与国旗</span><input name="removeNodeNameEmoji" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
-          <label class="form-row" data-airport-optimization-dependent><span>移除关键词</span><input name="nodeNameRemovalTerms" type="text" placeholder="IEPL, IPEL, 专线" value="IEPL, IPEL, 专线"></label>
+          <div class="keyword-editor" data-keyword-editor="nodeNameRemovalTerms" data-airport-optimization-dependent>
+            <div class="form-row"><span>移除关键词</span><div class="keyword-entry"><input data-keyword-input type="text" placeholder="例如 IEPL"><button class="keyword-add-button" data-keyword-add type="button" aria-label="添加移除关键词">＋</button></div></div>
+            <input name="nodeNameRemovalTerms" type="hidden"><div class="keyword-chips" data-keyword-chips hidden></div>
+          </div>
           <div class="form-row airport-name-example" data-airport-optimization-dependent><span>效果示例</span><div><span data-airport-example-original>🇭🇰 香港实验性 IEPL 专线 1</span><strong data-airport-example-optimized>香港实验性 1</strong></div></div>
-        </div><p class="section-footer">使用逗号分隔，不区分大小写；重名节点会自动追加序号。</p></section>
+        </div><p class="section-footer">逐项添加关键词，不区分大小写；重名节点会自动追加序号。</p></section>
       </div>
       <div class="dialog-message" id="airport-dialog-message" role="alert" hidden></div>
       <div class="dialog-actions"><button class="button secondary close-airport-dialog" type="button">取消</button><button class="button primary" type="submit" id="save-airport-button">添加</button></div>
@@ -199,10 +203,10 @@
     </div>
   </dialog>
 
-  <dialog id="settings-dialog" class="sheet-dialog settings-dialog">
+  <dialog id="settings-dialog" class="sheet-dialog settings-dialog" aria-labelledby="settings-dialog-title">
     <div class="dialog-header">
-      <button class="icon-button settings-menu-toggle" id="settings-menu-toggle" type="button" aria-label="设置分类"><span class="symbol" data-symbol="line.3.horizontal"></span></button>
-      <div><h2>设置</h2></div>
+      <button class="icon-button settings-menu-toggle" id="settings-menu-toggle" type="button" aria-label="设置分类"><span class="symbol" data-symbol="sidebar.left"></span></button>
+      <div><h2 id="settings-dialog-title" tabindex="-1" autofocus>设置</h2></div>
       <button class="icon-button close-settings-dialog" type="button" aria-label="关闭"><span class="symbol" data-symbol="xmark"></span></button>
     </div>
     <div class="form-content" id="settings-content"></div>

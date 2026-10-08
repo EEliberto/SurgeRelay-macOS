@@ -307,6 +307,7 @@ extension AppModel {
             airportConfigurationPreviewRevision &+= 1
         }
         applyRemoteSettings(state.settings, platforms: state.platforms)
+        publishLintIssues = state.settings.publishLintIssues ?? []
         updateHistory = state.settings.updateHistory
         upstreamState.sourceURL = state.settings.scriptHubSourceURL
         upstreamState.revision = state.settings.scriptHubRevision
@@ -415,10 +416,20 @@ extension AppModel {
             platformSettings[raw] = entry
         }
         next.platformSettings = platformSettings
-        settings = next
-        if remote.githubTokenConfigured, githubToken.isEmpty {
-            githubToken = settings.githubToken
+        // The persisted value is the last server snapshot; githubToken can be an
+        // unsaved field edit. Polling must not replace that edit (including clearing it).
+        if let token = remote.githubToken {
+            if githubToken == settings.githubToken {
+                githubToken = token
+            }
+            next.githubToken = token
+        } else if !remote.githubTokenConfigured {
+            if githubToken == settings.githubToken {
+                githubToken = ""
+            }
+            next.githubToken = ""
         }
+        settings = next
     }
 
     func remoteClient() throws -> RemoteManagementClient {

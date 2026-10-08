@@ -557,8 +557,11 @@ struct RemoteSettingsPayload: Codable, Sendable {
     var storageMode: String
     var githubRepository: String
     var githubTokenConfigured: Bool
+    // Optional for compatibility with servers predating token readback.
+    var githubToken: String?
     var githubPublicBaseURL: String
     var githubRepositoryIsPrivate: Bool?
+    var publishLintIssues: [ModuleLintIssue]?
     var updateHistory: [UpdateHistoryEntry]
     var appVersion: String
     var platforms: [String: Bool]
@@ -585,6 +588,7 @@ struct RemotePlatformPayload: Codable, Sendable {
 }
 
 struct RemoteModulePayload: Codable, Sendable {
+    var refreshIntervalMinutes: Int?
     var id: String
     var name: String
     var sourceURL: String
@@ -683,6 +687,7 @@ struct RemoteSyncSettingsMutation: Codable, Sendable {
 }
 
 struct RemoteModuleMutation: Codable, Sendable {
+    var refreshIntervalMinutes: Int
     var name: String
     var sourceURL: String
     var sourceFormat: String
@@ -690,6 +695,7 @@ struct RemoteModuleMutation: Codable, Sendable {
     var scriptHubOptions: ScriptHubOptions
 
     init(draft: ModuleDraft) {
+        refreshIntervalMinutes = draft.refreshIntervalMinutes ?? -1
         name = draft.name
         sourceURL = draft.sourceURL
         sourceFormat = draft.sourceFormat.rawValue
@@ -732,7 +738,7 @@ extension RemoteModulePayload {
         let stateValue = ModuleUpdateState(rawValue: state) ?? .never
         let iconSource = customIconSource.flatMap(CustomIconSource.init(rawValue:)) ?? .manual
 
-        return RelayModule(
+        var module = RelayModule(
             id: uuid,
             name: name,
             sourceURL: sourceURL,
@@ -755,6 +761,8 @@ extension RemoteModulePayload {
             state: stateValue,
             lastError: lastError
         )
+        module.refreshIntervalMinutes = refreshIntervalMinutes
+        return module
     }
 
     private static func absoluteURLString(_ value: String?, baseURL: URL) -> String? {

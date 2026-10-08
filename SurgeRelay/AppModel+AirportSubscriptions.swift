@@ -20,6 +20,7 @@ extension AppModel {
         apply(draft, to: &updated)
         try validateAirportSubscription(updated, excluding: id)
         if sourceChanged {
+            updated.redirectHosts = []
             updated.lastUpdatedAt = nil
             AirportSubscriptionStore.remove(for: id)
         }
@@ -55,6 +56,7 @@ extension AppModel {
               let url = URL(string: airportSubscriptions[index].sourceURL) else {
             throw RelayError.invalidOutput("机场订阅地址无效。")
         }
+        let sourceURL = airportSubscriptions[index].sourceURL
         do {
             // Install direct rules before the first request, even without cached nodes.
             try synchronizeAirportSubscriptionDirectRules()
@@ -67,7 +69,15 @@ extension AppModel {
             request.setValue("Surge Relay", forHTTPHeaderField: "User-Agent")
             request.setValue("no-cache, no-store", forHTTPHeaderField: "Cache-Control")
             request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let redirectDelegate = AirportSubscriptionRedirectDelegate { [weak self] host in
+                guard let self else { return false }
+                return await self.registerAirportRedirectHost(host, id: id, sourceURL: sourceURL)
+            }
+            let session = AirportSubscriptionDownload.session(delegate: redirectDelegate)
+            defer { session.invalidateAndCancel() }
+            let (data, response) = try await session.data(for: request)
+            // An edited/deleted subscription must not receive an earlier request's cache.
+            guard airportSubscriptions.contains(where: { $0.id == id && $0.sourceURL == sourceURL }) else { return }
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 throw RelayError.invalidOutput("机场订阅返回 HTTP \(http.statusCode)。")
             }
@@ -82,11 +92,28 @@ extension AppModel {
             try synchronizeAirportSubscriptionDirectRules()
             statusMessage = "已刷新 \(airportSubscriptions[currentIndex].name) 的预览"
         } catch {
-            if let currentIndex = airportSubscriptions.firstIndex(where: { $0.id == id }) {
+            if let currentIndex = airportSubscriptions.firstIndex(where: { $0.id == id && $0.sourceURL == sourceURL }) {
                 airportSubscriptions[currentIndex].lastError = error.localizedDescription
                 try? persistAirportSubscriptions()
             }
             throw error
+        }
+    }
+
+    private func registerAirportRedirectHost(_ host: String, id: UUID, sourceURL: String) -> Bool {
+        guard let index = airportSubscriptions.firstIndex(where: { $0.id == id && $0.sourceURL == sourceURL }) else { return false }
+        do {
+            if !airportSubscriptions[index].redirectHosts.contains(host) {
+                airportSubscriptions[index].redirectHosts.append(host)
+                invalidateAirportConfigurationPreview()
+                try persistAirportSubscriptions()
+            }
+            // Write before following the redirect so enhanced-mode traffic can match it.
+            try synchronizeAirportSubscriptionDirectRules()
+            return true
+        } catch {
+            presentedError = error.localizedDescription
+            return false
         }
     }
 
@@ -297,7 +324,7 @@ extension AppModel {
             proxyEntries: cachedEntries
         )
         let preview = (try? generatedAirportConfiguration().preview)
-            ?? ("请先刷新所有已启用机场，以生成 [Proxy] 与 [Proxy Group] 预览。" + directPreview)
+            ?? ("请先刷新所有已启用机场，以生成外部策略文件与 [Proxy Group] 预览。" + directPreview)
         airportConfigurationPreviewCache = preview
         return preview
     }
@@ -311,13 +338,7 @@ extension AppModel {
         let original = try String(contentsOf: configurationURL, encoding: .utf8)
         let generated = try generatedAirportConfiguration()
         try AirportPolicyFileStore.write(files: generated.policyFiles, beside: configurationURL)
-        var updated = try replacingManagedBlock(
-            in: original,
-            section: "Proxy",
-            block: generated.proxyBlock,
-            startMarker: "# >>> Surge Relay 机场代理",
-            endMarker: "# <<< Surge Relay 机场代理"
-        )
+        var updated = try removingLegacyAirportProxyBlock(from: original)
         updated = try replacingManagedBlock(
             in: updated,
             section: "Proxy Group",
@@ -459,14 +480,12 @@ extension AppModel {
     }
 
     private func generatedAirportConfiguration() throws -> (
-        proxyBlock: String,
         groupBlock: String,
         preview: String,
         policyFiles: [String: String]
     ) {
         let subscriptions = airportSubscriptions.filter { $0.isEnabled && $0.isConfigured }
         guard !subscriptions.isEmpty else { throw RelayError.invalidOutput("没有已启用的机场。") }
-        var proxyLines = ["# >>> Surge Relay 机场代理"]
         var groupLines = ["# >>> Surge Relay 机场分组"]
         var policyFiles: [String: String] = [:]
         var policyPreviews: [String] = []
@@ -500,9 +519,7 @@ extension AppModel {
             if !icon.isEmpty { groupMembers.append("icon-url=\(icon)") }
             groupLines.append("\(subscription.trimmedName) = select, \(groupMembers.joined(separator: ", "))")
         }
-        proxyLines.append("# <<< Surge Relay 机场代理")
         groupLines.append("# <<< Surge Relay 机场分组")
-        let proxyBlock = proxyLines.joined(separator: "\n")
         let groupBlock = groupLines.joined(separator: "\n")
         let cachedEntries = cachedAirportProxyEntries()
         let directBlock = AirportSubscriptionDirectRules.block(
@@ -510,8 +527,31 @@ extension AppModel {
             proxyEntries: cachedEntries
         )
         let externalPreview = policyPreviews.joined(separator: "\n\n")
-        let preview = "[Proxy]\n\(proxyBlock)\n\n# 外部策略文件\n\(externalPreview)\n\n[Proxy Group]\n\(groupBlock)\n\n[Rule]\n\(directBlock)"
-        return (proxyBlock, groupBlock, preview, policyFiles)
+        let preview = "# 外部策略文件\n\(externalPreview)\n\n[Proxy Group]\n\(groupBlock)\n\n[Rule]\n\(directBlock)"
+        return (groupBlock, preview, policyFiles)
+    }
+
+    /// Remove only our old inline block. Keep user proxies and comments intact.
+    private func removingLegacyAirportProxyBlock(from content: String) throws -> String {
+        let newline = content.contains("\r\n") ? "\r\n" : "\n"
+        var lines = content.components(separatedBy: newline)
+        guard let header = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "[Proxy]" }) else { return content }
+        let sectionEnd = lines.indices.dropFirst(header + 1).first {
+            lines[$0].trimmingCharacters(in: .whitespaces).hasPrefix("[")
+        } ?? lines.count
+        let range = (header + 1)..<sectionEnd
+        let start = range.first { lines[$0].trimmingCharacters(in: .whitespaces) == "# >>> Surge Relay 机场代理" }
+        let end = range.first { lines[$0].trimmingCharacters(in: .whitespaces) == "# <<< Surge Relay 机场代理" }
+        guard start != nil || end != nil else { return content }
+        guard let start, let end, start < end else {
+            throw RelayError.invalidOutput("旧机场代理标记不完整，已停止写入以保护配置。")
+        }
+        lines.removeSubrange(start...end)
+        let remainingEnd = sectionEnd - (end - start + 1)
+        if lines[(header + 1)..<remainingEnd].allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            lines.removeSubrange(header..<remainingEnd)
+        }
+        return lines.joined(separator: newline)
     }
 
     private func replacingManagedBlock(

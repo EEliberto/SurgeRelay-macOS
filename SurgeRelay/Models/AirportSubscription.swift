@@ -127,6 +127,7 @@ struct AirportSubscription: Codable, Equatable, Identifiable, Sendable {
     var id = UUID()
     var name = ""
     var sourceURL = ""
+    var redirectHosts: [String] = []
     var policyRegexFilter = ""
     var nodeNameTemplate = ""
     var nodeNameOptimization = AirportNodeNameOptimization()
@@ -175,7 +176,7 @@ struct AirportSubscription: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, sourceURL, policyRegexFilter, nodeNameTemplate, nodeNameOptimization, nodeProcessing, iconURL
-        case isEnabled, lastUpdatedAt, lastError
+        case isEnabled, lastUpdatedAt, lastError, redirectHosts
     }
 
     init(from decoder: Decoder) throws {
@@ -183,6 +184,7 @@ struct AirportSubscription: Codable, Equatable, Identifiable, Sendable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         sourceURL = try container.decodeIfPresent(String.self, forKey: .sourceURL) ?? ""
+        redirectHosts = try container.decodeIfPresent([String].self, forKey: .redirectHosts) ?? []
         policyRegexFilter = try container.decodeIfPresent(String.self, forKey: .policyRegexFilter) ?? ""
         nodeNameTemplate = try container.decodeIfPresent(String.self, forKey: .nodeNameTemplate) ?? ""
         nodeNameOptimization = try container.decodeIfPresent(

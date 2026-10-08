@@ -6,6 +6,7 @@ import CryptoKit
 @MainActor
 @Observable
 final class AppModel {
+    var publishLintIssues: [ModuleLintIssue] = []
     static let combinedModuleSelectionID = RelayPlatform.ios.selectionID
 
     var modules: [RelayModule]
@@ -155,7 +156,7 @@ final class AppModel {
     }
 
     func start() async {
-        guard !hasStarted else { return }
+        guard !PersistenceStore.isTesting, !hasStarted else { return }
 
         if deviceMode == .client {
             try? LaunchAtLoginService.setEnabled(false)
@@ -241,13 +242,14 @@ final class AppModel {
                 try await fileStore.prepareStorage()
             } catch {
                 presentedError = "无法初始化缓存目录：\(error.localizedDescription)"
+                return
             }
             await reconcileIndividualICloudOutputs()
             restartIndividualOutputMonitor()
             await refreshModuleMetadataFromCache()
             let missingEngine = !(await engineStore.hasScript(named: "Rewrite-Parser.js"))
             if await shouldUpdateModulesOnLaunch() {
-                await updateAll()
+                await updateScheduledModules()
             } else if missingEngine || (
                 settings.automaticallyUpdateScriptHub
                     && RefreshPolicy.isDue(
@@ -376,19 +378,7 @@ final class AppModel {
     }
 
     private func shouldUpdateModulesOnLaunch() async -> Bool {
-        let enabledModules = modules.filter(\.isEnabled)
-        guard !enabledModules.isEmpty else { return false }
-
-        for module in enabledModules {
-            if module.lastUpdatedAt == nil { return true }
-            if !(await fileStore.hasComponent(id: module.id)) { return true }
-        }
-
-        let oldestUpdate = enabledModules.compactMap(\.lastUpdatedAt).min()
-        return RefreshPolicy.isDue(
-            lastUpdatedAt: oldestUpdate,
-            intervalMinutes: settings.refreshIntervalMinutes
-        )
+        modules.contains { shouldSynchronizeModule($0) && ModuleRefreshPlanner.shouldRefresh($0, globalInterval: settings.refreshIntervalMinutes, manual: false) }
     }
 
     func saveSettings() {
@@ -625,15 +615,24 @@ final class AppModel {
         }
     }
 
+    private func updateScheduledModules() async {
+        guard !isWorking else { return }
+        let due = Set(modules.filter {
+            shouldSynchronizeModule($0) && ModuleRefreshPlanner.shouldRefresh($0, globalInterval: settings.refreshIntervalMinutes, manual: false)
+        }.map(\.id))
+        guard !due.isEmpty else { return }
+        await runSynchronization(limitingTo: due)
+    }
+
     func restartScheduler() {
         schedulerTask?.cancel()
-        guard !isClientMode, settings.refreshIntervalMinutes > 0 else { return }
-        let seconds = settings.refreshIntervalMinutes * 60
+        guard !isClientMode else { return }
+        let seconds = 30
         schedulerTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(seconds))
                 guard !Task.isCancelled else { return }
-                await self?.updateAll()
+                await self?.updateScheduledModules()
             }
         }
     }
@@ -650,7 +649,7 @@ final class AppModel {
         guard !modules.contains(where: { ModuleSourceIdentity.matches($0.sourceURL, source) }) else {
             throw RelayError.duplicateSourceURL
         }
-        let module = RelayModule(
+        var module = RelayModule(
             name: draft.name.trimmingCharacters(in: .whitespacesAndNewlines),
             sourceURL: source,
             sourceFormat: draft.sourceFormat,
@@ -660,6 +659,7 @@ final class AppModel {
             detectedSourceFormat: detectedFormat(for: draft.sourceFormat, source: source)
         )
         registerLocalChange()
+        module.refreshIntervalMinutes = draft.refreshIntervalMinutes
         modules.append(module)
         selectedModuleID = module.id
         try persistModules()
@@ -691,7 +691,8 @@ final class AppModel {
                 current.sourceFormat != draft.sourceFormat ||
                 current.outputFileName != outputFileName ||
                 current.isEnabled != draft.isEnabled ||
-                current.scriptHubOptions != draft.scriptHubOptions else {
+                current.scriptHubOptions != draft.scriptHubOptions ||
+                current.refreshIntervalMinutes != draft.refreshIntervalMinutes else {
             statusMessage = "没有需要保存的更改"
             return
         }
@@ -707,6 +708,7 @@ final class AppModel {
         modules[index].outputFileName = outputFileName
         modules[index].isEnabled = draft.isEnabled
         modules[index].scriptHubOptions = draft.scriptHubOptions
+        modules[index].refreshIntervalMinutes = draft.refreshIntervalMinutes
         modules[index].detectedSourceFormat = detectedSourceFormat
         if sourceChanged || nameChanged {
             modules[index].state = .never
@@ -718,6 +720,10 @@ final class AppModel {
             modules[index].conversionEngineRevision = nil
         }
         if sourceChanged {
+            modules[index].nextRetryAt = nil
+            modules[index].serverRetryAfter = nil
+            modules[index].consecutiveFailureCount = 0
+            modules[index].lastRefreshAttemptAt = nil
             modules[index].iconURL = nil
             Task { try? await iconStore.removeIcon(for: id) }
         }
@@ -738,6 +744,10 @@ final class AppModel {
                     presentedError = error.localizedDescription
                 }
             }
+        }
+        if !sourceChanged && !nameChanged && current.isEnabled == draft.isEnabled {
+            statusMessage = "已保存刷新间隔"
+            return
         }
         statusMessage = "已保存 \(modules[index].name)，正在后台更新"
         if modules[index].isEnabled {
@@ -920,13 +930,16 @@ final class AppModel {
     }
 
     private func performSynchronization(limitingTo moduleIDs: Set<UUID>? = nil) async {
-        let synchronizationModules = modules.filter {
+        let requestedModules = modules.filter {
             shouldSynchronizeModule($0) && (moduleIDs?.contains($0.id) ?? true)
+        }
+        let synchronizationModules = requestedModules.filter {
+            ModuleRefreshPlanner.shouldRefresh($0, globalInterval: settings.refreshIntervalMinutes, manual: true)
         }
         guard let workToken = beginWork() else { return }
         guard !synchronizationModules.isEmpty else {
             endWork(workToken)
-            statusMessage = "已是最新。"
+            statusMessage = requestedModules.isEmpty ? "没有需要更新的模块。" : "来源服务器要求稍后重试，已保留当前内容。"
             return
         }
         automaticPublishTask?.cancel()
@@ -956,64 +969,69 @@ final class AppModel {
         var synchronizationErrors: [String] = []
         var newHistory: [UpdateHistoryEntry] = []
 
+        let client = scriptHubClient
+        let revisions = sourceRevisionService
+        let store = fileStore
+        let github = settings.github.isConfigured ? settings.github : nil
+        let engineRevision = upstreamState.revision
+        let prepared = await ModuleUpdatePipeline.run(synchronizationModules) { module in
+            let startedAt = Date.now
+            var snapshot: SourceRevisionSnapshot?
+            do {
+                let native = URL(string: module.sourceURL).map { module.sourceFormat.isNativeSurgeModule(for: $0) } ?? false
+                if await store.hasComponent(id: module.id) {
+                    do {
+                        let revision = try await revisions.check(module)
+                        switch revision {
+                        case .unchanged(let value):
+                            snapshot = value
+                            if native || module.conversionEngineRevision == engineRevision {
+                                return PreparedModuleUpdate(id: module.id, startedAt: startedAt, snapshot: value, result: .success(nil))
+                            }
+                        case .changed(let value): snapshot = value
+                        }
+                    } catch let retry as SourceRetryAfterError { throw retry }
+                    catch { try Task.checkCancellation() }
+                }
+                let result = try await client.convert(module: module, github: github)
+                return PreparedModuleUpdate(id: module.id, startedAt: startedAt, snapshot: snapshot, result: .success(result))
+            } catch { return PreparedModuleUpdate(id: module.id, startedAt: startedAt, snapshot: snapshot, result: .failure(error)) }
+        }
+        let updates = Dictionary(uniqueKeysWithValues: prepared.map { ($0.id, $0) })
+        guard !Task.isCancelled else { return }
+
         for moduleValue in synchronizationModules {
             var module = moduleValue
-            let startedAt = Date.now
+            let startedAt = updates[module.id]?.startedAt ?? Date.now
             var revisionSnapshot: SourceRevisionSnapshot?
             synchronizingModuleID = module.id
             setState(id: module.id, state: .updating, error: nil)
             do {
-                let hasCache = await fileStore.hasComponent(id: module.id)
+                guard let update = updates[module.id] else { throw CancellationError() }
+                revisionSnapshot = update.snapshot
                 let sourceURL = URL(string: module.sourceURL)
                 let nativeModule = sourceURL.map { module.sourceFormat.isNativeSurgeModule(for: $0) } ?? false
-                let engineChanged = !nativeModule && module.conversionEngineRevision != upstreamState.revision
-                if hasCache {
-                    do {
-                        let revision = try await sourceRevisionService.check(module)
-                        switch revision {
-                        case let .unchanged(snapshot):
-                            revisionSnapshot = snapshot
-                            if !engineChanged {
-                                module.sourceETag = snapshot.etag
-                                module.sourceLastModified = snapshot.lastModified
-                                module.sourceContentHash = snapshot.contentHash
-                                module.sourceCheckedAt = snapshot.checkedAt
-                                module.state = .current
-                                module.lastError = nil
-                                replace(module)
-                                let cached = try await fileStore.readComponent(id: module.id)
-                                let materialized = await processingWorker.materialize(
-                                    cached,
-                                    overrides: module.argumentOverrides,
-                                    policyOverrides: module.policyOverrides,
-                                    customRules: module.customRules,
-                                    customMitM: module.customMitM
-                                )
-                                if module.isEnabled {
-                                    components.append((module, materialized))
-                                }
-                                newHistory.append(UpdateHistoryEntry(
-                                    moduleID: module.id,
-                                    moduleName: module.name,
-                                    outcome: .unchanged,
-                                    duration: Date.now.timeIntervalSince(startedAt),
-                                    message: "来源内容没有变化"
-                                ))
-                                synchronizationCompletedCount += 1
-                                await Task.yield()
-                                continue
-                            }
-                        case let .changed(snapshot):
-                            revisionSnapshot = snapshot
-                        }
-                    } catch {
-                        // A failed lightweight check must not prevent the normal conversion path.
+                guard let result = try update.result.get() else {
+                    guard isCurrentSynchronizationSource(moduleValue) else {
+                        pendingModuleUpdateIDs.insert(module.id)
+                        synchronizationCompletedCount += 1
+                        continue
                     }
+                    if let snapshot = revisionSnapshot {
+                        module.sourceETag = snapshot.etag
+                        module.sourceLastModified = snapshot.lastModified
+                        module.sourceContentHash = snapshot.contentHash
+                        module.sourceCheckedAt = snapshot.checkedAt
+                    }
+                    ModuleRefreshPlanner.succeeded(&module)
+                    module.state = .current
+                    module.lastError = nil
+                    replace(module)
+                    newHistory.append(UpdateHistoryEntry(moduleID: module.id, moduleName: module.name,
+                        outcome: .unchanged, duration: Date.now.timeIntervalSince(startedAt), message: "来源内容没有变化"))
+                    synchronizationCompletedCount += 1
+                    continue
                 }
-                let result = try await scriptHubClient.convert(
-                    module: module,
-                    github: settings.github.isConfigured ? settings.github : nil
-                )
                 guard !Task.isCancelled else { return }
                 guard isCurrentSynchronizationSource(moduleValue) else {
                     pendingModuleUpdateIDs.insert(module.id)
@@ -1075,6 +1093,7 @@ final class AppModel {
                 )
                 let moduleContentChanged = module.contentHash != nextContentHash
                 module.contentHash = nextContentHash
+                ModuleRefreshPlanner.succeeded(&module)
                 module.lastUpdatedAt = .now
                 module.state = .current
                 module.lastError = nil
@@ -1105,6 +1124,9 @@ final class AppModel {
                     pendingModuleUpdateIDs.insert(module.id)
                     synchronizationCompletedCount += 1
                     continue
+                }
+                if let index = modules.firstIndex(where: { $0.id == module.id }) {
+                    ModuleRefreshPlanner.failed(&modules[index], error: error)
                 }
                 failures += 1
                 synchronizationErrors.append("\(module.name)：\(error.localizedDescription)")
@@ -1475,6 +1497,15 @@ final class AppModel {
         }
     }
 
+    private func checkLocalPublish(_ files: [PublishFile]) async throws {
+        let assets = try await fileStore.generatedAssetFiles()
+        let issues = ModuleLintPlanner.check(files: files + assets, ownedModuleIDs: Set(modules.map(\.id)))
+        let paths = Set(files.map(\.name))
+        publishLintIssues.removeAll { paths.contains($0.filePath) }
+        publishLintIssues.append(contentsOf: issues)
+        try ModuleLintPlanner.throwIfBlocking(issues)
+    }
+
     private func publishAllInternal() async throws -> PublishReport {
         try Task.checkCancellation()
         guard settings.github.hasValidCloudflarePublicBaseURL else {
@@ -1510,6 +1541,12 @@ final class AppModel {
             ))
         }
         let assets = try await fileStore.generatedAssetFiles()
+        let issues = ModuleLintPlanner.check(files: files + assets, ownedModuleIDs: Set(modules.map(\.id)))
+        publishLintIssues = issues
+        let errors = issues.filter { $0.severity == .error }
+        guard errors.isEmpty else {
+            throw RelayError.invalidOutput("发布检查未通过：\n" + errors.map { "\($0.filePath):\($0.line) \($0.message)" }.joined(separator: "\n"))
+        }
         let obsoletePlatformFiles = RelayPlatform.allCases
             .filter { !enabledPlats.contains($0) }
             .map { platformFileName(for: $0) }
@@ -1563,7 +1600,12 @@ final class AppModel {
                         fileName: platformFileName(for: platform)
                     )
                 }
-                try? await syncIndividualICloudExports()
+                do { try await syncIndividualICloudExports() }
+                catch {
+                    presentedError = error.localizedDescription
+                    setSynchronizationFailure(error.localizedDescription)
+                    return false
+                }
             }
             return true
         }
@@ -1619,14 +1661,19 @@ final class AppModel {
         }
 
         if settings.storageMode == .local {
-            try? await syncIndividualICloudExports()
+            do { try await syncIndividualICloudExports() }
+            catch {
+                presentedError = error.localizedDescription
+                setSynchronizationFailure(error.localizedDescription)
+                allSucceeded = false
+            }
         }
 
         guard rebuildGeneration == localChangeGeneration else {
             return await rebuildCombinedFromCache()
         }
 
-        scheduleAutomaticPublish()
+        if allSucceeded { scheduleAutomaticPublish() }
         return allSucceeded
     }
 
@@ -1639,6 +1686,7 @@ final class AppModel {
         )
         try await fileStore.writeCombined(merged, platform: platform)
         if settings.storageMode == .local {
+            try await checkLocalPublish([PublishFile(name: platformFileName(for: platform), data: Data(merged.utf8))])
             try await fileStore.exportCombined(
                 merged,
                 toDirectory: settings.localModuleDirectory,
@@ -1696,6 +1744,7 @@ final class AppModel {
         )
         let namedContent = await processingWorker.applyingDisplayName(module.name, to: materialized)
         let exportContent = Self.surgeRelayCategorizedModuleContent(namedContent)
+        try await checkLocalPublish([PublishFile(name: individualICloudFileName(for: module.outputFileName), data: Data(exportContent.utf8))])
         try await fileStore.exportIndividual(
             exportContent,
             moduleID: module.id,
@@ -2122,19 +2171,28 @@ final class AppModel {
         }
     }
 
-    func savePreviewContent(_ content: String, for module: RelayModule) async throws {
+    @discardableResult
+    func savePreviewContent(_ content: String, for module: RelayModule, expectedETag: String? = nil) async throws -> String {
         if isClientMode {
             try await remoteClient().savePreviewContent(moduleID: module.id, content: content)
             await refreshRemoteState()
-            return
+            return try await previewContent(for: module)
         }
-        guard synchronizingModuleID != module.id else {
-            throw RelayError.invalidOutput("该模块正在更新，请稍后再写入；其他模块仍可编辑。")
+        guard let editToken = beginWork() else {
+            throw RelayError.invalidOutput("正在更新或保存，请稍后重试；草稿已保留。")
+        }
+        defer { endWork(editToken) }
+        if let expectedETag {
+            let generation = localChangeGeneration
+            let current = try await previewContent(for: module)
+            guard generation == localChangeGeneration, expectedETag == "\"" + Data(current.utf8).sha256String + "\"" else {
+                throw RelayError.invalidOutput("服务器内容已变化，请重新载入并比较草稿后再保存。")
+            }
         }
         let namedContent = await processingWorker.applyingDisplayName(module.name, to: content)
         if let current = try? await fileStore.readComponent(id: module.id), current == namedContent {
             statusMessage = "内容没有变化"
-            return
+            return try await previewContent(for: module)
         }
         registerLocalChange()
         try await fileStore.writeComponentOverride(namedContent, id: module.id)
@@ -2152,16 +2210,25 @@ final class AppModel {
         await rebuildCombinedFromCache()
         try persistModules()
         statusMessage = settings.automaticallyPublish ? "已写入 \(module.name)，等待合并发布" : "已写入 \(module.name)"
+        return try await previewContent(for: modules.first(where: { $0.id == module.id }) ?? module)
     }
 
-    func restorePreviewContent(for module: RelayModule) async throws -> String {
+    func restorePreviewContent(for module: RelayModule, expectedETag: String? = nil) async throws -> String {
         if isClientMode {
             let content = try await remoteClient().restorePreviewContent(moduleID: module.id)
             await refreshRemoteState()
             return content
         }
-        guard synchronizingModuleID != module.id else {
-            throw RelayError.invalidOutput("该模块正在更新，请稍后再恢复；其他模块仍可编辑。")
+        guard let editToken = beginWork() else {
+            throw RelayError.invalidOutput("正在更新或保存，请稍后重试；草稿已保留。")
+        }
+        defer { endWork(editToken) }
+        if let expectedETag {
+            let generation = localChangeGeneration
+            let current = try await previewContent(for: module)
+            guard generation == localChangeGeneration, expectedETag == "\"" + Data(current.utf8).sha256String + "\"" else {
+                throw RelayError.invalidOutput("服务器内容已变化，请重新载入并比较草稿后再保存。")
+            }
         }
         registerLocalChange()
         let content = try await fileStore.restoreComponent(id: module.id)
@@ -2287,6 +2354,15 @@ final class AppModel {
         return current.sourceURL == snapshot.sourceURL
             && current.sourceFormat == snapshot.sourceFormat
             && current.scriptHubOptions == snapshot.scriptHubOptions
+            && current.name == snapshot.name
+            && current.isEnabled == snapshot.isEnabled
+            && current.exportsIndividualModuleToICloud == snapshot.exportsIndividualModuleToICloud
+            && current.customIconURL == snapshot.customIconURL
+            && current.refreshIntervalMinutes == snapshot.refreshIntervalMinutes
+            && current.argumentOverrides == snapshot.argumentOverrides
+            && current.policyOverrides == snapshot.policyOverrides
+            && current.customRules == snapshot.customRules
+            && current.customMitM == snapshot.customMitM
     }
 
     func dismissPresentedError() {

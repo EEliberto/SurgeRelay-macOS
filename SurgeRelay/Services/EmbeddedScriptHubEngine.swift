@@ -1,230 +1,204 @@
 @preconcurrency import JavaScriptCore
+import Darwin
 import Foundation
 
 actor EmbeddedScriptHubEngine {
-    private final class BlockingResponse: @unchecked Sendable {
-        private let lock = NSLock()
-        private var storedData: Data?
-        private var storedResponse: URLResponse?
-        private var storedError: Error?
+    private let workerExecutableURL: URL?
+    private let executionTimeout: Duration
+    private let maximumConcurrentWorkers: Int
+    private var activeWorkers = 0
+    private var waiters: [(UUID, CheckedContinuation<Bool, Never>)] = []
 
-        func set(data: Data?, response: URLResponse?, error: Error?) {
-            lock.lock()
-            storedData = data
-            storedResponse = response
-            storedError = error
-            lock.unlock()
-        }
-
-        func get() -> (Data?, URLResponse?, Error?) {
-            lock.lock()
-            defer { lock.unlock() }
-            return (storedData, storedResponse, storedError)
-        }
+    init(workerExecutableURL: URL? = nil, executionTimeout: Duration = .seconds(90), maximumConcurrentWorkers: Int = 4) {
+        self.workerExecutableURL = workerExecutableURL
+        self.executionTimeout = executionTimeout
+        self.maximumConcurrentWorkers = max(1, min(maximumConcurrentWorkers, 4))
     }
 
-    func convert(script: String, scriptConverterScript: String? = nil, requestURL: URL) throws -> String {
-        try Self.execute(
-            script: script,
-            scriptConverterScript: scriptConverterScript,
-            requestURL: requestURL
-        )
-    }
-
-    private static func execute(
-        script: String,
-        scriptConverterScript: String?,
-        requestURL: URL
-    ) throws -> String {
-        guard let context = JSContext() else {
-            throw RelayError.invalidOutput("无法创建 JavaScriptCore 运行环境。")
+    func convert(script: String, scriptConverterScript: String? = nil, requestURL: URL) async throws -> String {
+        let metrics = StageMetricsContext.current
+        let started = ContinuousClock.now
+        var helperDownloads: TimeInterval = 0
+        var receivedMetrics = false
+        var launched = false
+        var completed = false
+        var outputBytes: Int64?
+        defer {
+            metrics?.record(StageMetric(stage: .conversion, duration: max(0, StageMetricsRecorder.elapsed(since: started) - helperDownloads),
+                                        bytesWritten: outputBytes, failedAttempts: completed || Task.isCancelled ? 0 : 1,
+                                        result: completed ? .completed : Task.isCancelled ? .cancelled : .failed,
+                                        reason: "helper 执行与准备", isPartial: !receivedMetrics && launched,
+                                        includesDownload: !receivedMetrics && launched))
         }
-
-        var output: String?
-        var exceptionMessage: String?
-        context.exceptionHandler = { _, exception in
-            exceptionMessage = exception?.toString()
+        try await acquireWorker()
+        defer { releaseWorker() }
+        try Task.checkCancellation()
+        let deadline = ContinuousClock.now.advanced(by: executionTimeout)
+        let executable = workerExecutableURL ?? Self.bundledWorkerURL
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw RelayError.invalidOutput("Script-Hub helper 缺失或不可执行，请重新安装完整的 Surge Relay 应用。")
         }
-
-        typealias HTTPBlock = @convention(block) (String, JSValue, JSValue) -> Void
-        let httpBlock: HTTPBlock = { method, requestValue, callback in
+        guard script.utf8.count <= ScriptHubWorkerFiles.maximumScriptBytes,
+              (scriptConverterScript?.utf8.count ?? 0) <= ScriptHubWorkerFiles.maximumScriptBytes - script.utf8.count else {
+            throw RelayError.invalidOutput("Script-Hub 脚本合计超过 20 MB 限制。")
+        }
+        let directory = FileManager.default.temporaryDirectory.appending(path: "SurgeRelay-ScriptWorker-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let request = ScriptHubWorkerRequest(requestURL: requestURL, hasConverter: scriptConverterScript != nil, capturesMetrics: metrics != nil)
+        let metadata = try JSONEncoder().encode(request)
+        guard metadata.count <= ScriptHubWorkerFiles.maximumMetadataBytes else {
+            throw RelayError.invalidOutput("Script-Hub 转换请求地址过长。")
+        }
+        try metadata.write(to: directory.appending(path: ScriptHubWorkerFiles.requestName), options: .atomic)
+        try Data(script.utf8).write(to: directory.appending(path: ScriptHubWorkerFiles.scriptName), options: .atomic)
+        if let scriptConverterScript {
+            try Data(scriptConverterScript.utf8).write(to: directory.appending(path: ScriptHubWorkerFiles.converterName), options: .atomic)
+        }
+        let worker = ScriptHubWorkerProcess(executable: executable, directory: directory)
+        return try await withTaskCancellationHandler {
             do {
-                let request = try Self.makeRequest(method: method, value: requestValue)
-                if request.url?.host == "script.hub",
-                   request.url?.path.contains("/convert/_start_/") == true,
-                   let scriptConverterScript {
-                    let body = try Self.execute(
-                        script: scriptConverterScript,
-                        scriptConverterScript: nil,
-                        requestURL: request.url!
-                    )
-                    callback.call(withArguments: [
-                        NSNull(),
-                        ["status": 200, "statusCode": 200, "headers": [:]],
-                        body
-                    ])
-                    return
+                try Task.checkCancellation()
+                guard ContinuousClock.now < deadline else {
+                    throw RelayError.invalidOutput("Script-Hub 转换超过总执行时限，helper 已终止。")
                 }
-                let (data, response) = try Self.performSynchronously(request)
-                let http = response as? HTTPURLResponse
-                let status = http?.statusCode ?? 0
-                let headers = http?.allHeaderFields.reduce(into: [String: String]()) { result, entry in
-                    result[String(describing: entry.key)] = String(describing: entry.value)
-                } ?? [:]
-                let body = Self.decode(data)
-                callback.call(withArguments: [NSNull(), ["status": status, "statusCode": status, "headers": headers], body])
+                try worker.start()
+                launched = true
+                while worker.isRunning {
+                    try Task.checkCancellation()
+                    guard ContinuousClock.now < deadline else {
+                        throw RelayError.invalidOutput("Script-Hub 转换超过总执行时限，helper 已终止。")
+                    }
+                    try await Task.sleep(for: .milliseconds(25))
+                }
+                try Task.checkCancellation()
+                guard worker.exitStatus == 0 else {
+                    throw RelayError.invalidOutput("Script-Hub helper 异常退出（\(worker.exitStatus)）。")
+                }
+                let responseData = try ScriptHubWorkerFiles.read(directory.appending(path: ScriptHubWorkerFiles.responseName), maximumBytes: ScriptHubWorkerFiles.maximumMetadataBytes)
+                let response = try JSONDecoder().decode(ScriptHubWorkerResponse.self, from: responseData)
+                if let stages = response.stageMetrics {
+                    receivedMetrics = true
+                    for stage in stages where stage.stage == .download {
+                        helperDownloads += stage.duration
+                        metrics?.record(stage)
+                    }
+                }
+                if let retryAfter = response.retryAfter { throw retryAfter }
+                guard response.succeeded else {
+                    throw RelayError.invalidOutput(response.error ?? "Script-Hub helper 未返回有效结果。")
+                }
+                let output = try ScriptHubWorkerFiles.read(directory.appending(path: ScriptHubWorkerFiles.outputName), maximumBytes: ScriptHubWorkerFiles.maximumOutputBytes)
+                guard let text = String(data: output, encoding: .utf8) else {
+                    throw RelayError.invalidOutput("Script-Hub helper 返回的内容不是 UTF-8 文本。")
+                }
+                completed = true
+                outputBytes = Int64(output.count)
+                return text
             } catch {
-                callback.call(withArguments: [String(reflecting: error), NSNull(), ""])
+                worker.stop()
+                guard await worker.waitForExit() else {
+                    throw RelayError.invalidOutput("Script-Hub helper 已收到强制终止信号，但尚未确认退出。")
+                }
+                if Task.isCancelled { throw CancellationError() }
+                throw error
             }
-        }
-        context.setObject(httpBlock, forKeyedSubscript: "__relayHTTP" as NSString)
-
-        typealias ReadBlock = @convention(block) (String) -> Any
-        let readBlock: ReadBlock = { _ in NSNull() }
-        context.setObject(readBlock, forKeyedSubscript: "__relayRead" as NSString)
-
-        typealias WriteBlock = @convention(block) (String, String) -> Bool
-        let writeBlock: WriteBlock = { _, _ in true }
-        context.setObject(writeBlock, forKeyedSubscript: "__relayWrite" as NSString)
-
-        typealias DoneBlock = @convention(block) (JSValue) -> Void
-        let doneBlock: DoneBlock = { value in
-            let response = value.forProperty("response")
-            if let response, !response.isUndefined, !response.isNull {
-                output = response.forProperty("body")?.toString()
-            } else {
-                output = value.forProperty("body")?.toString()
-            }
-        }
-        context.setObject(doneBlock, forKeyedSubscript: "__relayDone" as NSString)
-
-        let encodedURL = try Self.javascriptString(requestURL.absoluteString)
-        context.evaluateScript(
-            """
-            var $environment = {"surge-version":"Surge Relay 0.1"};
-            var $request = {url: \(encodedURL), method: "GET", headers: {"User-Agent":"SurgeRelay/0.1"}};
-            var $httpClient = {
-              get: function(request, callback) { __relayHTTP("GET", request, callback); },
-              post: function(request, callback) { __relayHTTP("POST", request, callback); },
-              put: function(request, callback) { __relayHTTP("PUT", request, callback); },
-              delete: function(request, callback) { __relayHTTP("DELETE", request, callback); }
-            };
-            var $persistentStore = {
-              read: function(key) { return __relayRead(key); },
-              write: function(value, key) { return __relayWrite(value, key); }
-            };
-            var $notification = {post: function() {}};
-            var $done = function(value) { __relayDone(value || {}); };
-            var setTimeout = function() { return 0; };
-            var clearTimeout = function() {};
-            var console = {log: function(){}, warn: function(){}, error: function(){}};
-            """
-        )
-
-        context.evaluateScript(script)
-        let deadline = Date().addingTimeInterval(10)
-        while output == nil, exceptionMessage == nil, Date() < deadline {
-            context.evaluateScript("void 0")
-            Thread.sleep(forTimeInterval: 0.001)
-        }
-
-        if let exceptionMessage {
-            throw RelayError.invalidOutput("Script Hub 执行异常：\(exceptionMessage)")
-        }
-        guard let output else {
-            throw RelayError.invalidOutput("Script Hub 内置引擎未在限定时间内返回结果。")
-        }
-        return output
+        } onCancel: { worker.stop() }
     }
 
-    private static func makeRequest(method: String, value: JSValue) throws -> URLRequest {
-        let urlString: String
-        if value.isString {
-            urlString = value.toString()
-        } else {
-            urlString = value.forProperty("url")?.toString() ?? ""
+    static var bundledWorkerURL: URL {
+        Bundle.main.bundleURL.appending(path: "Contents/Helpers/SurgeRelayScriptWorker")
+    }
+
+    private func acquireWorker() async throws {
+        try Task.checkCancellation()
+        if activeWorkers < maximumConcurrentWorkers {
+            activeWorkers += 1
+            return
         }
-        guard let url = URL(string: urlString) else { throw RelayError.invalidSourceURL }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 60)
-        request.httpMethod = method
-        if !value.isString {
-            if let headers = value.forProperty("headers")?.toDictionary() as? [String: Any] {
-                for (key, value) in headers { request.setValue(String(describing: value), forHTTPHeaderField: key) }
+        let identifier = UUID()
+        let admitted = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled { continuation.resume(returning: false) }
+                else { waiters.append((identifier, continuation)) }
             }
-            if let body = value.forProperty("body")?.toString(), !body.isEmpty {
-                request.httpBody = Data(body.utf8)
+        } onCancel: { Task { await self.cancelWaiter(identifier) } }
+        guard admitted, !Task.isCancelled else {
+            if admitted { releaseWorker() }
+            throw CancellationError()
+        }
+    }
+
+    private func releaseWorker() {
+        if waiters.isEmpty { activeWorkers -= 1 }
+        else { waiters.removeFirst().1.resume(returning: true) }
+    }
+
+    private func cancelWaiter(_ identifier: UUID) {
+        guard let index = waiters.firstIndex(where: { $0.0 == identifier }) else { return }
+        waiters.remove(at: index).1.resume(returning: false)
+    }
+
+    static func makeRequest(method: String, value: JSValue) throws -> URLRequest {
+        try ScriptHubNetworkPolicy.makeRequest(method: method, value: value)
+    }
+
+    static func isBlockedResolvedIPv4(_ value: UInt32) -> Bool {
+        ScriptHubNetworkPolicy.isBlockedResolvedIPv4(value)
+    }
+}
+
+private final class ScriptHubWorkerProcess: @unchecked Sendable {
+    private let process = Process()
+    private let lock = NSLock()
+    private var started = false
+    private var stopping = false
+
+    init(executable: URL, directory: URL) {
+        process.executableURL = executable
+        process.arguments = [directory.path]
+        process.currentDirectoryURL = directory
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+    }
+
+    var isRunning: Bool { process.isRunning }
+    var exitStatus: Int32 { process.terminationStatus }
+
+    func start() throws {
+        try lock.withLock {
+            guard !stopping else { throw CancellationError() }
+            try process.run()
+            started = true
+        }
+    }
+
+    func stop() {
+        lock.withLock {
+            guard !stopping else { return }
+            stopping = true
+            guard started, process.isRunning else { return }
+            process.terminate()
+            let process = process
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(500)) {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             }
         }
-        request.setValue(request.value(forHTTPHeaderField: "User-Agent") ?? "SurgeRelay/0.1", forHTTPHeaderField: "User-Agent")
-        return request
     }
 
-    private static func performSynchronously(_ request: URLRequest) throws -> (Data, URLResponse) {
-        for attempt in 0..<3 {
-            do {
-                return try performOnce(request)
-            } catch {
-                guard attempt < 2, isTransientNetworkError(error) else { throw error }
-                Thread.sleep(forTimeInterval: [0.25, 0.75][attempt])
+    func waitForExit() async -> Bool {
+        guard let pid = lock.withLock({ started ? process.processIdentifier : nil }) else { return true }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while process.isRunning {
+            if kill(pid, 0) == -1, errno == ESRCH { return true }
+            guard ContinuousClock.now < deadline else { return false }
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(25)) {
+                    continuation.resume()
+                }
             }
         }
-        throw URLError(.unknown)
-    }
-
-    private static func performOnce(_ request: URLRequest) throws -> (Data, URLResponse) {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = request.timeoutInterval
-        let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
-        let result = BlockingResponse()
-        let semaphore = DispatchSemaphore(value: 0)
-        let task = session.downloadTask(with: request) { temporaryURL, response, error in
-            do {
-                let data = try temporaryURL.map { try Data(contentsOf: $0) }
-                result.set(data: data, response: response, error: error)
-            } catch {
-                result.set(data: nil, response: response, error: error)
-            }
-            semaphore.signal()
-        }
-        task.resume()
-        guard semaphore.wait(timeout: .now() + request.timeoutInterval + 2) == .success else {
-            task.cancel()
-            session.invalidateAndCancel()
-            throw URLError(.timedOut)
-        }
-        let (data, response, error) = result.get()
-        if let error { throw error }
-        guard let data, let response else { throw URLError(.badServerResponse) }
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw RelayError.httpFailure(status: http.statusCode, message: String(Self.decode(data).prefix(240)))
-        }
-        return (data, response)
-    }
-
-    private static func isTransientNetworkError(_ error: Error) -> Bool {
-        let code = URLError.Code(rawValue: (error as NSError).code)
-        return (error as NSError).domain == NSURLErrorDomain && [
-            .timedOut,
-            .cannotFindHost,
-            .cannotConnectToHost,
-            .networkConnectionLost,
-            .dnsLookupFailed,
-            .notConnectedToInternet,
-            .resourceUnavailable,
-            .secureConnectionFailed
-        ].contains(code)
-    }
-
-    private static func decode(_ data: Data) -> String {
-        String(data: data, encoding: .utf8)
-            ?? String(data: data, encoding: .isoLatin1)
-            ?? String(decoding: data, as: UTF8.self)
-    }
-
-    private static func javascriptString(_ value: String) throws -> String {
-        let data = try JSONSerialization.data(withJSONObject: [value])
-        let array = String(decoding: data, as: UTF8.self)
-        return String(array.dropFirst().dropLast())
+        return true
     }
 }

@@ -44,11 +44,14 @@ actor ScriptHubClient {
     }
 
     func convert(module: RelayModule, github: GitHubSettings? = nil) async throws -> ConversionResult {
-        guard let sourceURL = URL(string: module.sourceURL) else { throw RelayError.invalidSourceURL }
+        guard let sourceURL = URL(string: module.sourceURL),
+              ["http", "https"].contains(sourceURL.scheme?.lowercased()) else { throw RelayError.invalidSourceURL }
         if module.sourceFormat.isNativeSurgeModule(for: sourceURL) {
             var request = URLRequest(url: sourceURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: 60)
             request.setValue("SurgeRelay/0.1", forHTTPHeaderField: "User-Agent")
             let (data, response) = try await session.data(for: request)
+            if let http = response as? HTTPURLResponse,
+               let retry = SourceRetryAfterError.response(http, requestedURL: sourceURL) { throw retry }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             let content = String(data: data, encoding: .utf8) ?? ""
             guard (200..<300).contains(status) else {
@@ -156,6 +159,7 @@ actor SourceRevisionService {
         guard let http = response as? HTTPURLResponse else {
             throw RelayError.invalidOutput("来源没有返回有效的 HTTP 响应。")
         }
+        if let retry = SourceRetryAfterError.response(http, requestedURL: url) { throw retry }
         if http.statusCode == 304, let hash = module.sourceContentHash {
             return .unchanged(SourceRevisionSnapshot(
                 etag: module.sourceETag,

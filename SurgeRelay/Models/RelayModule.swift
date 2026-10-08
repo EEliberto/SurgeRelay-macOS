@@ -130,6 +130,11 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
     var hasOverrideConflict: Bool
     var state: ModuleUpdateState
     var lastError: String?
+    var refreshIntervalMinutes: Int? = nil
+    var lastRefreshAttemptAt: Date? = nil
+    var consecutiveFailureCount: Int = 0
+    var nextRetryAt: Date? = nil
+    var serverRetryAfter: Date? = nil
 
     init(
         id: UUID = UUID(),
@@ -195,6 +200,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         case id, name, sourceURL, sourceFormat, outputFileName, isEnabled, exportsIndividualModuleToICloud, scriptHubOptions, argumentOverrides, policyOverrides, customRules, customMitM, iconURL, customIconURL, customIconSource, detectedSourceFormat
         case createdAt, lastUpdatedAt, contentHash, sourceETag, sourceLastModified, sourceContentHash, sourceCheckedAt
         case conversionEngineRevision, overrideBaseHash, hasOverrideConflict, state, lastError
+        case refreshIntervalMinutes, lastRefreshAttemptAt, consecutiveFailureCount, nextRetryAt, serverRetryAfter
     }
 
     init(from decoder: Decoder) throws {
@@ -231,6 +237,11 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
         hasOverrideConflict = try container.decodeIfPresent(Bool.self, forKey: .hasOverrideConflict) ?? false
         state = try container.decodeIfPresent(ModuleUpdateState.self, forKey: .state) ?? .never
         lastError = try container.decodeIfPresent(String.self, forKey: .lastError)
+        refreshIntervalMinutes = try container.decodeIfPresent(Int.self, forKey: .refreshIntervalMinutes)
+        lastRefreshAttemptAt = try container.decodeIfPresent(Date.self, forKey: .lastRefreshAttemptAt)
+        consecutiveFailureCount = try container.decodeIfPresent(Int.self, forKey: .consecutiveFailureCount) ?? 0
+        nextRetryAt = try container.decodeIfPresent(Date.self, forKey: .nextRetryAt)
+        serverRetryAfter = try container.decodeIfPresent(Date.self, forKey: .serverRetryAfter)
     }
 
     var sourceFormatDisplayTitle: String {
@@ -242,6 +253,7 @@ struct RelayModule: Identifiable, Codable, Hashable, Sendable {
 }
 
 struct ModuleDraft: Sendable {
+    var refreshIntervalMinutes: Int? = nil
     var name = ""
     var sourceURL = ""
     var sourceFormat: ModuleSourceFormat = .automatic
@@ -252,6 +264,7 @@ struct ModuleDraft: Sendable {
     init() {}
 
     init(module: RelayModule) {
+        refreshIntervalMinutes = module.refreshIntervalMinutes
         name = module.name
         sourceURL = module.sourceURL
         sourceFormat = module.sourceFormat
@@ -261,6 +274,7 @@ struct ModuleDraft: Sendable {
     }
 
     var validationMessage: String? {
+        if let refreshIntervalMinutes, !(0...10080).contains(refreshIntervalMinutes) { return "刷新间隔须介于 0 到 10080 分钟。" }
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "请输入模块名称。" }
         guard let url = URL(string: sourceURL), ["http", "https"].contains(url.scheme?.lowercased()) else {
             return "请输入有效的 HTTP 或 HTTPS 来源地址。"
