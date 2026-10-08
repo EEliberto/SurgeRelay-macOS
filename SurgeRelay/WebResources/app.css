@@ -1698,17 +1698,17 @@ select:disabled { opacity: .55; cursor: default; }
 .draft-comparison-columns pre { overflow: auto; max-height: 55dvh; font-size: 12px; white-space: pre; }
 @media (max-width: 600px) { .draft-comparison-columns { grid-template-columns: 1fr; } }
 
-.paired-option-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; margin-bottom: 12px; }
+.paired-option-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 8px; margin-bottom: 12px; }
+.paired-option-row + .paired-option-row { border-top: 1px solid var(--separator); padding-top: 12px; }
+.paired-option-row label { grid-column: 1; }
+.paired-option-row button { grid-column: 2; grid-row: 1 / 3; margin-top: 20px; }
 .paired-option-row label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .paired-option-row input { width: 100%; min-width: 0; text-align: left; }
 .option-row.keyword-editor .keyword-entry { width: 100%; max-width: none; }
-@media (max-width: 600px) {
-  .paired-option-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .paired-option-row label { grid-column: 1; }
-  .paired-option-row button { grid-column: 2; grid-row: 1 / 3; align-self: center; }
-}
 
 /* Form actions use the same rounded rectangle as the native editor. */
+[data-paired-editor] { text-align: left; }
+.option-row > .button[data-paired-add] { display: inline-flex; margin-left: 0; }
 .option-row > .button[data-paired-add], .paired-option-row .button {
   border-radius: 7px;
   min-height: 30px;
@@ -1720,14 +1720,5 @@ select:disabled { opacity: .55; cursor: default; }
   justify-self: end;
 }
 .option-row.keyword-editor .keyword-entry { max-width: 320px; }
-[data-paired-editor][data-second="timeoutValues"] .paired-option-row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 110px) auto;
-}
-[data-paired-editor][data-second="engineValues"] .paired-option-row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 160px) auto;
-}
-@media (max-width: 600px) {
-  [data-paired-editor][data-second] .paired-option-row { grid-template-columns: minmax(0, 1fr) auto; }
-  [data-second="timeoutValues"] [data-pair-second] { max-width: 110px; }
-  [data-second="engineValues"] [data-pair-second] { max-width: 160px; }
-}
+[data-second="timeoutValues"] [data-pair-second] { max-width: 110px; }
+[data-second="engineValues"] [data-pair-second] { max-width: 160px; }

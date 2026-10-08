@@ -656,7 +656,7 @@ private struct AirportSubscriptionEditor: View {
                 } header: {
                     Text("代理属性")
                 } footer: {
-                    Text("仅对支持该参数的代理协议生效；“跟随订阅”不会修改原始值。")
+                    Text("仅对支持该参数的代理协议生效；“自动”不会修改原始值。")
                 }
                 Section {
                     RelayTextField("节点名称模板", text: $draft.nodeNameTemplate, prompt: Text("例如 {airport} - {name}")).multilineTextAlignment(.leading)

@@ -117,8 +117,8 @@ const advancedGroups = [
       textField('mitmRemoveRegex', '按正则删除主机名', '例如：(^|\\.)ads\\.example\\.com$')
     ]
   },
-  pairedGroup('script-name', '修改脚本名', 'scriptNameTargets', '关键词锁定脚本 (njsnametarget)', '例如：checkin+account', 'scriptNames', '新的脚本名 (njsname)', '例如：签到任务+账户任务'),
-  pairedGroup('timeout', '修改脚本超时', 'timeoutTargets', '关键词锁定脚本 (timeoutt)', '例如：checkin+account', 'timeoutValues', '超时值 (timeoutv)', '例如：10+30'),
+  pairedGroup('script-name', '修改脚本名', 'scriptNameTargets', '关键词锁定脚本 (njsnametarget)', '例如：checkin', 'scriptNames', '新的脚本名 (njsname)', '例如：签到任务'),
+  pairedGroup('timeout', '修改脚本超时', 'timeoutTargets', '关键词锁定脚本 (timeoutt)', '例如：checkin', 'timeoutValues', '超时值 (timeoutv)', '例如：10'),
   pairedGroup('engine', '修改脚本引擎（Surge）', 'engineTargets', '关键词锁定脚本 (enginet)', '例如：legacy-script', 'engineValues', '引擎 (enginev)', '例如：webview'),
   pairedGroup('cron', '修改定时任务', 'cronTargets', '关键词锁定任务 (cron)', '例如：daily-checkin', 'cronExpressions', 'Cron 表达式 (cronexp)', '例如：0.0.8.*.*.*'),
   pairedGroup('arguments', '修改参数', 'argumentTargets', '关键词锁定脚本 (arg)', '例如：account-script', 'argumentValues', 'Argument 新值 (argv)', '例如：key=value'),
@@ -368,7 +368,7 @@ function textField(key, label, prompt = '', help = '', multiline = false) { retu
 function toggleField(key, label) { return { type: 'toggle', key, label }; }
 function headingField(label) { return { type: 'heading', label }; }
 function pairedGroup(id, title, firstKey, firstLabel, firstPrompt, secondKey, secondLabel, secondPrompt) {
-  return { id, title, paired: true, description: '每行是一组目标和值，点按 + 添加一组。', fields: [textField(firstKey, firstLabel, firstPrompt), textField(secondKey, secondLabel, secondPrompt)] };
+  return { id, title, paired: true, fields: [textField(firstKey, firstLabel, firstPrompt), textField(secondKey, secondLabel, secondPrompt)] };
 }
 
 async function api(path, options = {}) {
@@ -1066,7 +1066,7 @@ function optionFieldMarkup(field) {
   if (separators[field.key]) {
     const name = `option_${field.key}`;
     return `<div class="option-row keyword-editor" data-keyword-editor="${name}" data-separator="${separators[field.key]}">
-      <label>${escapeHTML(field.label)}</label><div class="keyword-entry"><input data-keyword-input type="text" placeholder="输入一项"><button type="button" class="keyword-add-button" data-keyword-add aria-label="添加${escapeAttribute(field.label)}">＋</button></div>
+      <label>${escapeHTML(field.label)}</label><div class="keyword-entry"><input data-keyword-input type="text" placeholder="输入一项"><button type="button" class="keyword-add-button" data-keyword-add disabled aria-label="添加${escapeAttribute(field.label)}">＋</button></div>
       <input type="hidden" name="${name}"><div class="keyword-chips" data-keyword-chips hidden></div>
       ${field.help && !field.help.includes('分隔') ? `<p class="option-help">${escapeHTML(field.help)}</p>` : ''}</div>`;
   }
@@ -2749,17 +2749,18 @@ function editorKeywords(editor) {
 
 function pairedOptionsMarkup(group) {
   const [first, second] = group.fields;
-  return `<div class="option-row" data-paired-editor data-first="${first.key}" data-second="${second.key}" data-first-label="${escapeAttribute(first.label)}" data-second-label="${escapeAttribute(second.label)}">
+  return `<div class="option-row" data-paired-editor data-first="${first.key}" data-second="${second.key}" data-first-label="${escapeAttribute(first.label)}" data-second-label="${escapeAttribute(second.label)}" data-first-prompt="${escapeAttribute(first.prompt)}" data-second-prompt="${escapeAttribute(second.prompt)}">
     <input type="hidden" name="option_${first.key}"><input type="hidden" name="option_${second.key}">
-    <div data-paired-rows></div><button type="button" class="button" data-paired-add>＋ 添加一组</button></div>`;
+    <div data-paired-rows></div><button type="button" class="button" data-paired-add disabled>＋ 添加一组</button></div>`;
 }
 
 function appendPairedOption(editor, first = '', second = '') {
   const row = document.createElement('div'); row.className = 'paired-option-row';
-  setTemplateHTML(row, `<label>${escapeHTML(editor.dataset.firstLabel)}<input type="text" data-pair-first></label><label>${escapeHTML(editor.dataset.secondLabel)}<input type="text" data-pair-second></label><button type="button" class="button" data-paired-remove aria-label="移除此组">−</button>`);
+  setTemplateHTML(row, `<label>${escapeHTML(editor.dataset.firstLabel)}<input type="text" data-pair-first placeholder="${escapeAttribute(editor.dataset.firstPrompt)}"></label><label>${escapeHTML(editor.dataset.secondLabel)}<input type="text" data-pair-second placeholder="${escapeAttribute(editor.dataset.secondPrompt)}"></label><button type="button" class="button" data-paired-remove aria-label="移除此组">−</button>`);
   row.querySelector('[data-pair-first]').value = first;
   row.querySelector('[data-pair-second]').value = second;
   editor.querySelector('[data-paired-rows]').append(row);
+  updatePairedAddButton(editor);
   return row;
 }
 
@@ -2767,10 +2768,16 @@ function populatePairedOptions(editor) {
   editor.querySelector('[data-paired-rows]').replaceChildren();
   const read = key => { const value = editor.querySelector(`[name="option_${key}"]`).value; return value ? value.split('+') : []; };
   const first = read(editor.dataset.first), second = read(editor.dataset.second);
-  for (let index = 0; index < Math.max(first.length, second.length); index++) appendPairedOption(editor, first[index] || '', second[index] || '');
+  for (let index = 0; index < Math.max(1, first.length, second.length); index++) appendPairedOption(editor, first[index] || '', second[index] || '');
+}
+
+function updatePairedAddButton(editor) {
+  editor.querySelector('[data-paired-add]').disabled = Array.from(editor.querySelectorAll('.paired-option-row')).some(row =>
+    !row.querySelector('[data-pair-first]').value.trim() || !row.querySelector('[data-pair-second]').value.trim());
 }
 
 function persistPairedOptions(editor) {
+  updatePairedAddButton(editor);
   const rows = Array.from(editor.querySelectorAll('.paired-option-row')).map(row => [row.querySelector('[data-pair-first]').value, row.querySelector('[data-pair-second]').value]).filter(pair => pair.some(Boolean));
   editor.querySelector(`[name="option_${editor.dataset.first}"]`).value = rows.map(pair => pair[0]).join('+');
   editor.querySelector(`[name="option_${editor.dataset.second}"]`).value = rows.map(pair => pair[1]).join('+');
@@ -2786,6 +2793,10 @@ ui.advancedOptions.addEventListener('click', event => {
   handleAirportKeywordClick(event);
   const editor = event.target.closest('[data-paired-editor]');
   if (!editor) return;
-  if (event.target.closest('[data-paired-add]')) appendPairedOption(editor).querySelector('input').focus();
-  if (event.target.closest('[data-paired-remove]')) { event.target.closest('.paired-option-row').remove(); persistPairedOptions(editor); }
+  if (event.target.closest('[data-paired-add]') && !editor.querySelector('[data-paired-add]').disabled) appendPairedOption(editor).querySelector('input').focus();
+  if (event.target.closest('[data-paired-remove]')) {
+    event.target.closest('.paired-option-row').remove();
+    if (!editor.querySelector('.paired-option-row')) appendPairedOption(editor);
+    persistPairedOptions(editor);
+  }
 });

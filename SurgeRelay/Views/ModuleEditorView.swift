@@ -34,7 +34,7 @@ struct ModuleEditorView: View {
                         get: { draft.refreshIntervalMinutes ?? -1 },
                         set: { draft.refreshIntervalMinutes = $0 < 0 ? nil : $0 }
                     )) {
-                        Text("继承全局").tag(-1)
+                        Text("自动").tag(-1)
                         Text("仅手动刷新").tag(0)
                         Text("每 15 分钟").tag(15)
                         Text("每小时").tag(60)

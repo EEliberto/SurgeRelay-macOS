@@ -267,7 +267,7 @@ struct ScriptHubAdvancedOptionsView: View {
         secondPrompt: String,
         second: Binding<String>
     ) -> some View {
-        optionGroup(section, title, description: "每行是一组目标和值，点按 + 添加一组。") {
+        optionGroup(section, title) {
             RelayPairedListEditor(firstTitle: firstTitle, firstPrompt: firstPrompt, first: first,
                                   secondTitle: secondTitle, secondPrompt: secondPrompt, second: second)
         }
@@ -276,11 +276,13 @@ struct ScriptHubAdvancedOptionsView: View {
     private func expansionBinding(for section: OptionSection) -> Binding<Bool> {
         Binding(
             get: { expandedSections.contains(section) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedSections.insert(section)
-                } else {
-                    expandedSections.remove(section)
+            set: { isExpanded, transaction in
+                withTransaction(transaction) {
+                    if isExpanded {
+                        expandedSections.insert(section)
+                    } else {
+                        expandedSections.remove(section)
+                    }
                 }
             }
         )
@@ -364,7 +366,7 @@ private struct RelayPairedListEditor: View {
         let targets = first.wrappedValue.isEmpty ? [] : first.wrappedValue.components(separatedBy: "+")
         let values = second.wrappedValue.isEmpty ? [] : second.wrappedValue.components(separatedBy: "+")
         // One-time editor seed; stable row IDs preserve focus while editing duplicate values.
-        _entries = State(initialValue: (0..<max(targets.count, values.count)).map {
+        _entries = State(initialValue: (0..<max(1, max(targets.count, values.count))).map {
             Entry(first: $0 < targets.count ? targets[$0] : "", second: $0 < values.count ? values[$0] : "")
         })
     }
@@ -373,22 +375,43 @@ private struct RelayPairedListEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach($entries) { $entry in
                 HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading) {
-                        Text(firstTitle).font(.caption)
-                        TextField(firstPrompt, text: $entry.first).onChange(of: entry.first) { persist() }
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(firstTitle).font(.caption)
+                            TextField("", text: $entry.first, prompt: Text(firstPrompt))
+                                .labelsHidden()
+                                .accessibilityLabel(firstTitle)
+                                .onChange(of: entry.first) { persist() }
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(secondTitle).font(.caption)
+                            TextField("", text: $entry.second, prompt: Text(secondPrompt))
+                                .labelsHidden()
+                                .accessibilityLabel(secondTitle)
+                                .frame(maxWidth: secondTitle.contains("timeoutv") ? 100 : secondTitle.contains("enginev") ? 160 : .infinity, alignment: .leading)
+                                .onChange(of: entry.second) { persist() }
+                        }
                     }
-                    VStack(alignment: .leading) {
-                        Text(secondTitle).font(.caption)
-                        TextField(secondPrompt, text: $entry.second).onChange(of: entry.second) { persist() }
-                    }
-                    .frame(maxWidth: secondTitle.contains("timeoutv") ? 100 : secondTitle.contains("enginev") ? 160 : .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Button("移除此组", systemImage: "minus.circle") {
-                        entries.removeAll { $0.id == entry.id }; persist()
-                    }.labelStyle(.iconOnly).padding(.top, 20)
+                        entries.removeAll { $0.id == entry.id }
+                        if entries.isEmpty { entries.append(Entry(first: "", second: "")) }
+                        persist()
+                    }
+                    .labelStyle(.iconOnly)
+                    .padding(.top, 20)
+                }
+                if entry.id != entries.last?.id {
+                    Divider()
                 }
             }
             Button("添加一组", systemImage: "plus") { entries.append(Entry(first: "", second: "")) }
+                .disabled(entries.contains {
+                    $0.first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                    $0.second.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                })
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .textFieldStyle(.roundedBorder)
         .multilineTextAlignment(.leading)
         .padding(.vertical, 10)

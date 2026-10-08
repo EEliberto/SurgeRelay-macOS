@@ -40,7 +40,7 @@ enum AirportNodeSortOrder: String, Codable, CaseIterable, Identifiable, Sendable
 
     var displayName: String {
         switch self {
-        case .original: "订阅原始顺序"
+        case .original: "自动"
         case .nameAscending: "名称升序"
         case .nameDescending: "名称降序"
         case .keywordPriority: "关键词优先级"
@@ -57,7 +57,7 @@ enum AirportProxyOptionOverride: String, Codable, CaseIterable, Identifiable, Se
 
     var displayName: String {
         switch self {
-        case .inherit: "跟随订阅"
+        case .inherit: "自动"
         case .enabled: "开启"
         case .disabled: "关闭"
         }
