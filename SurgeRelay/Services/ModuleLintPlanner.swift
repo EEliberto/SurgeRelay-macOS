@@ -29,8 +29,6 @@ enum ModuleLintPlanner {
             var section = ""
             var sectionCount = 0
             var hasUnsectionedContent = false
-            var seenLines: [String: Int] = [:]
-            var seenKeys: [String: Int] = [:]
             for (index, raw) in text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n").enumerated() {
                 let number = index + 1
                 let line = raw.trimmingCharacters(in: .whitespaces)
@@ -59,19 +57,6 @@ enum ModuleLintPlanner {
                 guard !section.isEmpty else {
                     issue(.warning, "outside-section", "此行位于任何配置段之外，请核对是否遗漏段标题。")
                     continue
-                }
-                let lineKey = section + "\0" + line
-                let duplicate = seenLines[lineKey]
-                if let first = duplicate { issue(.warning, "duplicate-entry", "此项与第 \(first) 行重复。", relatedLine: first) }
-                else { seenLines[lineKey] = number }
-                if duplicate == nil, ["general", "mitm", "script", "panel"].contains(section), let equal = line.firstIndex(of: "=") {
-                    let key = line[..<equal].trimmingCharacters(in: .whitespaces)
-                    if !key.isEmpty {
-                        let keyIdentity = section + "\0" + key
-                        if let first = seenKeys[keyIdentity] {
-                            issue(.warning, "duplicate-key", "同一配置段中的键 \(key) 已在第 \(first) 行出现；请确认覆盖顺序。", relatedLine: first)
-                        } else { seenKeys[keyIdentity] = number }
-                    }
                 }
                 guard section == "script", let expression = scriptPathExpression else { continue }
                 let source = line as NSString

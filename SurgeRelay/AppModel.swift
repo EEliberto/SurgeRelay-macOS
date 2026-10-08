@@ -1500,9 +1500,7 @@ final class AppModel {
     private func checkLocalPublish(_ files: [PublishFile]) async throws {
         let assets = try await fileStore.generatedAssetFiles()
         let issues = ModuleLintPlanner.check(files: files + assets, ownedModuleIDs: Set(modules.map(\.id)))
-        let paths = Set(files.map(\.name))
-        publishLintIssues.removeAll { paths.contains($0.filePath) }
-        publishLintIssues.append(contentsOf: issues)
+        publishLintIssues = issues
         try ModuleLintPlanner.throwIfBlocking(issues)
     }
 
