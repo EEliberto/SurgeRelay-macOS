@@ -3,6 +3,40 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>261008</title>
+            <pubDate>Thu, 08 Oct 2026 14:13:13 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261008</link>
+            <sparkle:version>27100801</sparkle:version>
+            <sparkle:shortVersionString>261008</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay！
+
+本次 261008 更新重点改善了 App 与 Web 端的编辑体验，并对模块刷新、机场订阅和发布检查进行了优化。此次更新我们带来了以下亮点：
+
+1. 关键词设置更直观：机场的移除关键词、模块高级设置中的关键词和 MitM 主机名，现在都可以通过“+”逐项添加和移除，无需手动输入分隔符。脚本名、超时、引擎、定时任务和参数也支持按组编辑，App 与 Web 端同步支持。
+
+2. Web 编辑新增草稿保存：尚未写入的修改会保留在当前浏览器中，重新打开后可以继续编辑。如果服务器内容已被其他设备修改，可先对比内容再保存，减少修改被覆盖的情况。
+
+3. 模块支持独立刷新间隔：你可以为不同模块设置更新频率，也可以选择跟随全局设置或仅手动刷新。更新失败后会逐步延长重试间隔，减少反复请求。
+
+4. 改进 Script Hub 转换与批量更新：脚本转换现在独立运行，并支持超时终止和取消；多个模块可并行处理，减少批量更新时的等待。
+
+5. 完善机场订阅直连：订阅下载不再沿用系统代理设置，重定向地址也会自动加入直连规则，与订阅地址和节点服务器地址一起同步至已启用的 Surge 配置。
+
+6. 新增发布前检查：上传至 GitHub 或导出本地模块前，会检查配置格式与生成资源是否完整；发现明确错误时停止发布，并在诊断页面显示原因。
+
+7. 对 App 与 Web 端进行了多项 UI 调整：统一标题、输入框和底部按钮的布局，修复重复顶栏与分割线显示问题，并根据端口、名称、地址等不同内容调整输入框宽度。
+
+8. 优化 Web 设置和手机端体验，调整侧栏图标、按钮样式与分组间距，移除打开设置时多余的蓝色焦点框；通用设置同步显示 Surge 目录与图标。
+
+9. 修复客户端已保存的 GitHub Token 不显示的问题，支持直接查看和编辑；清理机场外部策略模式下遗留的空代理区块，并统一部分界面文案。
+
+Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你在使用中遇到任何问题，欢迎在 GitHub 提交 Issue。
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261008/Surge-Relay-261008-build-27100801.dmg" length="29772552" type="application/octet-stream" sparkle:edSignature="KuHg6LMS4ce+Msjhd5O5tIy34DAp3/KIv1Tkrxm9yLmYV7OCsMibgOpBXF5KBsEE+zJEXmcB7pg9uX5BRBXPAA=="/>
+        </item>
+        <item>
             <title>261002</title>
             <pubDate>Fri, 02 Oct 2026 23:45:50 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261002</link>
@@ -139,7 +173,7 @@ Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Su
 
 6.重新整理文件存储：App 私有配置和缓存迁移至 Application Support，iCloud 云盘只保留用于多设备同步的生成文件，减少 Spotlight 搜索 Surge 时出现的无用文件。
 
-7.修复服务器模式开机启动后只出现在 Dock、必须点击 App 才显示菜单栏图标的问题；现在无需打开主窗口即可正确启动菜单栏服务。
+7.修复服务器模式开机启动后只出现在 Dock、必须点按 App 才显示菜单栏图标的问题；现在无需打开主窗口即可正确启动菜单栏服务。
 
 8.优化 macOS 27 工具栏与侧边栏外观，修复详情/预览选择状态错位，并恢复侧边栏原生的柔和滚动边缘效果。
 
@@ -232,7 +266,7 @@ Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你使用 Su
 
 8.服务器无响应时，客户端会整页提示“服务器无响应”并提供重新连接与设置入口，断连时菜单栏图标会变为浅色，状态一目了然。
 
-9.进一步优化客户端实时同步：点击“更新全部”后，服务器端的更新进度会实时、准确地回传到客户端，实时同步中断时也不再频繁弹出“服务器无响应”。
+9.进一步优化客户端实时同步：点按“更新全部”后，服务器端的更新进度会实时、准确地回传到客户端，实时同步中断时也不再频繁弹出“服务器无响应”。
 
 10.修复客户端进度条卡在中间百分比的问题：即使由服务器端发起更新，或 SSE 中途断开，客户端也会通过独立进度通道持续校正，完成后立即恢复空闲状态。
 
