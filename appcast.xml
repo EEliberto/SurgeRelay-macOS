@@ -4,9 +4,9 @@
         <title>Surge Relay</title>
         <item>
             <title>261008</title>
-            <pubDate>Thu, 08 Oct 2026 14:43:48 +0800</pubDate>
+            <pubDate>Thu, 08 Oct 2026 14:53:12 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261008</link>
-            <sparkle:version>27100802</sparkle:version>
+            <sparkle:version>27100803</sparkle:version>
             <sparkle:shortVersionString>261008</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
@@ -34,7 +34,7 @@
 
 Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你在使用中遇到任何问题，欢迎在 GitHub 提交 Issue。
 ]]></description>
-            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261008/Surge-Relay-261008-build-27100802.dmg" type="application/octet-stream" sparkle:edSignature="CBXqKs+WSjpcZkn1jHGUJUZi0U2114g0byvtOWDRcAuUR95T3Bk4KSyBnos105GPBMXlGDY+H+8u8nEPmuQCCA==" length="29785503"/>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261008/Surge-Relay-261008-build-27100803.dmg" type="application/octet-stream" sparkle:edSignature="nYllI/r9HW7MgbtDCpDkX1HY+QqiYXwDdIjXc3pZPl/wl6rFO0H3GwUeu6GVXlITstBTdF6KFgru2/yvhtq+CA==" length="29784808"/>
         </item>
         <item>
             <title>261002</title>
