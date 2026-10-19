@@ -83,13 +83,16 @@ Surge Relay 可读取 Surge 模块，并通过内置的 [Script Hub](https://git
 
 Surge Relay 分别生成适用于 iOS 和 iPadOS、macOS、tvOS、visionOS 的汇总模块。不同平台可以启用不同的来源。请在设备上安装对应平台的模块，并在 Surge 中启用。
 
-<p align="center">
-  <a href="docs/images/surge-macos.png"><img width="920" alt="在 Surge Mac 的模块设置中启用 macOS 汇总模块" src="docs/images/surge-macos.png"></a>
-</p>
-
-<p align="center">
-  <a href="docs/images/surge-iphone.png"><img width="420" alt="在 Surge iPhone 中启用 iOS 和 iPadOS 汇总模块" src="docs/images/surge-iphone.png"></a>
-</p>
+<table align="center">
+  <tr>
+    <td width="70%" align="center" valign="middle">
+      <a href="docs/images/surge-macos.png"><img width="100%" alt="在 Surge Mac 的模块设置中启用 macOS 汇总模块" src="docs/images/surge-macos.png"></a>
+    </td>
+    <td width="30%" align="center" valign="middle">
+      <a href="docs/images/surge-iphone.png"><img width="100%" alt="在 Surge iPhone 中启用 iOS 和 iPadOS 汇总模块" src="docs/images/surge-iphone.png"></a>
+    </td>
+  </tr>
+</table>
 
 ## 服务器与客户端模式
 
@@ -110,13 +113,16 @@ Surge Relay 分别生成适用于 iOS 和 iPadOS、macOS、tvOS、visionOS 的�
 
 Web 界面支持模块与机场编辑、正文预览、刷新和设置管理，适用于 Mac、iPad 和 iPhone 的浏览器。
 
-<p align="center">
-  <a href="docs/images/web-ipad.png"><img width="920" alt="iPad Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-ipad.png"></a>
-</p>
-
-<p align="center">
-  <a href="docs/images/web-iphone.png"><img width="420" alt="iPhone Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-iphone.png"></a>
-</p>
+<table align="center">
+  <tr>
+    <td width="70%" align="center" valign="middle">
+      <a href="docs/images/web-ipad.png"><img width="100%" alt="iPad Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-ipad.png"></a>
+    </td>
+    <td width="30%" align="center" valign="middle">
+      <a href="docs/images/web-iphone.png"><img width="100%" alt="iPhone Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-iphone.png"></a>
+    </td>
+  </tr>
+</table>
 
 ## 使用外部 Agent 或自动化工具
 
