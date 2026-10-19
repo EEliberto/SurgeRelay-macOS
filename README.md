@@ -13,7 +13,7 @@
 </div>
 
 <p align="center">
-  <img width="920" alt="Surge Relay 主窗口：按平台选择汇总模块的来源" src="docs/images/module-overview.png">
+  <a href="docs/images/module-overview.png"><img width="920" alt="Surge Relay 主窗口：按平台选择汇总模块的来源" src="docs/images/module-overview.png"></a>
 </p>
 
 ## 开始使用
@@ -33,14 +33,17 @@ Surge Relay 可读取 Surge 模块，并通过内置的 [Script Hub](https://git
 选择一个来源模块后，可以查看来源地址、刷新状态及可用参数。点按“编辑”可更改名称、来源格式、刷新间隔和转换选项。刷新间隔选择“自动”时，使用通用设置中的间隔。
 
 <p align="center">
-  <img width="440" alt="编辑模块的名称、来源和刷新间隔" src="docs/images/module-editor.png">
-  <img width="440" alt="在模块详情中调整脚本参数" src="docs/images/module-arguments.png">
+  <a href="docs/images/module-editor.png"><img width="920" alt="编辑模块的名称、来源和刷新间隔" src="docs/images/module-editor.png"></a>
+</p>
+
+<p align="center">
+  <a href="docs/images/module-arguments.png"><img width="920" alt="在模块详情中调整脚本参数" src="docs/images/module-arguments.png"></a>
 </p>
 
 在“预览”中可以搜索和编辑生成的内容。写入的自定义修改会在后续处理中保留；如果上游变更与修改冲突，请检查提示和当前内容。
 
 <p align="center">
-  <img width="920" alt="模块正文预览，按元数据、配置段和链接显示不同颜色" src="docs/images/module-preview.png">
+  <a href="docs/images/module-preview.png"><img width="920" alt="模块正文预览，按元数据、配置段和链接显示不同颜色" src="docs/images/module-preview.png"></a>
 </p>
 
 ## 管理机场订阅
@@ -52,8 +55,11 @@ Surge Relay 可读取 Surge 模块，并通过内置的 [Script Hub](https://git
 在“编辑机场”中，可以按关键词或正则表达式筛选节点、调整排序、设置名称模板，以及修改 UDP Relay、TCP Fast Open 等代理属性。代理属性选择“自动”时保留订阅原值。
 
 <p align="center">
-  <img width="440" alt="机场订阅列表、Surge 配置和写入入口" src="docs/images/airport-overview.png">
-  <img width="440" alt="编辑机场的代理属性、名称模板和移除关键词" src="docs/images/airport-options.png">
+  <a href="docs/images/airport-overview.png"><img width="920" alt="机场订阅列表、Surge 配置和写入入口" src="docs/images/airport-overview.png"></a>
+</p>
+
+<p align="center">
+  <a href="docs/images/airport-options.png"><img width="920" alt="编辑机场的代理属性、名称模板和移除关键词" src="docs/images/airport-options.png"></a>
 </p>
 
 ## 选择同步方式
@@ -64,8 +70,11 @@ Surge Relay 可读取 Surge 模块，并通过内置的 [Script Hub](https://git
 - **GitHub 私有仓库**：将模块和生成的脚本发布到私有仓库，通过 Cloudflare Worker 提供订阅地址。完成配置后，在 Surge 中添加对应的固定 URL。
 
 <p align="center">
-  <img width="440" alt="iCloud 云盘同步设置" src="docs/images/sync-icloud.png">
-  <img width="440" alt="GitHub 私有仓库与 Cloudflare 发布设置" src="docs/images/sync-github.png">
+  <a href="docs/images/sync-icloud.png"><img width="920" alt="iCloud 云盘同步设置" src="docs/images/sync-icloud.png"></a>
+</p>
+
+<p align="center">
+  <a href="docs/images/sync-github.png"><img width="920" alt="GitHub 私有仓库与 Cloudflare 发布设置" src="docs/images/sync-github.png"></a>
 </p>
 
 发布后的文件可继续被设备读取。Mac 离线期间不会获取或转换新的上游内容；重新上线后，可手动刷新或等待下一次自动刷新。
@@ -75,8 +84,11 @@ Surge Relay 可读取 Surge 模块，并通过内置的 [Script Hub](https://git
 Surge Relay 分别生成适用于 iOS 和 iPadOS、macOS、tvOS、visionOS 的汇总模块。不同平台可以启用不同的来源。请在设备上安装对应平台的模块，并在 Surge 中启用。
 
 <p align="center">
-  <img width="66%" alt="在 Surge Mac 的模块设置中启用 macOS 汇总模块" src="docs/images/surge-macos.png">
-  <img width="25%" alt="在 Surge iPhone 中启用 iOS 和 iPadOS 汇总模块" src="docs/images/surge-iphone.png">
+  <a href="docs/images/surge-macos.png"><img width="920" alt="在 Surge Mac 的模块设置中启用 macOS 汇总模块" src="docs/images/surge-macos.png"></a>
+</p>
+
+<p align="center">
+  <a href="docs/images/surge-iphone.png"><img width="420" alt="在 Surge iPhone 中启用 iOS 和 iPadOS 汇总模块" src="docs/images/surge-iphone.png"></a>
 </p>
 
 ## 服务器与客户端模式
@@ -89,7 +101,7 @@ Surge Relay 分别生成适用于 iOS 和 iPadOS、macOS、tvOS、visionOS 的�
 使用客户端前，请在服务器上开启 Web 管理，并确保客户端可以通过 Surge Ponte 访问该地址。客户端不再开启另一套 Web 服务。
 
 <p align="center">
-  <img width="820" alt="Surge Ponte 设置中的服务器模式和客户端模式切换，以及服务器地址输入框" src="docs/images/ponte-client.png">
+  <a href="docs/images/ponte-client.png"><img width="920" alt="Surge Ponte 设置中的服务器模式和客户端模式切换，以及服务器地址输入框" src="docs/images/ponte-client.png"></a>
 </p>
 
 ## 使用 Web 管理
@@ -99,8 +111,11 @@ Surge Relay 分别生成适用于 iOS 和 iPadOS、macOS、tvOS、visionOS 的�
 Web 界面支持模块与机场编辑、正文预览、刷新和设置管理，适用于 Mac、iPad 和 iPhone 的浏览器。
 
 <p align="center">
-  <img width="66%" alt="iPad Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-ipad.png">
-  <img width="25%" alt="iPhone Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-iphone.png">
+  <a href="docs/images/web-ipad.png"><img width="920" alt="iPad Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-ipad.png"></a>
+</p>
+
+<p align="center">
+  <a href="docs/images/web-iphone.png"><img width="420" alt="iPhone Safari 中的 Surge Relay Web 管理界面" src="docs/images/web-iphone.png"></a>
 </p>
 
 ## 使用外部 Agent 或自动化工具
