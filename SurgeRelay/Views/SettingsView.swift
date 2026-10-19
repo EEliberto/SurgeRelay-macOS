@@ -341,7 +341,8 @@ struct SettingsView: View {
     }
 
     private var webSettings: some View {
-        Form {
+        @Bindable var model = model
+        return Form {
             if model.deviceMode == .client {
                 Section {
                     Label(
@@ -384,6 +385,43 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Section("自动化访问") {
+                    Toggle("允许本机 Agent 访问", isOn: Binding(
+                        get: { model.automationAccess.enabled },
+                        set: { enabled in
+                            model.automationAccess.enabled = enabled
+                            if enabled {
+                                model.automationAccess.ensureToken()
+                                model.settings.webServerEnabled = true
+                                model.applyWebServerSettings()
+                            }
+                            model.automationAccess.save()
+                            model.automationAPI.invalidatePlans()
+                        }
+                    ))
+                    if model.automationAccess.enabled {
+                        LabeledContent("API 地址") {
+                            Text("http://127.0.0.1:\(model.settings.webServerPort)/api/v1")
+                                .textSelection(.enabled)
+                        }
+                        Toggle("允许编辑", isOn: $model.automationAccess.allowEdits)
+                        Toggle("允许刷新", isOn: $model.automationAccess.allowRefresh)
+                        Toggle("允许发布", isOn: $model.automationAccess.allowPublish)
+                        HStack {
+                            Button("拷贝访问令牌", systemImage: "doc.on.doc") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(model.automationAccess.token, forType: .string)
+                            }
+                            Button("重置令牌", systemImage: "arrow.clockwise") {
+                                model.automationAccess.resetToken()
+                                model.automationAccess.save()
+                                model.automationAPI.invalidatePlans()
+                            }
+                            Link("接入说明", destination: URL(string: "https://github.com/EEliberto/SurgeRelay-macOS/blob/main/docs/Automation.md")!)
+                        }
+                    }
+                }
+                .onChange(of: model.automationAccess) { _, access in access.save() }
             }
         }
         .formStyle(.grouped)
@@ -615,7 +653,7 @@ struct SettingsView: View {
                         storageProviderSummary(
                             assetName: "iCloudIcon",
                             title: "通过 iCloud 保持 Surge Relay 同步",
-                            detail: "生成模块保存在 iCloud 云盘的 Surge 文件夹中；App 私有数据留在本机 Application Support。"
+                            detail: "生成模块保存在 iCloud 云盘的 Surge 文件夹中。"
                         )
 
                         if showsStableICloudStatus {

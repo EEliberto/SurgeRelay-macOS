@@ -3,6 +3,32 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>261019</title>
+            <pubDate>Mon, 19 Oct 2026 11:14:31 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261019</link>
+            <sparkle:version>27101901</sparkle:version>
+            <sparkle:shortVersionString>261019</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[感谢你使用 Surge Relay！
+
+本次 261019 更新新增外部 Agent 与自动化访问，并更新了使用说明。此次更新我们带来了以下亮点：
+
+1. 新增本机自动化访问：可通过 REST API 或 MCP 接入外部 Agent，查询模块、机场订阅和诊断状态，搜索配置并查看来源模块、配置段和行号。
+
+2. 支持预览并应用修改：模块正文、Script Hub 选项和机场筛选设置可先查看修改前后的内容，再决定是否应用。内容发生变化时会要求重新预览，避免覆盖其他修改。
+
+3. 支持自动化刷新和发布：可刷新指定模块或机场订阅、发布至 GitHub 与 Cloudflare，以及写入已启用的 Surge 配置，并查询任务的完成或失败结果。
+
+4. 自动化访问默认关闭，仅接受本机携带令牌的请求；可分别允许编辑、刷新和发布，并随时重置访问令牌。
+
+5. 更新 README 截图与说明，补充机场订阅、服务器与客户端模式、Web 管理和自动化接入步骤；精简同步设置中的说明文字。
+
+Surge Relay 致力于为你带来更好的 Surge Pro 体验，如果你在使用中遇到任何问题，欢迎在 GitHub 提交 Issue。
+]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261019/Surge-Relay-261019-build-27101901.dmg" type="application/octet-stream" sparkle:edSignature="050gqCjWZcJx2yECFKItzLMxa4YqsGtHii9j6d6UO+1v4sJS5yBgdNps/gCFrvPjepufw8l4BKu6Izs19LmABQ==" length="29882163"/>
+        </item>
+        <item>
             <title>261008</title>
             <pubDate>Thu, 08 Oct 2026 19:25:17 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261008</link>

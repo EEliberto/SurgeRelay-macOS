@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06C4C0846B114FA6E23EE434 /* AutomationAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 902F412F0A05D22007CBDC94 /* AutomationAPITests.swift */; };
 		089528920AE30C1DC82F1C30 /* ScriptHubAdvancedOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41447934F9FEEEA0E8C36B5C /* ScriptHubAdvancedOptionsView.swift */; };
 		08F0450924697878DD139C34 /* ScriptHubWorkerFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C30378B89379C114F74BCFE /* ScriptHubWorkerFiles.swift */; };
 		0AEAD1701B3D76B37D6C6023 /* AppModel+AirportSubscriptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188C87194FA4AE26B4DB0BF7 /* AppModel+AirportSubscriptions.swift */; };
@@ -75,6 +76,7 @@
 		E34379F53B10E48FC3326282 /* SurgeRelayScriptWorker in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 483CCF19A1FCC5AE9104DCB7 /* SurgeRelayScriptWorker */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E52CE366B20E07E670D9E6E8 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DAE6646C847419124DE9BB /* Components.swift */; };
 		E80FCFFEF9B58FC6A20F81FB /* AppModel+WebServerLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB5B062B404241D8B802F27 /* AppModel+WebServerLifecycle.swift */; };
+		ECA06B1655FE5252CBF78C5A /* AutomationAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C138B5EB0E79EFBC9BC6EED1 /* AutomationAPI.swift */; };
 		EE031356FF14CAB55365F007 /* RemoteManagementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */; };
 		F26D37A67A65C911D54DC6AB /* AirportPolicyFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A0EABD866AEC95147719C3 /* AirportPolicyFileStore.swift */; };
 		FC75AF5CF098DE5C35C3572B /* EngineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354B1BF761ABD7AADD982A17 /* EngineStore.swift */; };
@@ -151,6 +153,7 @@
 		8157D4CB748796B7AD783D8F /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
 		87214DC5C47E9DD56ACA4D75 /* ScriptHubJavaScriptRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubJavaScriptRuntime.swift; sourceTree = "<group>"; };
 		87C37C3A54DB5CBC3F1EBCF0 /* AirportSubscriptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportSubscriptionsView.swift; sourceTree = "<group>"; };
+		902F412F0A05D22007CBDC94 /* AutomationAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationAPITests.swift; sourceTree = "<group>"; };
 		928AD0A8B93F157296A37C3C /* ScriptHubWorkerMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptHubWorkerMain.swift; sourceTree = "<group>"; };
 		A00DC6E63075F21C67B4B1EB /* ServiceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceModels.swift; sourceTree = "<group>"; };
 		A52EA7BE044528DB0E91468E /* RemoteManagementClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteManagementClient.swift; sourceTree = "<group>"; };
@@ -165,6 +168,7 @@
 		B79782FA982FB6C66E5D50BA /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		B7DAE6646C847419124DE9BB /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		BDD7A6C8082510469A2FA843 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		C138B5EB0E79EFBC9BC6EED1 /* AutomationAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationAPI.swift; sourceTree = "<group>"; };
 		D905BBAE1F590AB7B3F224FE /* PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
 		DA24D7A4AEF1770EAB7A055B /* ModuleMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleMerger.swift; sourceTree = "<group>"; };
 		DE439499672B9E09D271C062 /* ModuleLint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleLint.swift; sourceTree = "<group>"; };
@@ -262,6 +266,7 @@
 				F5BF27187B8859AF1E45EBCB /* AirportSubscriptionDownload.swift */,
 				AE677995C0877AF09B6A1966 /* AirportSubscriptionParser.swift */,
 				35411C7772C40476DCA6585D /* AirportSubscriptionStore.swift */,
+				C138B5EB0E79EFBC9BC6EED1 /* AutomationAPI.swift */,
 				AE767EF4FAD14A21E2B2FDCC /* EmbeddedScriptHubEngine.swift */,
 				354B1BF761ABD7AADD982A17 /* EngineStore.swift */,
 				6D546CD4ADCE23EA73DE271A /* GitHubClient.swift */,
@@ -317,6 +322,7 @@
 			isa = PBXGroup;
 			children = (
 				E4C271BCE3EE44CE47379AF2 /* AirportSubscriptionParserTests.swift */,
+				902F412F0A05D22007CBDC94 /* AutomationAPITests.swift */,
 				A632A09F875AFE2F6ADC7A42 /* SurgeRelayTests.swift */,
 			);
 			path = SurgeRelayTests;
@@ -491,6 +497,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C8840CD5E15DB62F96AFA533 /* AirportSubscriptionParserTests.swift in Sources */,
+				06C4C0846B114FA6E23EE434 /* AutomationAPITests.swift in Sources */,
 				2ADF1ADFE70E63FE334C1B5C /* SurgeRelayTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -511,6 +518,7 @@
 				E80FCFFEF9B58FC6A20F81FB /* AppModel+WebServerLifecycle.swift in Sources */,
 				384BEBC6E1F8C9A0A53FB0FC /* AppModel.swift in Sources */,
 				30817299C54FAD6356760AD8 /* AppSettings.swift in Sources */,
+				ECA06B1655FE5252CBF78C5A /* AutomationAPI.swift in Sources */,
 				9457731342986CF96B53EA0F /* CheckForUpdatesView.swift in Sources */,
 				E52CE366B20E07E670D9E6E8 /* Components.swift in Sources */,
 				C577752A7FA64D5E4749D52B /* DataHash.swift in Sources */,
@@ -630,7 +638,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27100804;
+				CURRENT_PROJECT_VERSION = 27101901;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -644,7 +652,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 261008;
+				MARKETING_VERSION = 261019;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -728,7 +736,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 27100804;
+				CURRENT_PROJECT_VERSION = 27101901;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -748,7 +756,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 261008;
+				MARKETING_VERSION = 261019;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

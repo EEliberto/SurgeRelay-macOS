@@ -6,6 +6,9 @@ import CryptoKit
 @MainActor
 @Observable
 final class AppModel {
+    var automationAccess = AutomationAccess.load()
+    @ObservationIgnored let automationAPI = AutomationAPI()
+
     var publishLintIssues: [ModuleLintIssue] = []
     static let combinedModuleSelectionID = RelayPlatform.ios.selectionID
 
@@ -1465,6 +1468,16 @@ final class AppModel {
         throw RelayError.cloudflarePropagationPending(
             retryAt: Date.now.addingTimeInterval(60 + Double.random(in: 0...15))
         )
+    }
+
+    func publishForAutomation() async throws {
+        guard settings.storageMode == .gitHub else {
+            throw RelayError.invalidOutput("iCloud 模式会在内容更新时自动导出，无需单独发布。")
+        }
+        guard let token = beginWork() else { throw RelayError.invalidOutput("正在处理其他任务。") }
+        defer { endWork(token) }
+        automaticPublishTask?.cancel()
+        _ = try await publishAllInternal()
     }
 
     func publishAll() async {

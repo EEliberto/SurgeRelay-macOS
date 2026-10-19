@@ -11,6 +11,9 @@ enum WebManagementAPI {
     }
 
     static func response(for request: WebHTTPRequest, model: AppModel) async -> WebHTTPResponse {
+        if request.path == "/api/v1" || request.path.hasPrefix("/api/v1/") {
+            return await model.automationAPI.response(for: request, model: model)
+        }
         if !request.path.hasPrefix("/api/") {
             return assetResponse(for: request.path)
         }
