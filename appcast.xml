@@ -3,6 +3,17 @@
     <channel>
         <title>Surge Relay</title>
         <item>
+            <title>261117</title>
+            <pubDate>Tue, 17 Nov 2026 20:34:41 +0800</pubDate>
+            <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261117</link>
+            <sparkle:version>27111701</sparkle:version>
+            <sparkle:shortVersionString>261117</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[修复了一些使用问题。]]></description>
+            <enclosure url="https://github.com/EEliberto/SurgeRelay-macOS/releases/download/v261117/Surge-Relay-261117-build-27111701.dmg" type="application/octet-stream" sparkle:edSignature="Ki8/EDD7b1wcu19TktgYWdJDulYHieNomlHyHV3YhxEksNHjdxYCAwcO3mv0oMcDeg0Z/JNJRtKR193EYobHCg==" length="29872891"/>
+        </item>
+        <item>
             <title>261019</title>
             <pubDate>Mon, 19 Oct 2026 11:14:31 +0800</pubDate>
             <link>https://github.com/EEliberto/SurgeRelay-macOS/releases/tag/v261019</link>
