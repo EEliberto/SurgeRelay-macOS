@@ -1,45 +1,6 @@
 import AppKit
 import SwiftUI
 
-private struct ModuleNavigationButtons: View {
-    let canGoBack: Bool
-    let canGoForward: Bool
-    let goBack: () -> Void
-    let goForward: () -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            navigationButton(systemImage: "chevron.left", isEnabled: canGoBack, action: goBack)
-
-            Rectangle()
-                .fill(Color(nsColor: .separatorColor).opacity(0.22))
-                .frame(width: 1, height: 17)
-
-            navigationButton(systemImage: "chevron.right", isEnabled: canGoForward, action: goForward)
-        }
-        .frame(width: 72, height: 32)
-        .glassEffect(.regular, in: Capsule())
-    }
-
-    private func navigationButton(
-        systemImage: String,
-        isEnabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: 35, height: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(isEnabled ? Color.primary.opacity(0.72) : Color.secondary.opacity(0.28))
-        .disabled(!isEnabled)
-    }
-}
-
-
-
 struct ModulesView: View {
     @Environment(AppModel.self) private var model
     @State private var searchText = ""
@@ -399,15 +360,13 @@ struct ModulesView: View {
             }
             .toolbar {
                 if selectionKind != nil {
-                    ToolbarItem(placement: .navigation) {
-                        ModuleNavigationButtons(
-                            canGoBack: !backStack.isEmpty,
-                            canGoForward: !forwardStack.isEmpty,
-                            goBack: goBack,
-                            goForward: goForward
-                        )
-                    }
-                    .sharedBackgroundVisibility(.hidden)
+                    RelayNavigationToolbar(
+                        canGoBack: !backStack.isEmpty,
+                        canGoForward: !forwardStack.isEmpty,
+                        goBack: goBack,
+                        goForward: goForward,
+                        isSidebarVisible: columnVisibility != .detailOnly
+                    )
                 }
                 ToolbarSpacer(.flexible)
                 if selectionKind != nil,

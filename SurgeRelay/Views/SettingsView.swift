@@ -23,51 +23,6 @@ private struct SettingsWindowConfigurator: NSViewRepresentable {
     }
 }
 
-private struct SettingsNavigationButtons: View {
-    let canGoBack: Bool
-    let canGoForward: Bool
-    let goBack: () -> Void
-    let goForward: () -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            navigationButton(
-                systemImage: "chevron.left",
-                isEnabled: canGoBack,
-                action: goBack
-            )
-
-            Rectangle()
-                .fill(Color(nsColor: .separatorColor).opacity(0.22))
-                .frame(width: 1, height: 17)
-
-            navigationButton(
-                systemImage: "chevron.right",
-                isEnabled: canGoForward,
-                action: goForward
-            )
-        }
-        .frame(width: 72, height: 32)
-        .glassEffect(.regular, in: Capsule())
-    }
-
-    private func navigationButton(
-        systemImage: String,
-        isEnabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: 35, height: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(isEnabled ? Color.primary.opacity(0.72) : Color.secondary.opacity(0.28))
-        .disabled(!isEnabled)
-    }
-}
-
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isCheckingUpdate = false
@@ -150,22 +105,13 @@ struct SettingsView: View {
             detailView(for: selectedPane)
                 .toolbar(removing: .title)
                 .toolbar {
-                    ToolbarItem(placement: .navigation) {
-                        HStack(spacing: 12) {
-                            SettingsNavigationButtons(
-                                canGoBack: !backStack.isEmpty,
-                                canGoForward: !forwardStack.isEmpty,
-                                goBack: goBack,
-                                goForward: goForward
-                            )
-
-                            Text(selectedPane.title)
-                                .font(.system(size: 15, weight: .semibold))
-                                .lineLimit(1)
-                                .fixedSize()
-                        }
-                    }
-                    .sharedBackgroundVisibility(.hidden)
+                    RelayNavigationToolbar(
+                        canGoBack: !backStack.isEmpty,
+                        canGoForward: !forwardStack.isEmpty,
+                        goBack: goBack,
+                        goForward: goForward,
+                        title: selectedPane.title
+                    )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

@@ -1,3 +1,7 @@
+## Surge Relay 261117
+
+修复了一些使用问题。
+
 ## Surge Relay 261019
 
 感谢你使用 Surge Relay！

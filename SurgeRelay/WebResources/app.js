@@ -2639,8 +2639,6 @@ function showCopySuccess(button) {
   if (!button) return;
   if (!button.hasAttribute('data-copy-label')) button.dataset.copyLabel = button.innerHTML;
   clearTimeout(Number(button.dataset.copyTimer || 0));
-  button.classList.remove('copy-success');
-  void button.offsetWidth;
   setTemplateHTML(button, '<span class="symbol" data-symbol="checkmark"></span>拷贝成功');
   button.classList.add('copy-success');
   const timer = setTimeout(() => {

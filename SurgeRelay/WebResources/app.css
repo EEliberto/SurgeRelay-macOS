@@ -563,12 +563,7 @@ body.preview-mode .code-editor { min-height: 0; }
 .button:hover { background: var(--fill-hover); }
 .button:active { transform: scale(.97); }
 .button.primary { background: var(--accent); color: #fff; }
-.button.copy-success { color: var(--green); animation: copy-success-pop 420ms cubic-bezier(.2,.8,.2,1); }
-@keyframes copy-success-pop {
-  0% { transform: scale(.97); }
-  48% { transform: scale(1.045); }
-  100% { transform: none; }
-}
+.button.copy-success { color: var(--green); }
 .button.destructive { color: var(--red); }
 .copy-button,
 .detail-row.action-row .button:not(.primary) {

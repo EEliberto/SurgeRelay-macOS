@@ -1,6 +1,87 @@
 import AppKit
 import SwiftUI
 
+/// Shared navigation chrome for the main and settings windows.
+struct RelayNavigationToolbar: ToolbarContent {
+    let canGoBack: Bool
+    let canGoForward: Bool
+    let goBack: () -> Void
+    let goForward: () -> Void
+    var title: String? = nil
+    var isSidebarVisible = true
+
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            HStack(spacing: 12) {
+                RelayNavigationButtons(
+                    canGoBack: canGoBack,
+                    canGoForward: canGoForward,
+                    goBack: goBack,
+                    goForward: goForward
+                )
+                if let title {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            // Optical correction for our custom capsule beside the split divider.
+            // No correction is needed when the sidebar (and divider) is hidden.
+            .offset(x: isSidebarVisible ? (layoutDirection == .leftToRight ? 3 : -3) : 0)
+        }
+        .sharedBackgroundVisibility(.hidden)
+    }
+}
+
+private struct RelayNavigationButtons: View {
+    let canGoBack: Bool
+    let canGoForward: Bool
+    let goBack: () -> Void
+    let goForward: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            navigationButton("返回", systemImage: "chevron.backward", isEnabled: canGoBack, action: goBack)
+                .keyboardShortcut("[", modifiers: .command)
+                .help("返回（⌘[）")
+
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor).opacity(0.22))
+                .frame(width: 1, height: 17)
+                .accessibilityHidden(true)
+
+            navigationButton("前进", systemImage: "chevron.forward", isEnabled: canGoForward, action: goForward)
+                .keyboardShortcut("]", modifiers: .command)
+                .help("前进（⌘]）")
+        }
+        .frame(width: 72, height: 32)
+        .glassEffect(.regular, in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("页面导航")
+    }
+
+    private func navigationButton(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 35.5, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isEnabled ? Color.primary.opacity(0.72) : Color.secondary.opacity(0.28))
+        .disabled(!isEnabled)
+    }
+}
+
 struct ModuleIconView: View {
     private static let imageCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
