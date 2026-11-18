@@ -162,11 +162,37 @@ struct AirportSubscriptionParserTests {
         }
     }
 
+    @Test func smartCleanupCoversCompleteNodeList() throws {
+        struct Example: Decodable { let input: String; let expected: String }
+        let url = URL(filePath: #filePath).deletingLastPathComponent()
+            .appending(path: "Fixtures/airport-node-names.json")
+        let examples = try JSONDecoder().decode([Example].self, from: Data(contentsOf: url))
+        #expect(examples.count == 324)
+        #expect(examples.filter { $0.input != $0.expected }.count == 97)
+        let optimization = AirportNodeNameOptimization(removalTerms: "", smartCleanup: true)
+        for example in examples {
+            #expect(AirportSubscriptionParser.optimizedNodeName(example.input, using: optimization) == example.expected)
+        }
+    }
+
+    @Test func smartCleanupCoversSystemRegionsAndLocalizedNames() {
+        let optimization = AirportNodeNameOptimization(removalTerms: "", smartCleanup: true)
+        for region in Locale.Region.isoRegions where region.identifier.count == 2 {
+            for identifier in ["zh_Hans", "zh_Hant", "zh_Hant_HK", "en"] {
+                guard let name = Locale(identifier: identifier).localizedString(forRegionCode: region.identifier),
+                      name != region.identifier else { continue }
+                let original = "\(name) 02丨0.5x \(region.identifier)"
+                #expect(AirportSubscriptionParser.optimizedNodeName(original, using: optimization) == "\(name) 02丨0.5x")
+            }
+        }
+    }
+
     @Test func smartCleanupPreservesMeaningfulAndAmbiguousContent() {
         let examples = [
             "香港家宽 01 IPLC 10Gbps", "香港 1x 专线 01", "香港 01 | US",
             "印度尼西亚 01 | IN", "香港日本 01 | JP", "节点 01 | HK", "1x", "HK",
-            "LINK 01 | IN", "香港 X1 Pro 01"
+            "LINK 01 | IN", "香港 X1 Pro 01", "巴西丨1x CR", "南非丨1x KE",
+            "刚果（金）丨1x CG", "多米尼克丨1x DO", "未知地区丨1x ZZ"
         ]
         let optimization = AirportNodeNameOptimization(removalTerms: "", smartCleanup: true)
         for name in examples {

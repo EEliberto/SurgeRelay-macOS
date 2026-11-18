@@ -33,8 +33,16 @@ test('preserves useful details, unknown regions, and conflicting regions', () =>
   for (const input of [
     '香港家宽 01 IPLC 10Gbps', '香港 1x 专线 01', '香港 01 | US',
     '印度尼西亚 01 | IN', '香港日本 01 | JP', '节点 01 | HK',
-    '1x', 'HK', 'LINK 01 | IN', '香港 X1 Pro 01'
+    '1x', 'HK', 'LINK 01 | IN', '香港 X1 Pro 01', '巴西丨1x CR', '南非丨1x KE',
+    '刚果（金）丨1x CG', '多米尼克丨1x DO', '未知地区丨1x ZZ'
   ]) assert.equal(clean(input), input);
+});
+
+test('covers the complete node list and preserves all rates and other names', () => {
+  const examples = JSON.parse(fs.readFileSync(path.join(root, 'SurgeRelayTests/Fixtures/airport-node-names.json'), 'utf8'));
+  assert.equal(examples.length, 324);
+  assert.equal(examples.filter(example => example.input !== example.expected).length, 97);
+  for (const { input, expected } of examples) assert.equal(clean(input), expected, input);
 });
 
 test('native and Web region aliases stay aligned and cover each supported region', () => {
@@ -43,8 +51,11 @@ test('native and Web region aliases stay aligned and cover each supported region
   const nativeAliases = JSON.parse(`{${literal}}`);
   const webAliases = JSON.parse(vm.runInContext('JSON.stringify(nodeRegionAliases)', context));
   assert.deepEqual(webAliases, nativeAliases);
+  assert.ok(Object.keys(webAliases).length >= 249);
   for (const [code, aliases] of Object.entries(webAliases)) {
-    assert.equal(clean(`${aliases[0]} 01 | 1x ${code}`), `${aliases[0]} 01 | 1x`);
+    for (const alias of aliases) {
+      assert.equal(clean(`${alias} 01 | 1x ${code}`), `${alias} 01 | 1x`);
+    }
   }
 });
 
