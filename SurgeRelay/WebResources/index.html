@@ -15,8 +15,8 @@
   <link rel="manifest" href="/manifest.webmanifest?v=8">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Surge Relay">
-  <link rel="stylesheet" href="/app.css?v=82">
-  <script src="/app.js?v=95" defer></script>
+  <link rel="stylesheet" href="/app.css?v=83">
+  <script src="/app.js?v=98" defer></script>
 </head>
 <body class="initializing">
   <div class="app-shell">
@@ -159,12 +159,13 @@
         </div><p class="section-footer">使用 {airport} 表示机场名称，{name} 表示原节点名称；留空则不重命名。</p></section>
         <section class="editor-section"><h3>节点名称优化</h3><div class="editor-group">
           <label class="form-row switch-row"><span>自动优化节点名称</span><input name="optimizeNodeNames" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
+          <label class="form-row switch-row" data-airport-optimization-dependent><span>智能精简节点名称</span><input name="smartNodeNameCleanup" type="checkbox" role="switch"><span class="toggle-track" aria-hidden="true"></span></label>
           <label class="form-row switch-row" data-airport-optimization-dependent><span>移除 Emoji 与国旗</span><input name="removeNodeNameEmoji" type="checkbox" role="switch" checked><span class="toggle-track" aria-hidden="true"></span></label>
           <div class="keyword-editor" data-keyword-editor="nodeNameRemovalTerms" data-airport-optimization-dependent>
             <div class="form-row"><span>移除关键词</span><div class="keyword-entry"><input data-keyword-input type="text" placeholder="例如 IEPL"><button class="keyword-add-button" data-keyword-add type="button" aria-label="添加移除关键词">＋</button></div></div>
             <input name="nodeNameRemovalTerms" type="hidden"><div class="keyword-chips" data-keyword-chips hidden></div>
           </div>
-          <div class="form-row airport-name-example" data-airport-optimization-dependent><span>效果示例</span><div><span data-airport-example-original>🇭🇰 香港实验性 IEPL 专线 1</span><strong data-airport-example-optimized>香港实验性 1</strong></div></div>
+          <div class="form-row airport-name-example" data-airport-optimization-dependent><span>效果示例</span><div><span data-airport-example-original>🇭🇰 香港 IEPL 01 | 2x HK</span><strong data-airport-example-optimized>香港 01 | 2x HK</strong></div></div>
         </div><p class="section-footer">逐项添加关键词，不区分大小写；重名节点会自动追加序号。</p></section>
       </div>
       <div class="dialog-message" id="airport-dialog-message" role="alert" hidden></div>

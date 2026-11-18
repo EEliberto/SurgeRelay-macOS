@@ -242,6 +242,7 @@ button { color: inherit; }
 [data-symbol="arrow.trianglehead.branch"] { --symbol: url("/symbols/arrow.trianglehead.branch.svg?v=1"); }
 [data-symbol="stethoscope"] { --symbol: url("/symbols/stethoscope.svg?v=1"); }
 [data-symbol="airplane"] { --symbol: url("/symbols/airplane.svg?v=1"); }
+[data-symbol="airplane.circle.fill"] { --symbol: url("/symbols/airplane.circle.fill.svg?v=1"); }
 
 .airport-summary-icon {
   background: transparent;
@@ -261,11 +262,17 @@ button { color: inherit; }
 .airport-row:first-child, .configuration-row:first-child { border-top: 0; }
 .airport-row .module-icon { width: 44px; height: 44px; border-radius: 12px; }
 .airport-row .module-icon {
+  align-self: center;
   overflow: visible;
   background: transparent;
 }
+.airport-row .airport-default-icon .symbol {
+  display: block;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+}
 .airport-row .module-icon img { object-fit: contain; border-radius: 0; }
-.airport-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.airport-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; align-self: center; }
 .airport-copy strong, .airport-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .airport-copy small { color: var(--secondary-label); font-size: 12px; }
 .airport-copy .airport-error { color: var(--red); }

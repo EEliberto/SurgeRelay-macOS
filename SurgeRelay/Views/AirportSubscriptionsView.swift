@@ -733,7 +733,7 @@ private struct AirportProxyOptionsEditor: View {
 private struct AirportNodeNameOptimizationEditor: View {
     @Binding var optimization: AirportNodeNameOptimization
 
-    private let exampleName = "🇭🇰 香港实验性 IEPL 专线 1"
+    private let exampleName = "🇭🇰 香港 IEPL 01 | 2x HK"
 
     private var optimizedExampleName: String {
         AirportSubscriptionParser.optimizedNodeName(exampleName, using: optimization)
@@ -742,6 +742,7 @@ private struct AirportNodeNameOptimizationEditor: View {
     var body: some View {
         Toggle("自动优化节点名称", isOn: $optimization.isEnabled)
         if optimization.isEnabled {
+            Toggle("智能精简节点名称", isOn: $optimization.smartCleanup)
             Toggle("移除 Emoji 与国旗", isOn: $optimization.removesEmoji)
             RelayKeywordListEditor(
                 title: "移除关键词", prompt: "例如 IEPL",

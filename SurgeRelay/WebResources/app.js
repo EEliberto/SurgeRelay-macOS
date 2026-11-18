@@ -308,6 +308,7 @@ ui.airportForm?.addEventListener('submit', saveAirport);
 ui.airportForm?.elements.optimizeNodeNames?.addEventListener('change', syncAirportNameOptimizationControls);
 ui.airportForm?.elements.nodeSortOrder?.addEventListener('change', syncAirportProcessingControls);
 ui.airportForm?.elements.removeNodeNameEmoji?.addEventListener('change', updateAirportNameExample);
+ui.airportForm?.elements.smartNodeNameCleanup?.addEventListener('change', updateAirportNameExample);
 ui.airportForm?.elements.nodeNameRemovalTerms?.addEventListener('input', updateAirportNameExample);
 ui.airportForm?.addEventListener('input', handleAirportKeywordInput);
 ui.airportForm?.addEventListener('click', handleAirportKeywordClick);
@@ -740,12 +741,12 @@ function renderAirportDetail(animate = true) {
     try { host = new URL(airport.sourceURL).host || airport.sourceURL; } catch (_) {}
     const icon = airport.iconURL
       ? `<img src="${escapeAttribute(airport.iconURL)}" alt="" loading="lazy">`
-      : `<span class="symbol" data-symbol="airplane"></span>`;
+      : `<span class="symbol" data-symbol="airplane.circle.fill" aria-hidden="true"></span>`;
     const status = airport.lastError
       ? `<small class="airport-error">${escapeHTML(airport.lastError)}</small>`
       : `<small>${escapeHTML(host)}${airport.lastUpdatedAt ? ` · ${escapeHTML(formatDate(airport.lastUpdatedAt))}` : ''}</small>`;
     return `<div class="airport-row">
-      <span class="module-icon ${airport.iconURL ? '' : 'placeholder'}">${icon}</span>
+      <span class="module-icon ${airport.iconURL ? '' : 'airport-default-icon'}">${icon}</span>
       <span class="airport-copy"><strong>${escapeHTML(airport.name)}</strong>${status}</span>
       <div class="airport-actions">
         <label class="module-toggle" title="写入 Surge 配置"><input type="checkbox" data-airport-toggle="${airport.id}" ${airport.isEnabled ? 'checked' : ''}><span class="toggle-track" aria-hidden="true"></span></label>
@@ -1863,6 +1864,7 @@ function openAirportEditor(airport = null) {
   form.skipCertificateVerification.value = processing.skipCertificateVerification || 'inherit';
   form.optimizeNodeNames.checked = airport?.nodeNameOptimization?.isEnabled ?? true;
   form.removeNodeNameEmoji.checked = airport?.nodeNameOptimization?.removesEmoji ?? true;
+  form.smartNodeNameCleanup.checked = airport?.nodeNameOptimization?.smartCleanup ?? false;
   setAirportKeywords('nodeNameRemovalTerms', airport?.nodeNameOptimization?.removalTerms ?? 'IEPL, IPEL, 专线');
   form.iconURL.value = airport?.iconURL || '';
   form.isEnabled.checked = airport?.isEnabled ?? true;
@@ -1877,6 +1879,7 @@ function syncAirportNameOptimizationControls() {
   if (!form) return;
   const disabled = !form.optimizeNodeNames.checked;
   form.removeNodeNameEmoji.disabled = disabled;
+  form.smartNodeNameCleanup.disabled = disabled;
   form.nodeNameRemovalTerms.disabled = disabled;
   ui.airportForm.querySelectorAll('[data-airport-optimization-dependent]').forEach(element => {
     element.hidden = disabled;
@@ -1970,11 +1973,98 @@ function handleAirportKeywordKeyDown(event) {
   addAirportKeyword(event.target.closest('[data-keyword-editor]'));
 }
 
+// Keep aliases and trailing metadata rules aligned with AirportSubscriptionParser.
+const nodeRegionAliases = {
+  "HK": ["香港", "Hong Kong", "HK"],
+  "TW": ["台湾", "台灣", "Taiwan", "TW"],
+  "SG": ["新加坡", "狮城", "獅城", "Singapore", "SG"],
+  "MY": ["马来西亚", "馬來西亞", "Malaysia", "MY"],
+  "JP": ["日本", "Japan", "JP"],
+  "KR": ["韩国", "韓國", "Korea", "KR"],
+  "US": ["美国", "美國", "United States", "USA", "US"],
+  "GB": ["英国", "英國", "United Kingdom", "UK", "GB"],
+  "ID": ["印尼", "印度尼西亚", "印度尼西亞", "Indonesia", "ID"],
+  "IN": ["印度", "India", "IN"],
+  "TR": ["土耳其", "Turkey", "Türkiye", "TR"],
+  "NP": ["尼泊尔", "尼泊爾", "Nepal", "NP"],
+  "GE": ["格鲁吉亚", "格魯吉亞", "Georgia", "GE"],
+  "UZ": ["乌兹别克斯坦", "烏茲別克斯坦", "Uzbekistan", "UZ"],
+  "FR": ["法国", "法國", "France", "FR"],
+  "DE": ["德国", "德國", "Germany", "DE"],
+  "DK": ["丹麦", "丹麥", "Denmark", "DK"],
+  "NO": ["挪威", "Norway", "NO"],
+  "SE": ["瑞典", "Sweden", "SE"],
+  "FI": ["芬兰", "芬蘭", "Finland", "FI"],
+  "CH": ["瑞士", "Switzerland", "CH"],
+  "CZ": ["捷克", "Czechia", "Czech Republic", "CZ"],
+  "GR": ["希腊", "希臘", "Greece", "GR"],
+  "NL": ["荷兰", "荷蘭", "Netherlands", "NL"],
+  "PL": ["波兰", "波蘭", "Poland", "PL"],
+  "RU": ["俄罗斯", "俄羅斯", "Russia", "RU"],
+  "HU": ["匈牙利", "Hungary", "HU"],
+  "IT": ["意大利", "義大利", "Italy", "IT"],
+  "BE": ["比利时", "比利時", "Belgium", "BE"],
+  "LT": ["立陶宛", "Lithuania", "LT"],
+  "ES": ["西班牙", "Spain", "ES"],
+  "PT": ["葡萄牙", "Portugal", "PT"],
+  "BG": ["保加利亚", "保加利亞", "Bulgaria", "BG"],
+  "CY": ["塞浦路斯", "Cyprus", "CY"],
+  "LV": ["拉脱维亚", "拉脫維亞", "Latvia", "LV"],
+  "SK": ["斯洛伐克", "Slovakia", "SK"],
+  "EE": ["爱沙尼亚", "愛沙尼亞", "Estonia", "EE"],
+  "RO": ["罗马尼亚", "羅馬尼亞", "Romania", "RO"],
+  "AL": ["阿尔巴尼亚", "阿爾巴尼亞", "Albania", "AL"],
+  "CA": ["加拿大", "Canada", "CA"],
+  "AU": ["澳大利亚", "澳大利亞", "澳洲", "Australia", "AU"],
+  "MO": ["澳门", "澳門", "Macau", "Macao", "MO"],
+  "TH": ["泰国", "泰國", "Thailand", "TH"],
+  "VN": ["越南", "Vietnam", "VN"],
+  "PH": ["菲律宾", "菲律賓", "Philippines", "PH"]
+};
+
+function intelligentlyCleanedNodeName(originalName) {
+  let name = originalName.trim();
+  const trimSeparators = value => value.replace(/^[\s|｜/·•_\-–—]+|[\s|｜/·•_\-–—]+$/g, '');
+  while (true) {
+    const candidate = trimSeparators(name);
+    const region = candidate.match(/[\s|｜/·•_\-–—]+([a-z]{2})$/i);
+    if (region) {
+      const prefix = trimSeparators(candidate.slice(0, region.index));
+      if (isRedundantRegionCode(region[1].toUpperCase(), prefix)) {
+        name = prefix;
+        continue;
+      }
+    }
+    break;
+  }
+  return name;
+}
+
+function isRedundantRegionCode(code, name) {
+  if (!nodeRegionAliases[code]) return false;
+  let strongestMatch = 0;
+  let matchingCodes = new Set();
+  Object.entries(nodeRegionAliases).forEach(([regionCode, aliases]) => {
+    aliases.forEach(alias => {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = /^[\x00-\x7F]+$/.test(alias) ? `(?<![a-z])${escaped}(?![a-z])` : escaped;
+      if (!new RegExp(pattern, 'i').test(name)) return;
+      if (alias.length > strongestMatch) {
+        strongestMatch = alias.length;
+        matchingCodes = new Set([regionCode]);
+      } else if (alias.length === strongestMatch) matchingCodes.add(regionCode);
+    });
+  });
+  return matchingCodes.size === 1 && matchingCodes.has(code);
+}
+
 function updateAirportNameExample() {
   const form = ui.airportForm?.elements;
   const output = ui.airportForm?.querySelector('[data-airport-example-optimized]');
   if (!form || !output) return;
-  let name = '🇭🇰 香港实验性 IEPL 专线 1';
+  let name = '🇭🇰 香港 IEPL 01 | 2x HK';
+  if (!form.optimizeNodeNames.checked) { output.textContent = name; return; }
+  if (form.smartNodeNameCleanup.checked) name = intelligentlyCleanedNodeName(name);
   if (form.removeNodeNameEmoji.checked) name = name.replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D]/gu, '');
   const terms = splitAirportKeywords(form.nodeNameRemovalTerms.value).sort((left, right) => right.length - left.length);
   terms.forEach(term => {
@@ -1993,6 +2083,7 @@ async function saveAirport(event) {
     nodeNameOptimization: {
       isEnabled: form.optimizeNodeNames.checked,
       removesEmoji: form.removeNodeNameEmoji.checked,
+      smartCleanup: form.smartNodeNameCleanup.checked,
       removalTerms: form.nodeNameRemovalTerms.value.trim()
     },
     nodeProcessing: {

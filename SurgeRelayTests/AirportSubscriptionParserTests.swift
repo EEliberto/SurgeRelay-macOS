@@ -141,6 +141,69 @@ struct AirportSubscriptionParserTests {
         #expect(AirportSubscriptionParser.optimizedNodeName(original, using: optimization) == original)
     }
 
+    @Test func smartCleanupRemovesRepeatedRegionsAndPreservesRates() {
+        let examples = [
+            ("香港 01 | 1x HK", "香港 01 | 1x"),
+            ("香港家宽 02｜2x HK", "香港家宽 02｜2x"),
+            ("台湾 03 | 3x TW", "台湾 03 | 3x"),
+            ("美国-纽约 01 ｜ 5x US", "美国-纽约 01 ｜ 5x"),
+            ("日本 01 | 0.5x JP", "日本 01 | 0.5x"),
+            ("新加坡 02 | 2× SG", "新加坡 02 | 2×"),
+            ("香港 01｜1x/2x/3x/5x", "香港 01｜1x/2x/3x/5x"),
+            ("香港 01 | HK | 2x", "香港 01 | HK | 2x"),
+            ("Hong Kong 01 | 1X hk", "Hong Kong 01 | 1X"),
+            ("HK 01 | 1x HK", "HK 01 | 1x"),
+            ("印度尼西亚 01 | 2倍 ID", "印度尼西亚 01 | 2倍"),
+            ("日本 01 | JP", "日本 01")
+        ]
+        let optimization = AirportNodeNameOptimization(removalTerms: "", smartCleanup: true)
+        for (input, expected) in examples {
+            #expect(AirportSubscriptionParser.optimizedNodeName(input, using: optimization) == expected)
+        }
+    }
+
+    @Test func smartCleanupPreservesMeaningfulAndAmbiguousContent() {
+        let examples = [
+            "香港家宽 01 IPLC 10Gbps", "香港 1x 专线 01", "香港 01 | US",
+            "印度尼西亚 01 | IN", "香港日本 01 | JP", "节点 01 | HK", "1x", "HK",
+            "LINK 01 | IN", "香港 X1 Pro 01"
+        ]
+        let optimization = AirportNodeNameOptimization(removalTerms: "", smartCleanup: true)
+        for name in examples {
+            #expect(AirportSubscriptionParser.optimizedNodeName(name, using: optimization) == name)
+        }
+        let original = "香港 01 | 2x HK"
+        #expect(AirportSubscriptionParser.optimizedNodeName(original, using: .init()) == original)
+        #expect(AirportSubscriptionParser.optimizedNodeName(
+            original, using: .init(isEnabled: false, smartCleanup: true)
+        ) == original)
+    }
+
+    @Test func smartCleanupPersistsAndDefaultsOffForOlderSettings() throws {
+        let oldSettings = Data(#"{"isEnabled":true,"removesEmoji":false,"removalTerms":"IEPL"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AirportNodeNameOptimization.self, from: oldSettings)
+        #expect(!decoded.smartCleanup)
+        #expect(!decoded.removesEmoji)
+        #expect(decoded.removalTerms == "IEPL")
+        let enabled = AirportNodeNameOptimization(smartCleanup: true)
+        let restored = try JSONDecoder().decode(AirportNodeNameOptimization.self, from: JSONEncoder().encode(enabled))
+        #expect(restored == enabled)
+    }
+
+    @Test func smartCleanupKeepsDistinctRatesAndAppliesBeforeTemplate() {
+        var subscription = AirportSubscription(name: "Example")
+        subscription.nodeNameOptimization.smartCleanup = true
+        subscription.nodeNameTemplate = "{airport} - {name}"
+        let entries = [
+            AirportProxyEntry(originalName: "香港 01 | 1x HK", definition: "ss, a.example, 443"),
+            AirportProxyEntry(originalName: "香港 01 | 2x HK", definition: "ss, b.example, 443")
+        ]
+        var usedNames = Set<String>()
+        let result = AirportSubscriptionParser.process(entries, for: subscription, reserving: &usedNames)
+        #expect(usedNames == ["example - 香港 01 | 1x", "example - 香港 01 | 2x"])
+        #expect(result.included.count == 2)
+    }
+
     @Test func makesOptimizedDuplicateNamesUnique() {
         var usedNames = Set<String>()
 

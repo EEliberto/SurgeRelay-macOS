@@ -127,7 +127,7 @@ enum AirportSubscriptionParser {
         using optimization: AirportNodeNameOptimization
     ) -> String {
         guard optimization.isEnabled else { return originalName }
-        var name = originalName
+        var name = optimization.smartCleanup ? intelligentlyCleanedNodeName(originalName) : originalName
 
         if optimization.removesEmoji {
             name.removeAll(where: isEmojiCharacter)
@@ -157,6 +157,72 @@ enum AirportSubscriptionParser {
         )
         return name.isEmpty ? "节点" : name
     }
+
+    // Only remove redundant trailing region codes. Preserve rates and identifiers.
+    static func intelligentlyCleanedNodeName(_ originalName: String) -> String {
+        var name = originalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "|｜/·•_-–—"))
+        while true {
+            let candidate = name.trimmingCharacters(in: separators)
+            if let range = candidate.range(of: #"[\s|｜/·•_\-–—]+[a-z]{2}$"#, options: [.regularExpression, .caseInsensitive]) {
+                let code = String(candidate.suffix(2)).uppercased()
+                let prefix = String(candidate[..<range.lowerBound]).trimmingCharacters(in: separators)
+                if isRedundantRegionCode(code, in: prefix) {
+                    name = prefix
+                    continue
+                }
+            }
+            break
+        }
+        return name
+    }
+
+    private static func isRedundantRegionCode(_ code: String, in name: String) -> Bool {
+        guard nodeRegionAliases[code] != nil else { return false }
+        var strongestMatch = 0
+        var matchingCodes = Set<String>()
+        for (regionCode, aliases) in nodeRegionAliases {
+            for alias in aliases {
+                let escaped = NSRegularExpression.escapedPattern(for: alias)
+                let pattern = alias.unicodeScalars.allSatisfy(\.isASCII)
+                    ? #"(?i)(?<![a-z])"# + escaped + #"(?![a-z])"# : escaped
+                guard name.range(of: pattern, options: .regularExpression) != nil else { continue }
+                if alias.count > strongestMatch {
+                    strongestMatch = alias.count
+                    matchingCodes = [regionCode]
+                } else if alias.count == strongestMatch {
+                    matchingCodes.insert(regionCode)
+                }
+            }
+        }
+        return matchingCodes == [code]
+    }
+
+    private static let nodeRegionAliases: [String: [String]] = [
+        "HK": ["香港", "Hong Kong", "HK"], "TW": ["台湾", "台灣", "Taiwan", "TW"],
+        "SG": ["新加坡", "狮城", "獅城", "Singapore", "SG"], "MY": ["马来西亚", "馬來西亞", "Malaysia", "MY"],
+        "JP": ["日本", "Japan", "JP"], "KR": ["韩国", "韓國", "Korea", "KR"],
+        "US": ["美国", "美國", "United States", "USA", "US"], "GB": ["英国", "英國", "United Kingdom", "UK", "GB"],
+        "ID": ["印尼", "印度尼西亚", "印度尼西亞", "Indonesia", "ID"], "IN": ["印度", "India", "IN"],
+        "TR": ["土耳其", "Turkey", "Türkiye", "TR"], "NP": ["尼泊尔", "尼泊爾", "Nepal", "NP"],
+        "GE": ["格鲁吉亚", "格魯吉亞", "Georgia", "GE"], "UZ": ["乌兹别克斯坦", "烏茲別克斯坦", "Uzbekistan", "UZ"],
+        "FR": ["法国", "法國", "France", "FR"], "DE": ["德国", "德國", "Germany", "DE"],
+        "DK": ["丹麦", "丹麥", "Denmark", "DK"], "NO": ["挪威", "Norway", "NO"],
+        "SE": ["瑞典", "Sweden", "SE"], "FI": ["芬兰", "芬蘭", "Finland", "FI"],
+        "CH": ["瑞士", "Switzerland", "CH"], "CZ": ["捷克", "Czechia", "Czech Republic", "CZ"],
+        "GR": ["希腊", "希臘", "Greece", "GR"], "NL": ["荷兰", "荷蘭", "Netherlands", "NL"],
+        "PL": ["波兰", "波蘭", "Poland", "PL"], "RU": ["俄罗斯", "俄羅斯", "Russia", "RU"],
+        "HU": ["匈牙利", "Hungary", "HU"], "IT": ["意大利", "義大利", "Italy", "IT"],
+        "BE": ["比利时", "比利時", "Belgium", "BE"], "LT": ["立陶宛", "Lithuania", "LT"],
+        "ES": ["西班牙", "Spain", "ES"], "PT": ["葡萄牙", "Portugal", "PT"],
+        "BG": ["保加利亚", "保加利亞", "Bulgaria", "BG"], "CY": ["塞浦路斯", "Cyprus", "CY"],
+        "LV": ["拉脱维亚", "拉脫維亞", "Latvia", "LV"], "SK": ["斯洛伐克", "Slovakia", "SK"],
+        "EE": ["爱沙尼亚", "愛沙尼亞", "Estonia", "EE"], "RO": ["罗马尼亚", "羅馬尼亞", "Romania", "RO"],
+        "AL": ["阿尔巴尼亚", "阿爾巴尼亞", "Albania", "AL"], "CA": ["加拿大", "Canada", "CA"],
+        "AU": ["澳大利亚", "澳大利亞", "澳洲", "Australia", "AU"], "MO": ["澳门", "澳門", "Macau", "Macao", "MO"],
+        "TH": ["泰国", "泰國", "Thailand", "TH"], "VN": ["越南", "Vietnam", "VN"],
+        "PH": ["菲律宾", "菲律賓", "Philippines", "PH"]
+    ]
 
     static func uniqueNodeName(_ preferredName: String, reserving usedNames: inout Set<String>) -> String {
         if usedNames.insert(preferredName.lowercased()).inserted {

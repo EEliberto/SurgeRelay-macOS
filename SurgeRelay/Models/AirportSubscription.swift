@@ -5,26 +5,30 @@ struct AirportNodeNameOptimization: Codable, Equatable, Sendable {
 
     var isEnabled: Bool
     var removesEmoji: Bool
+    var smartCleanup: Bool
     var removalTerms: String
 
     init(
         isEnabled: Bool = true,
         removesEmoji: Bool = true,
-        removalTerms: String = defaultRemovalTerms
+        removalTerms: String = defaultRemovalTerms,
+        smartCleanup: Bool = false
     ) {
         self.isEnabled = isEnabled
         self.removesEmoji = removesEmoji
+        self.smartCleanup = smartCleanup
         self.removalTerms = removalTerms
     }
 
     private enum CodingKeys: String, CodingKey {
-        case isEnabled, removesEmoji, removalTerms
+        case isEnabled, removesEmoji, removalTerms, smartCleanup
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         removesEmoji = try container.decodeIfPresent(Bool.self, forKey: .removesEmoji) ?? true
+        smartCleanup = try container.decodeIfPresent(Bool.self, forKey: .smartCleanup) ?? false
         removalTerms = try container.decodeIfPresent(String.self, forKey: .removalTerms)
             ?? Self.defaultRemovalTerms
     }
