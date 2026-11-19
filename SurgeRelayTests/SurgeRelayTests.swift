@@ -343,6 +343,35 @@ final class SurgeRelayTests: XCTestCase {
         XCTAssertNil(report.commitSHA)
     }
 
+    func testSubStoreQuotedArgumentsDoNotCreateDuplicateURLKeys() {
+        let content = ##"#!arguments=ability:http-client-policy,cronexp:55 23 * * *,sync:"Sub-Store Sync",timeout:900,engine:auto,produce:"# Sub-Store Produce",produce_cronexp:50 */6 * * *,sync_success_notify:true,produce_sub:"sub1,sub2",produce_col:"col1,col2",max_size:-1,cors:"https://sub-store.vercel.app,http://substore.stash,https://substore.stash,https://sub.xream.eu.org""## + "\n[Script]\nargument=\"cors={{{cors}}}\""
+        let info = ModuleArgumentProcessor.info(in: content)
+        XCTAssertEqual(info.definitions.count, 12)
+        let values = Dictionary(uniqueKeysWithValues: info.definitions.map { ($0.key, $0.defaultValue) })
+        XCTAssertNil(values["https"])
+        XCTAssertEqual(values["produce_sub"], "sub1,sub2")
+        XCTAssertEqual(values["produce_col"], "col1,col2")
+        XCTAssertEqual(values["cors"], "https://sub-store.vercel.app,http://substore.stash,https://substore.stash,https://sub.xream.eu.org")
+        XCTAssertTrue(ModuleArgumentProcessor.materialize(content, overrides: [:]).contains(values["cors"]!))
+        XCTAssertTrue(ModuleArgumentProcessor.materialize(content, overrides: ["cors": "https://a.example,https://b.example"]).contains("https://a.example,https://b.example"))
+    }
+
+    func testModuleArgumentsHandleQuotedSeparatorsAndDuplicateKeys() {
+        let examples: [(String, [String: String])] = [
+            (#"url:"https://a.example?p=1&b=2",list:'a,b',empty:,flag:true"#, ["url": "https://a.example?p=1&b=2", "list": "a,b", "empty": "", "flag": "true"]),
+            (#"text:don't,flag:true"#, ["text": "don't", "flag": "true"]),
+            (#"key:first,key:second, key :third"#, ["key": "first"]),
+            (#"key=first&%6Bey=second&list=a%2Cb&url=https%3A%2F%2Fa.example%3Fx%3D1"#, ["key": "first", "list": "a,b", "url": "https://a.example?x=1"]),
+            (#"list="a&b"&flag=true"#, ["list": "a&b", "flag": "true"]),
+            (#"text:"a\"b,c",flag:true"#, ["text": #"a\"b,c"#, "flag": "true"]),
+            (#"broken:"a,b,c"#, ["broken": #""a,b,c"#])
+        ]
+        for (header, expected) in examples {
+            let definitions = ModuleArgumentProcessor.info(in: "#!arguments=" + header).definitions
+            XCTAssertEqual(Dictionary(uniqueKeysWithValues: definitions.map { ($0.key, $0.defaultValue) }), expected)
+        }
+    }
+
     func testModuleArgumentsAreMaterializedAndMetadataIsRemoved() {
         let content = """
         #!name=Demo

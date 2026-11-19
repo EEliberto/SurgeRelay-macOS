@@ -100,19 +100,50 @@ enum ModuleArgumentProcessor {
     }
 
     private static func parse(_ value: String) -> [(String, String)] {
-        if value.contains("=") {
-            return value.split(separator: "&").compactMap { pair in
-                let pieces = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-                guard pieces.count == 2 else { return nil }
-                let key = String(pieces[0]).removingPercentEncoding ?? String(pieces[0])
-                let value = String(pieces[1]).removingPercentEncoding ?? String(pieces[1])
-                return normalizedPair(key, value)
+        // The first key/value separator determines the syntax; '=' inside a
+        // colon-style value (for example a URL query) must not change it.
+        let queryStyle = value.first(where: { $0 == ":" || $0 == "=" }) == "="
+        let separator: Character = queryStyle ? "&" : ","
+        let assignment: Character = queryStyle ? "=" : ":"
+        var pairs: [String] = []
+        var current = ""
+        var quote: Character?
+        var escaped = false
+        for character in value {
+            if escaped {
+                current.append(character)
+                escaped = false
+            } else if character == "\\", quote != nil {
+                current.append(character)
+                escaped = true
+            } else if let activeQuote = quote {
+                current.append(character)
+                if character == activeQuote { quote = nil }
+            } else if (character == "\"" || character == "'"),
+                      let valueStart = current.firstIndex(of: assignment),
+                      current[current.index(after: valueStart)...].trimmingCharacters(in: .whitespaces).isEmpty {
+                current.append(character)
+                quote = character
+            } else if character == separator {
+                pairs.append(current)
+                current = ""
+            } else {
+                current.append(character)
             }
         }
-        return value.split(separator: ",").compactMap { pair in
-            let pieces = pair.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        pairs.append(current)
+        var seen = Set<String>()
+        return pairs.compactMap { pair in
+            let pieces = pair.split(separator: assignment, maxSplits: 1, omittingEmptySubsequences: false)
             guard pieces.count == 2 else { return nil }
-            return normalizedPair(String(pieces[0]), String(pieces[1]))
+            let key = String(pieces[0])
+            let rawValue = String(pieces[1])
+            guard let normalized = normalizedPair(
+                queryStyle ? key.removingPercentEncoding ?? key : key,
+                queryStyle ? rawValue.removingPercentEncoding ?? rawValue : rawValue
+            ), seen.insert(normalized.0).inserted else { return nil }
+            // First declaration wins, preserving stable parameter order and IDs.
+            return normalized
         }
     }
 
